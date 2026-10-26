@@ -1,4 +1,4 @@
-// Interfaz de la demo (UI/UX System OS v1.1, Fase 4: Centro de aprobaciones). Sin frameworks;
+// Interfaz de la demo (UI/UX System OS v1.1, Fase 5: Actividad y ejecuciones). Sin frameworks;
 // el token vive en localStorage (demo; en producción usar cookie httpOnly + HTTPS).
 const $ = (id) => document.getElementById(id);
 const err = $('error');
@@ -87,27 +87,88 @@ function formatDateTime(s) {
   return s ? String(s).slice(0, 19).replace('T', ' ') : '';
 }
 
+// ---------- Etiquetas de actividad y ejecuciones (Fase 5) ----------
+// Solo presentación: los códigos sin mapear se muestran tal cual. Estados
+// reales de ejecución: done y failed (no existen pendiente, en ejecución ni
+// reintentando en el backend, así que no se muestran).
+function executionStatusBadge(s) {
+  return { done: 'badge-success', failed: 'badge-danger' }[s] || 'badge-neutral';
+}
+
+function executionStatusLabel(s) {
+  return { done: 'Completada', failed: 'Fallida' }[s] || s;
+}
+
+function auditActionLabel(a) {
+  return {
+    'user.login': 'Inicio de sesión',
+    'user.created': 'Usuario creado',
+    'org.created': 'Organización creada',
+    'opportunity.created': 'Oportunidad creada',
+    'opportunity.updated': 'Oportunidad actualizada',
+    'task.created': 'Tarea creada',
+    'task.updated': 'Tarea actualizada',
+    'draft.created': 'Borrador creado',
+    'draft.approved': 'Borrador aprobado',
+    'draft.rejected': 'Borrador rechazado',
+    'execution.retried': 'Ejecución reintentada',
+  }[a] || a;
+}
+
+function auditEntityLabel(e) {
+  return {
+    user: 'usuario',
+    org: 'organización',
+    organization: 'organización',
+    opportunity: 'oportunidad',
+    task: 'tarea',
+    draft: 'borrador',
+    execution: 'ejecución',
+  }[e] || e;
+}
+
+function parseJson(s) {
+  try {
+    return JSON.parse(s || '{}');
+  } catch {
+    return {};
+  }
+}
+
 let dialogOpener = null;
 let dialogAction = null;
 
-function openDialog(kind, draft, opener) {
-  if (!draft) return;
+function openDialog(kind, item, opener) {
+  if (!item) return;
   dialogOpener = opener || null;
-  dialogAction = { kind, id: draft.id };
-  const who = `${draft.contact_name}${draft.company ? ` (${draft.company})` : ''}`;
+  dialogAction = { kind, id: item.id };
   const confirmBtn = $('dialog-confirm');
-  if (kind === 'approve') {
-    $('dialog-title').textContent = 'Aprobar borrador';
-    $('dialog-text').textContent = `Vas a aprobar el borrador para ${who}. La oportunidad pasará a seguimiento y la decisión quedará registrada en la auditoría. No se enviará ningún mensaje.`;
+  if (kind === 'approve' || kind === 'reject') {
+    const who = `${item.contact_name}${item.company ? ` (${item.company})` : ''}`;
+    if (kind === 'approve') {
+      $('dialog-title').textContent = 'Aprobar borrador';
+      $('dialog-text').textContent = `Vas a aprobar el borrador para ${who}. La oportunidad pasará a seguimiento y la decisión quedará registrada en la auditoría. No se enviará ningún mensaje.`;
+      $('dialog-reason-wrap').classList.add('hidden');
+      confirmBtn.className = 'btn btn-primary';
+      confirmBtn.textContent = 'Aprobar';
+    } else {
+      $('dialog-title').textContent = 'Rechazar borrador';
+      $('dialog-text').textContent = `Vas a rechazar el borrador para ${who}. La oportunidad volverá a nueva y la decisión quedará registrada en la auditoría. No se enviará ningún mensaje.`;
+      $('dialog-reason-wrap').classList.remove('hidden');
+      confirmBtn.className = 'btn btn-danger';
+      confirmBtn.textContent = 'Rechazar';
+    }
+  } else if (kind === 'retry') {
+    // Reintento (Fase 5, 4.5): qué ejecución se repetirá y que el resultado
+    // puede depender del estado actual del sistema. El servidor solo permite
+    // reintentar ejecuciones fallidas (409 en otro caso).
+    $('dialog-title').textContent = 'Reintentar ejecución';
+    $('dialog-text').textContent = `Vas a repetir la ejecución «${item.workflow} v${item.workflow_version}» (fallida). El resultado puede depender del estado actual del sistema: se volverá a procesar la oportunidad original y quedará registrada una nueva ejecución.`;
     $('dialog-reason-wrap').classList.add('hidden');
     confirmBtn.className = 'btn btn-primary';
-    confirmBtn.textContent = 'Aprobar';
+    confirmBtn.textContent = 'Reintentar';
   } else {
-    $('dialog-title').textContent = 'Rechazar borrador';
-    $('dialog-text').textContent = `Vas a rechazar el borrador para ${who}. La oportunidad volverá a nueva y la decisión quedará registrada en la auditoría. No se enviará ningún mensaje.`;
-    $('dialog-reason-wrap').classList.remove('hidden');
-    confirmBtn.className = 'btn btn-danger';
-    confirmBtn.textContent = 'Rechazar';
+    return;
   }
   $('dialog-reason').value = '';
   $('dialog-overlay').classList.remove('hidden');
@@ -153,22 +214,26 @@ document.addEventListener('keydown', (e) => {
 
 $('dialog-confirm').onclick = async () => {
   if (!dialogAction) return;
+  const feedbackId = dialogAction.kind === 'retry' ? 'activity-feedback' : 'draft-feedback';
   await withLoading($('dialog-confirm'), async () => {
     try {
       if (dialogAction.kind === 'approve') {
         await api(`/api/drafts/${dialogAction.id}/approve`, { method: 'POST', body: '{}' });
-        setFeedback('draft-feedback', 'success', 'Borrador aprobado. La oportunidad pasó a seguimiento; no se envió ningún mensaje.');
-      } else {
+        setFeedback(feedbackId, 'success', 'Borrador aprobado. La oportunidad pasó a seguimiento; no se envió ningún mensaje.');
+      } else if (dialogAction.kind === 'reject') {
         await api(`/api/drafts/${dialogAction.id}/reject`, { method: 'POST', body: JSON.stringify({ note: $('dialog-reason').value }) });
-        setFeedback('draft-feedback', 'success', 'Borrador rechazado. La oportunidad volvió a nueva.');
+        setFeedback(feedbackId, 'success', 'Borrador rechazado. La oportunidad volvió a nueva.');
+      } else {
+        await api(`/api/executions/${dialogAction.id}/retry`, { method: 'POST', body: '{}' });
+        setFeedback(feedbackId, 'success', 'Ejecución reintentada. Se creó una nueva ejecución; revisá la lista.');
       }
       closeDialog();
       await refresh();
     } catch (e) {
-      // Conflicto (409, "ya fue decidido") u otro error: se cierra el diálogo,
-      // se informa en la sección y se recarga para mostrar el estado real.
+      // Conflicto (409) u otro error: se cierra el diálogo, se informa en la
+      // sección y se recarga para mostrar el estado real. Sin éxito falso.
       closeDialog();
-      setFeedback('draft-feedback', 'error', e.message);
+      setFeedback(feedbackId, 'error', e.message);
       await refresh();
     }
   });
@@ -302,16 +367,44 @@ async function refresh() {
       b.onclick = () => openDialog('reject', draftsById.get(b.dataset.reject), b);
     });
     const { audit } = await api('/api/audit');
-    const auditItems = (a) => `<li>${esc(a.created_at.slice(0, 19))} — ${esc(a.actor)}: ${esc(a.action)} (${esc(a.entity)})</li>`;
-    $('audit').innerHTML = audit.slice(0, 20).map(auditItems).join('') || '<li>Sin registros.</li>';
-    $('activity').innerHTML = audit.slice(0, 5).map(auditItems).join('') || '<li>Sin registros.</li>';
+    // Detalle legible del evento, solo con datos reales del servidor: si el
+    // detalle cita una oportunidad, se resuelve a su contacto; si trae
+    // categoría/prioridad, se muestran con etiquetas. El resto se ignora.
+    const auditDetail = (a) => {
+      const d = parseJson(a.detail_json);
+      if (d.opportunityId) {
+        const o = oppById.get(d.opportunityId);
+        return o ? ` · oportunidad: ${esc(o.contact_name)}${o.company ? ` (${esc(o.company)})` : ''}` : '';
+      }
+      const parts = [];
+      if (d.category) parts.push(`categoría ${esc(d.category)}`);
+      if (d.priority) parts.push(`prioridad ${esc(priorityLabel(d.priority))}`);
+      return parts.length ? ` · ${parts.join(' · ')}` : '';
+    };
+    const auditItems = (a) => `<li>${esc(formatDateTime(a.created_at))} — ${esc(a.actor)}: ${esc(auditActionLabel(a.action))} (${esc(auditEntityLabel(a.entity))})${auditDetail(a)}</li>`;
+    $('audit').innerHTML = audit.slice(0, 20).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
+    $('activity').innerHTML = audit.slice(0, 5).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
     const { executions } = await api('/api/executions');
-    $('executions').innerHTML = executions.slice(0, 20).map((e) =>
-      `<li>${esc(e.created_at.slice(0, 19))} — ${esc(e.workflow)} v${esc(e.workflow_version)}: ${esc(e.status)}` +
-      (e.status === 'failed' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button> — ${esc(e.error || '')}` : '') + '</li>',
-    ).join('') || '<li>Sin ejecuciones.</li>';
+    // Sin pasos en el backend: no se inventan. El detalle real es workflow,
+    // versión, identificador, inicio/fin, resultado (oportunidad creada) o
+    // error. El botón Reintentar solo aparece en fallidas, como exige el
+    // servidor, y abre el diálogo de confirmación (no actúa directo).
+    $('executions').innerHTML = executions.slice(0, 20).map((e) => {
+      const result = parseJson(e.result_json);
+      const opp = result.opportunity;
+      const detail = e.status === 'failed' && e.error
+        ? ` — Error: ${esc(e.error)}`
+        : (opp ? ` — Resultado: oportunidad ${esc(opp.contact_name)}${opp.company ? ` (${esc(opp.company)})` : ''}` : '');
+      const fin = e.updated_at && e.updated_at.slice(0, 19) !== e.created_at.slice(0, 19)
+        ? ` · Fin ${esc(formatDateTime(e.updated_at))}` : '';
+      return `<li><span class="badge ${executionStatusBadge(e.status)}">${esc(executionStatusLabel(e.status))}</span> ` +
+        `${esc(formatDateTime(e.created_at))} — ${esc(e.workflow)} v${esc(e.workflow_version)}` +
+        ` <span class="text-muted" title="${esc(e.id)}">(${esc(e.id.slice(0, 8))})</span>${fin}${detail}` +
+        (e.status === 'failed' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button>` : '') + '</li>';
+    }).join('') || '<li class="empty-state">Sin ejecuciones todavía.</li>';
+    const executionsById = new Map(executions.map((e) => [e.id, e]));
     document.querySelectorAll('[data-retry]').forEach((b) => {
-      b.onclick = async () => { await api(`/api/executions/${b.dataset.retry}/retry`, { method: 'POST', body: '{}' }); await refresh(); };
+      b.onclick = () => openDialog('retry', executionsById.get(b.dataset.retry), b);
     });
     // Acciones prioritarias de Inicio, calculadas con los datos ya cargados.
     const now = new Date();

@@ -122,6 +122,30 @@ describe('centro de aprobaciones (Fase 4)', () => {
   });
 });
 
+describe('actividad y ejecuciones (Fase 5)', () => {
+  it('GET / sirve la zona de feedback y los estados de carga de actividad', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('activity-feedback');
+    expect(res.body).toContain('Cargando actividad');
+    expect(res.body).toContain('Cargando ejecuciones');
+    await app.close();
+  });
+
+  it('GET /app.js sirve etiquetas de ejecución y auditoría y confirmación de reintento', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Completada');
+    expect(res.body).toContain('Fallida');
+    expect(res.body).toContain('Inicio de sesión');
+    expect(res.body).toContain('Reintentar ejecución');
+    expect(res.body).toContain('Ejecución reintentada.');
+    await app.close();
+  });
+});
+
 describe('navegación (Fase 2)', () => {
   it('GET / sirve la navegación y el enlace a layout.css', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
