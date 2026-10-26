@@ -217,3 +217,27 @@ describe('Postgres (pg-mem) — C6: políticas, herramientas y reintento con ví
     await app.close();
   });
 });
+
+describe('Postgres (pg-mem) — C7: jobs del worker', () => {
+  it('encolar y procesar un job en Postgres', async () => {
+    const { processPendingJobs } = await import('./engine.js');
+    const { app, db } = await pgServer();
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    expect(reg.statusCode).toBe(201);
+    const auth = { authorization: `Bearer ${reg.json().token as string}` };
+    const enqueued = await app.inject({ method: 'POST', url: '/api/jobs', headers: auth, payload: OPP });
+    expect(enqueued.statusCode).toBe(202);
+    const jobId = enqueued.json().job.id as string;
+    const result = await processPendingJobs(db, { actor: 'worker', maxOpportunitiesPerDay: 100 });
+    expect(result).toEqual({ processed: 1, done: 1, failed: 0 });
+    const job = await app.inject({ method: 'GET', url: `/api/jobs/${jobId}`, headers: auth });
+    expect(job.json().job.status).toBe('done');
+    const opps = await app.inject({ method: 'GET', url: '/api/opportunities', headers: auth });
+    expect(opps.json().opportunities).toHaveLength(1);
+    await app.close();
+  });
+});

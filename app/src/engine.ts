@@ -5,6 +5,7 @@ import {
   exec,
   newId,
   nowIso,
+  queryAll,
   queryOne,
   todayUtc,
   type Db,
@@ -360,4 +361,147 @@ export async function runIntake(
     await finish('failed', undefined, message);
     throw err;
   }
+}
+
+// ---------- Worker asíncrono (C7, alineación PENSIA) ----------
+//
+// El alta manual y el webhook siguen sincrónicos (su contrato devuelve
+// la oportunidad creada); el worker es un camino adicional, no un cambio
+// silencioso de contrato. Un job es una ingesta encolada: el worker la
+// procesa, guarda la ejecución resultante y marca el job. Migrar el alta
+// a este camino exige UI con espera/consulta y queda como paso posterior.
+export interface JobRow {
+  id: string;
+  org_id: string;
+  kind: string;
+  input_json: string;
+  status: string;
+  attempts: number;
+  execution_id: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function enqueueIntakeJob(
+  db: Db,
+  orgId: string,
+  input: OpportunityInput,
+): Promise<JobRow> {
+  const now = nowIso();
+  const id = newId();
+  await exec(
+    db,
+    `INSERT INTO jobs (id, org_id, kind, input_json, status, attempts, execution_id, error, created_at, updated_at)
+     VALUES (?, ?, 'intake', ?, 'pending', 0, NULL, NULL, ?, ?)`,
+    id,
+    orgId,
+    JSON.stringify(input),
+    now,
+    now,
+  );
+  return (await queryOne<JobRow>(db, 'SELECT * FROM jobs WHERE id = ?', id)) as JobRow;
+}
+
+export interface WorkerOptions {
+  actor: string;
+  maxOpportunitiesPerDay: number;
+  limit?: number;
+}
+
+export async function processPendingJobs(
+  db: Db,
+  opts: WorkerOptions,
+): Promise<{ processed: number; done: number; failed: number }> {
+  const limit = opts.limit ?? 10;
+  // Sin LIMIT en SQL: el parámetro en LIMIT no es portable entre los tres
+  // motores (SQLite, Postgres, pg-mem); los pendientes son pocos porque el
+  // worker los procesa en cada pasada.
+  const all = await queryAll<JobRow>(
+    db,
+    'SELECT * FROM jobs WHERE status = ? ORDER BY created_at ASC',
+    'pending',
+  );
+  const jobs = all.slice(0, limit);
+  let done = 0;
+  let failed = 0;
+  for (const job of jobs) {
+    const now = nowIso();
+    await exec(
+      db,
+      'UPDATE jobs SET status = ?, attempts = attempts + 1, updated_at = ? WHERE id = ?',
+      'processing',
+      now,
+      job.id,
+    );
+    try {
+      const result = await runIntake(db, job.org_id, JSON.parse(job.input_json) as OpportunityInput, {
+        actor: opts.actor,
+        maxOpportunitiesPerDay: opts.maxOpportunitiesPerDay,
+      });
+      await exec(
+        db,
+        'UPDATE jobs SET status = ?, execution_id = ?, updated_at = ? WHERE id = ?',
+        'done',
+        result.executionId,
+        nowIso(),
+        job.id,
+      );
+      done++;
+    } catch (err) {
+      await exec(
+        db,
+        'UPDATE jobs SET status = ?, error = ?, updated_at = ? WHERE id = ?',
+        'failed',
+        err instanceof Error ? err.message : String(err),
+        nowIso(),
+        job.id,
+      );
+      failed++;
+    }
+  }
+  return { processed: jobs.length, done, failed };
+}
+
+// Reconciliación de huérfanos (riesgo anotado en C3): una ejecución en
+// 'running' más vieja que una hora solo puede ser una caída a mitad de
+// intake, porque el camino sincrónico dura milisegundos; se marca fallida
+// con causa. Una corrida en 'running' cuya ejecución ya terminó adopta el
+// estado de su ejecución. Se corre en el arranque del servidor y del
+// worker; en bases frescas no toca nada.
+export async function reconcileOrphans(
+  db: Db,
+  nowMs: number = Date.now(),
+): Promise<{ executionsFailed: number; runsSynced: number }> {
+  const cutoff = new Date(nowMs - 3600_000).toISOString();
+  const now = new Date(nowMs).toISOString();
+  const stale = await queryOne<{ c: number }>(
+    db,
+    `SELECT COUNT(*) AS c FROM executions WHERE status = 'running' AND created_at < ?`,
+    cutoff,
+  );
+  await exec(
+    db,
+    `UPDATE executions SET status = 'failed', error = 'interrupted', updated_at = ?
+     WHERE status = 'running' AND created_at < ?`,
+    now,
+    cutoff,
+  );
+  const runs = await queryAll<{ id: string; execution_id: string }>(
+    db,
+    `SELECT id, execution_id FROM process_runs WHERE status = 'running'`,
+  );
+  let runsSynced = 0;
+  for (const run of runs) {
+    const execution = await queryOne<{ status: string }>(
+      db,
+      'SELECT status FROM executions WHERE id = ?',
+      run.execution_id,
+    );
+    if (execution && (execution.status === 'done' || execution.status === 'failed')) {
+      await exec(db, 'UPDATE process_runs SET status = ?, updated_at = ? WHERE id = ?', execution.status, now, run.id);
+      runsSynced++;
+    }
+  }
+  return { executionsFailed: Number(stale?.c ?? 0), runsSynced };
 }

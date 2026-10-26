@@ -1,5 +1,6 @@
 // Interfaz de la demo (UI/UX System OS v1.1, Fase 5: Actividad y ejecuciones). Sin frameworks;
-// el token vive en localStorage (demo; en producción usar cookie httpOnly + HTTPS).
+// C7: la sesión viaja en cookie httpOnly (el servidor la pone al entrar y
+// el navegador la manda sola en cada llamada; ningún script la puede leer).
 const $ = (id) => document.getElementById(id);
 const err = $('error');
 
@@ -9,16 +10,11 @@ function esc(s) {
   })[c]);
 }
 
-function token() {
-  return localStorage.getItem('sis_token') || '';
-}
-
 async function api(path, options = {}) {
   const res = await fetch(path, {
     ...options,
     headers: {
       'content-type': 'application/json',
-      ...(token() ? { authorization: `Bearer ${token()}` } : {}),
       ...(options.headers || {}),
     },
   });
@@ -267,7 +263,7 @@ function showView(name) {
 }
 
 window.addEventListener('hashchange', () => {
-  if (token()) showView(location.hash.replace('#', ''));
+  if (!$('app-section').classList.contains('hidden')) showView(location.hash.replace('#', ''));
 });
 
 function setCount(id, n) {
@@ -492,7 +488,6 @@ $('btn-register').onclick = async () => {
         password: $('password').value,
       }),
     });
-    localStorage.setItem('sis_token', data.token);
     await refresh();
   } catch (e) {
     err.textContent = e.message;
@@ -502,19 +497,24 @@ $('btn-register').onclick = async () => {
 $('btn-login').onclick = async () => {
   err.textContent = '';
   try {
-    const data = await api('/api/auth/login', {
+    await api('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email: $('email').value, password: $('password').value }),
     });
-    localStorage.setItem('sis_token', data.token);
     await refresh();
   } catch (e) {
     err.textContent = e.message;
   }
 };
 
-$('btn-logout').onclick = () => {
-  localStorage.removeItem('sis_token');
+$('btn-logout').onclick = async () => {
+  // C7: cierra la sesión httpOnly en el servidor; la UI se oculta igual
+  // aunque la llamada falle (por ejemplo, sesión ya vencida).
+  try {
+    await api('/api/auth/logout', { method: 'POST' });
+  } catch (e) {
+    // Sin sesión que cerrar: igual se vuelve a la pantalla de acceso.
+  }
   $('app-section').classList.add('hidden');
   $('auth-section').classList.remove('hidden');
 };
@@ -545,4 +545,6 @@ $('btn-create-opp').onclick = async () => {
   });
 };
 
-if (token()) refresh();
+// C7: al arrancar, la sesión se detecta por cookie: si /api/me responde,
+// hay sesión y se carga la app; si no, queda la pantalla de acceso.
+api('/api/me').then(() => refresh()).catch(() => {});
