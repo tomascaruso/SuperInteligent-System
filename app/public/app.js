@@ -334,6 +334,56 @@ window.addEventListener('hashchange', () => {
   if (!$('app-section').classList.contains('hidden')) showView(location.hash.replace('#', ''));
 });
 
+// ---------- Recorrido guiado (F3-DEMO) ----------
+// Solo presentación: no cambia ningún estado, solo navega por las vistas
+// y explica el flujo en lenguaje de negocio. Se abre a mano (nunca
+// automático), se cierra con Cerrar, Terminar, Escape o al salir. Los
+// textos son genéricos a propósito: describen el flujo, no los datos de
+// la demo, para que el recorrido siga valiendo si los datos cambian.
+const TOUR_STEPS = [
+  { view: 'inicio', title: 'Así funciona, en 2 minutos', text: 'Entra un contacto, el sistema lo clasifica, crea la tarea con su vencimiento y redacta el borrador. Una persona aprueba antes de que pase nada: el sistema no envía mensajes solo. Empecemos por donde se ve qué requiere atención.' },
+  { view: 'inicio', title: 'Qué requiere atención', text: 'En Inicio ves los números (oportunidades, tareas, aprobaciones) y las acciones prioritarias: lo vencido y lo pendiente de aprobación, con enlaces a cada sección.' },
+  { view: 'oportunidades', title: 'Las oportunidades', text: 'Cada contacto que entra queda registrado con su empresa, categoría y prioridad. Desde acá también se puede cargar una oportunidad a mano, sin esperar a que entre por otro canal.' },
+  { view: 'tareas', title: 'Las tareas', text: 'Cada oportunidad genera su tarea con vencimiento. La lista dice a quién corresponde y qué agente la tiene a cargo, para que ningún seguimiento quede sin hacer.' },
+  { view: 'aprobaciones', title: 'Aprobar, con control humano', text: 'Antes de decidir, se revisa el borrador completo: a quién va dirigido, por qué canal entró y qué cambia la decisión. Aprobar actualiza el estado y deja registro; no envía ningún mensaje.' },
+  { view: 'agentes', title: 'Quién hace cada parte', text: 'Cinco agentes con reglas fijas se reparten el trabajo: uno recibe, otro clasifica, otro redacta, otro programa el seguimiento y otro revisa que se cumplan las reglas. Ninguno decide solo.' },
+  { view: 'actividad', title: 'Todo queda registrado', text: 'Cada operación deja rastro: quién hizo qué y cuándo, qué proceso corrió y qué pasos dio, en lenguaje de negocio. Así se puede auditar todo después.' },
+  { view: 'inicio', title: '¿Querés esto para tu empresa?', text: 'Este es el recorrido completo. Si querés un sistema así para tu empresa, salí y completá "Quiero una demo para mi empresa" en la pantalla de acceso: PENSIA te responde.' },
+];
+
+let tourStep = 0;
+
+function showTourStep(i) {
+  tourStep = Math.max(0, Math.min(TOUR_STEPS.length - 1, i));
+  const s = TOUR_STEPS[tourStep];
+  // Hash + vista directa: si el paso repite la vista actual, el hash no
+  // cambia y no dispara hashchange, así que la vista se fuerza igual.
+  location.hash = s.view;
+  showView(s.view);
+  $('tour-step-label').textContent = `Paso ${tourStep + 1} de ${TOUR_STEPS.length}`;
+  $('tour-title').textContent = s.title;
+  $('tour-text').textContent = s.text;
+  $('tour-prev').disabled = tourStep === 0;
+  $('tour-next').textContent = tourStep === TOUR_STEPS.length - 1 ? 'Terminar' : 'Siguiente';
+  $('tour-panel').classList.remove('hidden');
+  $('tour-next').focus();
+}
+
+function closeTour() {
+  $('tour-panel').classList.add('hidden');
+}
+
+$('btn-tour').onclick = () => showTourStep(0);
+$('tour-prev').onclick = () => showTourStep(tourStep - 1);
+$('tour-next').onclick = () => {
+  if (tourStep === TOUR_STEPS.length - 1) closeTour();
+  else showTourStep(tourStep + 1);
+};
+$('tour-close').onclick = closeTour;
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('tour-panel').classList.contains('hidden')) closeTour();
+});
+
 function setCount(id, n) {
   const el = $(id);
   el.textContent = n;
@@ -660,6 +710,7 @@ $('btn-logout').onclick = async () => {
   } catch (e) {
     // Sin sesión que cerrar: igual se vuelve a la pantalla de acceso.
   }
+  closeTour();
   $('app-section').classList.add('hidden');
   $('auth-section').classList.remove('hidden');
 };

@@ -320,6 +320,31 @@ subir y mergear):
 - Pendiente: recorrido guiado, la revisión del propio Tomás (criterio
   de aceptación), la categoría «general» y «Actividad reciente».
 
+## Corrección aplicada 26-oct-2026 (recorrido guiado)
+
+Quinta corrección, la segunda de la tanda «Más adelante» (solo
+frontend, sin cambios de backend ni de base; commit local pendiente de
+subir y mergear):
+
+- Botón «Recorrido guiado» en el encabezado de la app. Al pulsarlo, un
+  panel fijo (no tapa la vista) guía en 8 pasos: cómo funciona en 2
+  minutos, qué requiere atención, oportunidades, tareas, aprobar con
+  control humano, quién hace cada parte, todo queda registrado, y
+  cierre con el camino para pedir una demo («salí y completá "Quiero
+  una demo para mi empresa" en la pantalla de acceso»).
+- El recorrido solo navega por las vistas y explica el flujo en
+  lenguaje de negocio: no cambia ningún estado, no aprueba ni crea
+  nada. Se abre a mano (nunca automático) y se cierra con Cerrar,
+  Terminar, Escape o al salir. Los textos describen el flujo, no los
+  datos de la demo, para que siga valiendo si los datos cambian.
+- Pruebas: 89/89 en verde (1 nueva: botón y panel en la página
+  servida, pasos en el app.js servido). Typecheck, build y sintaxis de
+  app.js limpios; smoke con servidor real: `/health` exacto, la página
+  trae el panel y el botón, el app.js trae los pasos y el CSS trae los
+  estilos del panel.
+- Pendiente: la revisión del propio Tomás (criterio de aceptación),
+  la categoría «general» y «Actividad reciente».
+
 ## Próximo paso
 
 Que Tomás lea esta revisión, haga su propia pasada como cliente

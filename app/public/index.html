@@ -100,6 +100,7 @@
       <p id="view-subtitle" class="text-secondary"></p>
     </div>
     <div class="row">
+      <button id="btn-tour" class="btn btn-secondary">Recorrido guiado</button>
       <button id="btn-refresh" class="btn btn-secondary">Actualizar</button>
       <button id="btn-logout" class="btn btn-ghost">Salir</button>
     </div>
@@ -226,6 +227,17 @@
       <button id="dialog-confirm" class="btn btn-primary">Confirmar</button>
       <button id="dialog-cancel" class="btn btn-secondary">Cancelar</button>
     </div>
+  </div>
+</div>
+
+<div id="tour-panel" class="tour-panel hidden" aria-live="polite">
+  <p id="tour-step-label" class="text-muted"></p>
+  <h3 id="tour-title"></h3>
+  <p id="tour-text"></p>
+  <div class="row">
+    <button id="tour-prev" class="btn btn-secondary">Anterior</button>
+    <button id="tour-next" class="btn btn-primary">Siguiente</button>
+    <button id="tour-close" class="btn btn-ghost">Cerrar</button>
   </div>
 </div>
 
