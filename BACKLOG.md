@@ -54,7 +54,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
 |---|---|---|---|---|---|---|
 | F2-EVAL | Alta | Conjunto de evaluación fijo | F1-E2E | Casos con salida esperada, versionados | Medio | PASS | v1 entregada 26-oct-2026 (app/src/eval/cases-v1.json + eval.test.ts + docs/F2-EVAL-README.md): 8 regression (incluye los 3 del seed) y 3 challenge con divergencia solo de categoría; APROBADA por Tomás el 26-oct-2026 tras revisar los 11 casos. v1 congelada: cambios futuros van a v2.
-| F2-AI | Alta | Proveedor de IA + clasificación/borradores con IA | F2-EVAL, claves aprobadas | Supera a reglas con margen predefinido o se descarta | Alto | PLANNED |
+| F2-AI | Alta | Proveedor de IA + clasificación/borradores con IA | F2-EVAL, claves aprobadas | Supera a reglas con margen predefinido o se descarta | Alto | IN_PROGRESS | Experimento construido 26-oct-2026 (app/src/ai.ts + ai-eval.ts + scripts/ai-eval.ts + ai.test.ts + docs/F2-AI-EXPERIMENTO.md): decisión Gemini capa gratuita para experimentar, diseño agnóstico de proveedor (un cliente con otra IA paga se adapta con un adaptador nuevo, sin tocar el motor); margen 11/11; servidor sin IA (experimento solo local). Pendiente: clave de Gemini (la crea Tomás, nunca en chat) y veredicto ADOPT/DISCARD con evidencia; alcance actual solo clasificación (borradores después, si la clasificación gana).
 
 ## Fase 3 — Demo de portafolio (PLANNED)
 

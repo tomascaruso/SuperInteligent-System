@@ -29,7 +29,8 @@
     "worker": "node dist/worker.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "ai-eval": "tsx scripts/ai-eval.ts"
   },
   "type": "module",
   "version": "0.1.0"
