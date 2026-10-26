@@ -254,6 +254,48 @@ ya no será una traba sino un rechazo o bloqueo de la conexión SMTP
 será revisar los logs de Render o cambiar de proveedor de envío. La
 entrega real sigue sin verificar.
 
+## Corrección aplicada 26-oct-2026 (lenguaje de negocio y contexto)
+
+Tercera corrección, la tanda «Después» de la lista priorizada
+(backend y frontend, commit local pendiente de subir y mergear):
+
+- **Pasos en lenguaje de negocio.** Los pasos se siguen guardando con
+  su nombre técnico, pero la pantalla muestra su traducción: «Recibe y
+  ordena el contacto», «Revisa si ya existe», «Lo clasifica y le pone
+  prioridad», «Registra la oportunidad», «Crea la tarea con
+  vencimiento», «Redacta el borrador de respuesta». El proceso
+  «opportunity.intake v1» se muestra como «Captación de oportunidades
+  v1». Los nombres no mapeados se muestran tal cual (no se inventa
+  nada). Los códigos cortos de ejecución/proceso (8 caracteres, con el
+  identificador completo en el título) se mantienen: son referencias
+  de soporte, no jerga.
+- **Tareas con contacto y empresa.** `GET /api/tasks` ahora trae
+  `contact_name` y `company` con un join a su oportunidad, y la lista
+  muestra «Para: Lucía Fernández (Empresa Ejemplo)». Sin cambios en
+  la base ni en los contratos previos: solo dos campos agregados.
+- **Canal del borrador.** `GET /api/drafts` ahora trae
+  `opportunity_source` y el borrador muestra «Canal: Alta manual»
+  (alta manual) o «Canal: Entrada externa» (webhook/integración) en
+  vez de «No disponible». El alta manual por la API ya guardaba
+  `source: 'manual'` por defecto; el webhook guarda `'webhook'`.
+- **Pluralización real.** «1 borrador pendiente de aprobación» y «1
+  ejecución fallida» en singular; plural solo cuando corresponde. Se
+  acabó el «borrador(es) pendiente(s)».
+- **Horas en zona local.** El servidor sigue guardando UTC, pero las
+  fechas y horas se muestran en la zona horaria del navegador (antes
+  se mostraba el UTC crudo, 3 h por delante del reloj argentino). Los
+  vencimientos también se calculan y muestran en fecha local.
+- Pruebas: 87/87 en verde (2 nuevas: tarea con contacto/empresa,
+  borrador con canal; 1 test viejo actualizado, que esperaba el texto
+  fijo «Canal: No disponible»). Typecheck, build y sintaxis de app.js
+  limpios; smoke con servidor real: `/health` exacto y el app.js
+  servido trae las etiquetas nuevas.
+- Pendiente de esta tanda: sección visible de agentes, recorrido
+  guiado, la revisión del propio Tomás (criterio de aceptación), la
+  categoría «general» (decisión de clasificación, no de texto) y que
+  «Actividad reciente» muestre más que inicios de sesión (es un
+  problema de qué se audita, no de formato).
+
 ## Próximo paso
 
 Que Tomás lea esta revisión, haga su propia pasada como cliente

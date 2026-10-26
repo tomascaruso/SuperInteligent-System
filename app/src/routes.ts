@@ -85,6 +85,9 @@ interface TaskRow {
   assigned_to: string;
   agent_id: string | null;
   agent_name: string | null;
+  // F3-DEMO: la tarea muestra a quién corresponde (join con su oportunidad).
+  contact_name: string | null;
+  company: string | null;
   status: string;
   due_at: string;
   created_at: string;
@@ -624,8 +627,10 @@ export function registerRoutes(
     const status = (request.query as { status?: string }).status;
     // Columnas explícitas: t.* duplicaría agent_id con el alias del JOIN.
     const base = `SELECT t.id, t.org_id, t.opportunity_id, t.title, t.assigned_to, t.agent_id,
-              t.status, t.due_at, t.created_at, t.updated_at, a.name AS agent_name
-       FROM tasks t LEFT JOIN agents a ON a.id = t.agent_id WHERE t.org_id = ?`;
+              t.status, t.due_at, t.created_at, t.updated_at, a.name AS agent_name,
+              o.contact_name, o.company
+       FROM tasks t LEFT JOIN agents a ON a.id = t.agent_id
+       LEFT JOIN opportunities o ON o.id = t.opportunity_id WHERE t.org_id = ?`;
     const rows = status
       ? await queryAll<TaskRow>(db, `${base} AND t.status = ? ORDER BY t.due_at ASC`, user.orgId, status)
       : await queryAll<TaskRow>(db, `${base} ORDER BY t.due_at ASC`, user.orgId);
@@ -669,9 +674,9 @@ export function registerRoutes(
   app.get('/api/drafts', { preHandler: auth }, async (request) => {
     const user = getUser(request);
     const expiryMs = draftExpiryMs(await loadPolicies());
-    const rows = await queryAll<DraftRow & { contact_name: string; company: string; opportunity_message: string }>(
+    const rows = await queryAll<DraftRow & { contact_name: string; company: string; opportunity_message: string; opportunity_source: string }>(
       db,
-      `SELECT d.*, o.contact_name, o.company, o.message AS opportunity_message FROM drafts d
+      `SELECT d.*, o.contact_name, o.company, o.message AS opportunity_message, o.source AS opportunity_source FROM drafts d
        JOIN opportunities o ON o.id = d.opportunity_id
        WHERE d.org_id = ? ORDER BY d.created_at DESC`,
       user.orgId,

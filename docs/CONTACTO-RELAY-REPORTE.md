@@ -105,10 +105,45 @@ Corrección (commit local pendiente de subir y mergear):
   código dirá si es token distinto, datos inválidos o fallo del script.
 - Test de redirección manual reemplazado por tests del código de error.
 
-## Pendiente (NO verificado)
+## Segundo reintento: el relay responde `failed` (26-oct-2026)
 
-El envío real de punta a punta: falta subir y mergear esta corrección,
-y reintentar el mensaje de prueba ("Prueba Loki") para confirmar que
-llega al correo del operador. Si el reintento da
-`relay_failed:forbidden`, el token del script y el de Render no
-coinciden y hay que igualarlos (sin pegarlos en ningún chat).
+El reintento del 26-oct ~17:53 ART (20:53 UTC) volvió a fallar en
+pantalla, pero el log ya trae el código exacto (gracias a la corrección
+anterior): `relay_failed:failed` (req-1w, instancia nueva tras el
+despliegue del PR #20, o sea que el código nuevo SÍ estaba corriendo).
+
+`failed` significa: el token coincidió (si no, sería `forbidden`), los
+datos pasaron la validación, y el script falló al enviar. Causa: el
+destino se obtenía con `Session.getActiveUser()`, que puede devolver
+vacío cuando el acceso es anónimo, y un destino vacío hace fallar
+`MailApp.sendEmail`.
+
+Corrección (solo en el script, sin cambios en la app ni en Render):
+
+- `Session.getActiveUser()` → `Session.getEffectiveUser()` (siempre la
+  cuenta del operador, porque el script se ejecuta como él).
+- El `catch` del script ahora deja el detalle en `console.error`
+  (visible solo en Ejecuciones del proyecto, no en la respuesta).
+- El script actualizado está en
+  `~/workspace/superinteligent-system-relay/contacto-pensia.gs`, y el
+  README explica cómo actualizar sin cambiar la URL (nueva versión de
+  la misma implementación, no un despliegue nuevo).
+
+## Reintento tras la corrección: confirmación en pantalla (26-oct-2026)
+
+El reintento del 26-oct ~18:02 ART (21:02 UTC, un solo intento) mostró
+la confirmación en verde: "Gracias, recibimos tu mensaje. PENSIA te va
+a contactar.", con los campos limpiados. La cadena completa quedó
+verificada a nivel de página: formulario → relay → script → respuesta
+`{ ok: true }`.
+
+## Verificación final: entrega confirmada (26-oct-2026)
+
+El reintento del 26-oct ~18:02 ART (21:02 UTC) mostró la confirmación
+en verde y el correo "Prueba Loki" LLEGÓ al Gmail del operador
+(contenido verificado: nombre, correo, empresa y mensaje). La entrega
+de punta a punta queda VERIFICADA: formulario → relay → script →
+correo en la bandeja.
+
+Pendiente menor: borrar las variables viejas `CONTACT_SMTP_*` en
+Render (ya no se leen).
