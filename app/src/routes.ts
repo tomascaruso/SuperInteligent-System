@@ -22,10 +22,9 @@ import {
   verifyPassword,
 } from './auth.js';
 import {
-  buildContactMail,
   contactSchema,
-  createContactTransporter,
   isContactConfigured,
+  sendContactViaRelay,
   type ContactConfig,
 } from './contact.js';
 import { LimitExceededError, enqueueIntakeJob, runIntake, type JobRow, type OpportunityRow } from './engine.js';
@@ -228,8 +227,9 @@ export function registerRoutes(
   }));
 
   // ---------- Contacto de la demo (F3-DEMO, público) ----------
-  // El correo de destino vive solo en la configuración del servidor y
-  // nunca se devuelve ni se muestra. Sin SMTP configurado, el estado es
+  // El mensaje se envía por el relay HTTPS (Apps Script); la URL y el
+  // token viven solo en la configuración del servidor y nunca se
+  // devuelven ni se muestran. Sin relay configurado, el estado es
   // { enabled: false } y el envío responde 503.
   app.get('/api/contact/status', async () => ({ enabled: isContactConfigured(opts.contact) }));
 
@@ -267,8 +267,7 @@ export function registerRoutes(
       return;
     }
     try {
-      const transporter = createContactTransporter(contact);
-      await transporter.sendMail(buildContactMail(body, contact.from, contact.to));
+      await sendContactViaRelay(contact, body);
     } catch (err) {
       request.log.error({ err }, 'Fallo al enviar el mensaje de contacto');
       await reply.code(502).send({ error: 'send_failed', message: 'No se pudo enviar el mensaje; probá de nuevo más tarde.' });

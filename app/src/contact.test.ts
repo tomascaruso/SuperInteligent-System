@@ -1,18 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildContactMail,
   isContactConfigured,
+  sendContactViaRelay,
   type ContactConfig,
+  type RelayFetch,
 } from './contact.js';
 import { buildServer } from './server.js';
 
 const FULL_CONTACT: ContactConfig = {
-  smtpHost: '127.0.0.1',
-  smtpPort: 59999,
-  smtpUser: 'remitente@test.com',
-  smtpPass: 'secreto',
-  to: 'destino@test.com',
-  from: 'remitente@test.com',
+  relayUrl: 'https://relay.test/exec',
+  relayToken: 'token-secreto',
 };
 
 async function build(opts: { contact?: ContactConfig } = {}) {
@@ -32,42 +29,66 @@ const VALID = {
   website: '',
 };
 
-describe('contacto: composición y configuración', () => {
-  it('isContactConfigured exige las 4 piezas', () => {
+function relayResponse(body: unknown, status = 200, location: string | null = null) {
+  return {
+    status,
+    headers: { get: (name: string) => (name === 'location' ? location : null) },
+    json: async () => body,
+  };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('contacto: configuración y relay', () => {
+  it('isContactConfigured exige URL y token', () => {
     expect(isContactConfigured(undefined)).toBe(false);
-    expect(isContactConfigured({ ...FULL_CONTACT, smtpPass: '' })).toBe(false);
-    expect(isContactConfigured({ ...FULL_CONTACT, to: '' })).toBe(false);
+    expect(isContactConfigured({ relayUrl: '', relayToken: 't' })).toBe(false);
+    expect(isContactConfigured({ relayUrl: 'https://r.test', relayToken: '' })).toBe(false);
     expect(isContactConfigured(FULL_CONTACT)).toBe(true);
   });
 
-  it('buildContactMail pone el nombre en el cuerpo, no en el asunto', () => {
-    const mail = buildContactMail(VALID, 'remitente@test.com', 'destino@test.com');
-    expect(mail.subject).toBe('Nuevo contacto desde la demo de SuperInteligent System');
-    expect(mail.subject).not.toContain('Martina');
-    expect(mail.text).toContain('Nombre: Martina');
-    expect(mail.text).toContain('Correo: martina@empresa.com');
-    expect(mail.text).toContain('Empresa: Empresa SA');
-    expect(mail.text).toContain('Quiero una demo para mi agencia.');
-    expect(mail.to).toBe('destino@test.com');
+  it('sendContactViaRelay acepta { ok: true } y manda el token en el cuerpo', async () => {
+    const seen: Array<{ url: string; body: string }> = [];
+    const fetchStub: RelayFetch = async (url, init) => {
+      seen.push({ url, body: init.body });
+      return relayResponse({ ok: true });
+    };
+    await sendContactViaRelay(FULL_CONTACT, VALID, fetchStub);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].url).toBe('https://relay.test/exec');
+    const sent = JSON.parse(seen[0].body) as Record<string, string>;
+    expect(sent.token).toBe('token-secreto');
+    expect(sent.name).toBe('Martina');
+    expect(sent.email).toBe('martina@empresa.com');
   });
 
-  it('buildContactMail marca la empresa ausente con un guion', () => {
-    const mail = buildContactMail({ ...VALID, company: '' }, 'r@test.com', 'd@test.com');
-    expect(mail.text).toContain('Empresa: —');
+  it('sendContactViaRelay sigue la redirección reenviando el POST', async () => {
+    const urls: string[] = [];
+    const fetchStub: RelayFetch = async (url) => {
+      urls.push(url);
+      if (urls.length === 1) {
+        return relayResponse({}, 302, 'https://contenido.test/exec');
+      }
+      return relayResponse({ ok: true });
+    };
+    await sendContactViaRelay(FULL_CONTACT, VALID, fetchStub);
+    expect(urls).toEqual(['https://relay.test/exec', 'https://contenido.test/exec']);
   });
 
-  it('createContactTransporter fija timeouts cortos (sin colgarse)', async () => {
-    const { createContactTransporter } = await import('./contact.js');
-    const transporter = createContactTransporter(FULL_CONTACT);
-    const options = transporter.options as unknown as Record<string, unknown>;
-    expect(options.connectionTimeout).toBe(10_000);
-    expect(options.greetingTimeout).toBe(10_000);
-    expect(options.socketTimeout).toBe(20_000);
+  it('sendContactViaRelay rechaza { ok: false } y un fallo de red', async () => {
+    const refused: RelayFetch = async () => relayResponse({ ok: false });
+    await expect(sendContactViaRelay(FULL_CONTACT, VALID, refused)).rejects.toThrow('relay_failed');
+    const broken: RelayFetch = async () => {
+      throw new Error('boom');
+    };
+    await expect(sendContactViaRelay(FULL_CONTACT, VALID, broken)).rejects.toThrow('boom');
   });
 });
 
 describe('contacto: endpoints', () => {
-  it('GET /api/contact/status dice enabled=false sin SMTP', async () => {
+  it('GET /api/contact/status dice enabled=false sin relay', async () => {
     const { app } = await build();
     const res = await app.inject({ method: 'GET', url: '/api/contact/status' });
     expect(res.statusCode).toBe(200);
@@ -75,7 +96,7 @@ describe('contacto: endpoints', () => {
     await app.close();
   });
 
-  it('GET /api/contact/status dice enabled=true con SMTP completo', async () => {
+  it('GET /api/contact/status dice enabled=true con relay completo', async () => {
     const { app } = await build({ contact: FULL_CONTACT });
     const res = await app.inject({ method: 'GET', url: '/api/contact/status' });
     expect(res.json()).toEqual({ enabled: true });
@@ -101,7 +122,7 @@ describe('contacto: endpoints', () => {
     await app.close();
   });
 
-  it('POST /api/contact válido sin SMTP responde 503', async () => {
+  it('POST /api/contact válido sin relay responde 503', async () => {
     const { app } = await build();
     const res = await app.inject({ method: 'POST', url: '/api/contact', payload: VALID });
     expect(res.statusCode).toBe(503);
@@ -120,7 +141,17 @@ describe('contacto: endpoints', () => {
     await app.close();
   });
 
-  it('POST /api/contact con SMTP inalcanzable responde 502', async () => {
+  it('POST /api/contact con relay que responde ok:true devuelve ok', async () => {
+    vi.stubGlobal('fetch', async () => relayResponse({ ok: true }));
+    const { app } = await build({ contact: FULL_CONTACT });
+    const res = await app.inject({ method: 'POST', url: '/api/contact', payload: VALID });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+    await app.close();
+  });
+
+  it('POST /api/contact con relay que falla responde 502', async () => {
+    vi.stubGlobal('fetch', async () => relayResponse({ ok: false }));
     const { app } = await build({ contact: FULL_CONTACT });
     const res = await app.inject({ method: 'POST', url: '/api/contact', payload: VALID });
     expect(res.statusCode).toBe(502);
@@ -128,12 +159,15 @@ describe('contacto: endpoints', () => {
     await app.close();
   });
 
-  it('ninguna respuesta de contacto expone el correo de destino', async () => {
+  it('ninguna respuesta de contacto expone la URL ni el token del relay', async () => {
     const { app } = await build({ contact: FULL_CONTACT });
     const status = await app.inject({ method: 'GET', url: '/api/contact/status' });
-    expect(status.body).not.toContain('destino@test.com');
+    expect(status.body).not.toContain('relay.test');
+    expect(status.body).not.toContain('token-secreto');
+    vi.stubGlobal('fetch', async () => relayResponse({ ok: false }));
     const failed = await app.inject({ method: 'POST', url: '/api/contact', payload: VALID });
-    expect(failed.body).not.toContain('destino@test.com');
+    expect(failed.body).not.toContain('relay.test');
+    expect(failed.body).not.toContain('token-secreto');
     await app.close();
   });
 });
