@@ -1,4 +1,4 @@
-// Interfaz de la demo (UI/UX System OS v1.1, Fase 2: Layout y navegación). Sin frameworks;
+// Interfaz de la demo (UI/UX System OS v1.1, Fase 3: Oportunidades y tareas). Sin frameworks;
 // el token vive en localStorage (demo; en producción usar cookie httpOnly + HTTPS).
 const $ = (id) => document.getElementById(id);
 const err = $('error');
@@ -28,14 +28,44 @@ async function api(path, options = {}) {
 }
 
 // Badges de presentación. El texto acompaña siempre al color; los valores no
-// mapeados caen a neutral. Prioridad: high/medium/low (datos del seed).
+// mapeados caen a neutral y se muestran tal cual. Prioridad: high/medium/low.
 // Estado de oportunidad: proposal_draft, in_follow_up, new (según routes.ts).
+// Las etiquetas son solo de presentación: no cambian el valor que guarda el servidor.
 function priorityBadge(p) {
   return { high: 'badge-danger', medium: 'badge-warning', low: 'badge-neutral' }[p] || 'badge-neutral';
 }
 
+function priorityLabel(p) {
+  return { high: 'Alta', medium: 'Media', low: 'Baja' }[p] || p;
+}
+
 function statusBadge(s) {
   return { proposal_draft: 'badge-info', in_follow_up: 'badge-success', new: 'badge-neutral' }[s] || 'badge-neutral';
+}
+
+function statusLabel(s) {
+  return { proposal_draft: 'Borrador de propuesta', in_follow_up: 'En seguimiento', new: 'Nueva' }[s] || s;
+}
+
+// Feedback por sección (Fase 3): el alert vacío se oculta solo vía :empty.
+// No lo borra refresh(): el mensaje describe la última operación de la sección.
+function setFeedback(id, kind, message) {
+  const el = $(id);
+  el.className = message ? `alert alert-${kind}` : 'alert';
+  el.textContent = message || '';
+}
+
+// Estado de envío (Fase 3): deshabilita el botón y aplica .is-loading mientras
+// la operación está en curso; evita dobles envíos y muestra que algo pasa.
+async function withLoading(btn, fn) {
+  btn.classList.add('is-loading');
+  btn.disabled = true;
+  try {
+    return await fn();
+  } finally {
+    btn.classList.remove('is-loading');
+    btn.disabled = false;
+  }
 }
 
 // ---------- Navegación (Fase 2) ----------
@@ -98,19 +128,28 @@ async function refresh() {
     setCount('count-drafts', stats.pendingDrafts);
     const { opportunities } = await api('/api/opportunities');
     $('opps').innerHTML = opportunities.map((o) =>
-      `<tr><td>${esc(o.contact_name)}</td><td>${esc(o.company)}</td><td>${esc(o.category)}</td>` +
-      `<td><span class="badge ${priorityBadge(o.priority)}">${esc(o.priority)}</span></td>` +
-      `<td><span class="badge ${statusBadge(o.status)}">${esc(o.status)}</span></td></tr>`,
-    ).join('') || '<tr><td colspan="5">Sin oportunidades todavía.</td></tr>';
+      `<tr><td data-label="Contacto">${esc(o.contact_name)}</td><td data-label="Empresa">${esc(o.company)}</td>` +
+      `<td data-label="Categoría">${esc(o.category)}</td>` +
+      `<td data-label="Prioridad"><span class="badge ${priorityBadge(o.priority)}">${esc(priorityLabel(o.priority))}</span></td>` +
+      `<td data-label="Estado"><span class="badge ${statusBadge(o.status)}">${esc(statusLabel(o.status))}</span></td></tr>`,
+    ).join('') || '<tr><td colspan="5"><div class="empty-state">Aún no hay oportunidades. Creá la primera con el formulario de alta manual.</div></td></tr>';
     const { tasks } = await api('/api/tasks?status=open');
     $('tasks').innerHTML = tasks.map((t) =>
       `<li>${esc(t.title)} — vence ${esc(t.due_at.slice(0, 10))} ` +
       `<button class="btn btn-secondary btn-sm" data-done="${t.id}">Marcar hecha</button></li>`,
-    ).join('') || '<li>Sin tareas abiertas.</li>';
+    ).join('') || '<li class="empty-state">Sin tareas abiertas. Cuando llegue una oportunidad, sus seguimientos aparecerán acá.</li>';
     document.querySelectorAll('[data-done]').forEach((b) => {
       b.onclick = async () => {
-        await api(`/api/tasks/${b.dataset.done}`, { method: 'PATCH', body: JSON.stringify({ status: 'done' }) });
-        await refresh();
+        await withLoading(b, async () => {
+          try {
+            await api(`/api/tasks/${b.dataset.done}`, { method: 'PATCH', body: JSON.stringify({ status: 'done' }) });
+            setFeedback('task-feedback', 'success', 'Tarea marcada como hecha.');
+            await refresh();
+          } catch (e) {
+            // Sin refresh: la tarea sigue abierta y se puede reintentar.
+            setFeedback('task-feedback', 'error', e.message);
+          }
+        });
       };
     });
     const { drafts } = await api('/api/drafts');
@@ -203,25 +242,27 @@ $('btn-logout').onclick = () => {
 $('btn-refresh').onclick = refresh;
 
 $('btn-create-opp').onclick = async () => {
-  err.textContent = '';
-  try {
-    await api('/api/opportunities', {
-      method: 'POST',
-      body: JSON.stringify({
-        contactName: $('opp-name').value,
-        contactEmail: $('opp-email').value,
-        company: $('opp-company').value,
-        message: $('opp-message').value,
-      }),
-    });
-    $('opp-name').value = '';
-    $('opp-email').value = '';
-    $('opp-company').value = '';
-    $('opp-message').value = '';
-    await refresh();
-  } catch (e) {
-    err.textContent = e.message;
-  }
+  await withLoading($('btn-create-opp'), async () => {
+    try {
+      await api('/api/opportunities', {
+        method: 'POST',
+        body: JSON.stringify({
+          contactName: $('opp-name').value,
+          contactEmail: $('opp-email').value,
+          company: $('opp-company').value,
+          message: $('opp-message').value,
+        }),
+      });
+      $('opp-name').value = '';
+      $('opp-email').value = '';
+      $('opp-company').value = '';
+      $('opp-message').value = '';
+      setFeedback('opp-feedback', 'success', 'Oportunidad creada.');
+      await refresh();
+    } catch (e) {
+      setFeedback('opp-feedback', 'error', e.message);
+    }
+  });
 };
 
 if (token()) refresh();
