@@ -385,6 +385,17 @@ async function refresh() {
     $('audit').innerHTML = audit.slice(0, 20).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
     $('activity').innerHTML = audit.slice(0, 5).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
     const { executions } = await api('/api/executions');
+    // C3 (alineación PENSIA): corridas de proceso, una por ejecución en
+    // este flujo. 'En curso' es un estado real guardado (una corrida puede
+    // quedar así si el servidor cae a mitad del intake), no un estado
+    // inventado para la UI.
+    const processStatusLabel = (s) => ({ running: 'En curso', done: 'Completada', failed: 'Fallida' }[s] || s);
+    const { processes } = await api('/api/processes');
+    $('processes').innerHTML = processes.slice(0, 20).map((p) => {
+      const ex = p.execution ? ` · ejecución <span class="text-muted" title="${esc(p.execution.id)}">(${esc(p.execution.id.slice(0, 8))})</span>` : '';
+      return `<li><span class="badge ${executionStatusBadge(p.status)}">${esc(processStatusLabel(p.status))}</span> ` +
+        `${esc(p.workflow)} v${esc(p.workflow_version)} · ${esc(formatDateTime(p.created_at))}${ex}</li>`;
+    }).join('') || '<li class="empty-state">Sin procesos todavía.</li>';
     // C2 (alineación PENSIA): los pasos ya se persistían y ahora se exponen
     // por /api/executions/:id/steps. El detalle real es workflow, versión,
     // identificador, inicio/fin, resultado (oportunidad creada) o error, más

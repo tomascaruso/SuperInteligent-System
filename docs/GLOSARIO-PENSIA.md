@@ -48,8 +48,13 @@ conceptuales sobre pasos del pipeline, no entidades implementadas.
 ## Proceso / Workflow
 
 Flujo de trabajo versionado que el orquestador ejecuta (ej.:
-`opportunity.intake` v1). Estado actual: un solo workflow, definido como
-string literal en el código; no hay Registry de workflows.
+`opportunity.intake` v1). Estado actual (C3, 26-oct-2026): existe un
+Registry (`workflows`) con el único workflow real y sus pasos, y cada
+ejecución pertenece a una corrida de proceso (`process_runs`, 1:1 con la
+ejecución en este flujo, consultable por `GET /api/processes`). Las
+ejecuciones anteriores a C3 recibieron su corrida por backfill en
+arranque. Todavía no hay orquestador que elija o reasigne procesos: la
+corrida envuelve al intake existente sin cambiar sus pasos.
 
 ## Empresa cliente
 

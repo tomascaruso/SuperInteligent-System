@@ -26,8 +26,8 @@ funcional, no la identidad del producto. Ver `docs/GLOSARIO-PENSIA.md` y
   limpios. Persistencia dual SQLite/Postgres verificada contra Neon (D14).
 - **Pendientes:** confirmación formal del stack (G0-D1), decisión de modelo
   por cliente (F1-TENANT: multi-tenant vs. instancia dedicada), CI básica
-  (F1-CI), y la adaptación PENSIA (C2–C8, ver diagnóstico).
-- **Última actualización:** 2026-10-26 (diagnóstico de alineación PENSIA, C1).
+  (F1-CI), y la adaptación PENSIA (C4–C8, ver diagnóstico).
+- **Última actualización:** 2026-10-26 (C3: proceso como entidad).
 
 ## Qué es
 

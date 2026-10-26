@@ -64,6 +64,7 @@ export interface IntakeOptions {
 
 export interface IntakeResult {
   executionId: string;
+  processRunId: string;
   opportunity: OpportunityRow;
   created: boolean;
   task: TaskRow | null;
@@ -170,6 +171,11 @@ async function ensureTaskAndDraft(
  * persistido. Es idempotente a nivel de negocio gracias a la clave de
  * deduplicación: un reintento no duplica la oportunidad, la tarea ni el
  * borrador.
+ *
+ * C3 (alineación PENSIA): la ejecución queda envuelta en una corrida de
+ * proceso (`process_runs`, 1:1 con la ejecución en este flujo). El
+ * pipeline por dentro no cambia: solo se crea la corrida al inicio y se
+ * espeja su estado al final, en el mismo `finish` de la ejecución.
  */
 export async function runIntake(
   db: Db,
@@ -178,6 +184,7 @@ export async function runIntake(
   opts: IntakeOptions,
 ): Promise<IntakeResult> {
   const executionId = newId();
+  const processRunId = newId();
   const now = nowIso();
   await exec(
     db,
@@ -192,6 +199,18 @@ export async function runIntake(
     now,
     now,
   );
+  await exec(
+    db,
+    'INSERT INTO process_runs (id, org_id, workflow, workflow_version, status, execution_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    processRunId,
+    orgId,
+    'opportunity.intake',
+    '1',
+    'running',
+    executionId,
+    now,
+    now,
+  );
 
   const finish = async (status: 'done' | 'failed', result?: unknown, error?: string): Promise<void> => {
     await exec(
@@ -200,6 +219,13 @@ export async function runIntake(
       status,
       result === undefined ? null : JSON.stringify(result),
       error ?? null,
+      nowIso(),
+      executionId,
+    );
+    await exec(
+      db,
+      'UPDATE process_runs SET status = ?, updated_at = ? WHERE execution_id = ?',
+      status,
       nowIso(),
       executionId,
     );
@@ -264,7 +290,7 @@ export async function runIntake(
         JSON.stringify({ opportunityId: opp.id, duplicate: true }),
         nowIso(),
       );
-      const result: IntakeResult = { executionId, opportunity: opp, created: false, task, draft };
+      const result: IntakeResult = { executionId, processRunId, opportunity: opp, created: false, task, draft };
       await finish('done', result);
       return result;
     }
@@ -308,7 +334,7 @@ export async function runIntake(
       JSON.stringify({ opportunityId: opp.id, duplicate: false }),
       nowIso(),
     );
-    const result: IntakeResult = { executionId, opportunity: opp, created: true, task, draft };
+    const result: IntakeResult = { executionId, processRunId, opportunity: opp, created: true, task, draft };
     await finish('done', result);
     return result;
   } catch (err) {

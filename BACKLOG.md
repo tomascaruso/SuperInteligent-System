@@ -75,7 +75,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 |---|---|---|---|---|---|---|
 | P-C1 | Alta | Alineación nominal y documental, sin código | Diagnóstico A+B | README/docs dicen lo que el código hace; glosario PENSIA; docs desactualizados corregidos | Bajo | PASS |
 | P-C2 | Alta | Trazabilidad expuesta (pasos por ejecución en API + UI) | P-C1 | Ver los pasos reales de una ejecución en la demo | Medio | PASS |
-| P-C3 | Alta | Proceso como entidad + Workflow Registry mínimo | P-C2 | Una ejecución pertenece a un proceso versionado consultable; `runIntake` sin cambios internos | Medio | PLANNED |
+| P-C3 | Alta | Proceso como entidad + Workflow Registry mínimo | P-C2 | Una ejecución pertenece a un proceso versionado consultable; `runIntake` sin cambios internos | Medio | PASS |
 | P-C4 | Alta | Agentes como entidades (los 5 actuales, deterministas) | P-C3 | La tarea muestra qué agente la generó; `assigned_to` deja de ser texto fijo | Medio | PLANNED |
 | P-C5 | Alta | Aprobaciones con expiración (7 días) + invalidación si cambia el mensaje | P-C4 | Un borrador viejo o desincronizado no se puede aprobar | Medio | PLANNED |
 | P-C6 | Media | Policy/Tool Registry mínimo + reintento con tope y solo admin | P-C5 | Tests de permisos en verde | Medio | PLANNED |
@@ -91,6 +91,13 @@ Evidencia P-C2: endpoint `GET /api/executions/:id/steps` + botón
 «Ver pasos» en Actividad; 34/34 tests en verde (3 nuevos C2); smoke con
 servidor real (6 pasos en orden, 401 sin token). Informe en
 `docs/C2-REPORTE.md`. Aprobado por Tomás el 26-oct-2026 («Seguí con C2»).
+Sin push ni merge todavía.
+Evidencia P-C3: tablas `workflows` y `process_runs`, siembra +
+backfill en arranque, `runIntake` envuelto (pasos intactos), API de
+procesos y workflows, tarjeta «Procesos» en Actividad; 39/39 tests en
+verde (5 nuevos C3); smoke con servidor real (backfill de 3 corridas +
+intake nuevo con `processRunId`). Informe en `docs/C3-REPORTE.md`.
+Aprobado por Tomás el 26-oct-2026 («continuemos con lo siguiente»).
 Sin push ni merge todavía.
 
 ## Deuda y notas
