@@ -19,7 +19,13 @@ async function api(path, options = {}) {
     },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || `Error ${res.status}`);
+  if (!res.ok) {
+    // Fase 6: el estado viaja con el error para que refresh() distinga
+    // una sesión expirada (401) de cualquier otro fallo.
+    const error = new Error(data.message || data.error || `Error ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
   return data;
 }
 
@@ -472,16 +478,32 @@ async function refresh() {
     if (failed.length) items.push(`<li>${failed.length} ejecución(es) fallida(s) — <a href="#actividad">Ver actividad</a></li>`);
     $('priority').innerHTML = items.join('') || '<li>Sin acciones urgentes.</li>';
   } catch (e) {
-    err.textContent = e.message;
+    // Fase 6 — recuperación: una sesión expirada vuelve a la pantalla de
+    // acceso en vez de dejar la app visible con datos viejos; un fallo de
+    // red se explica en español en vez de mostrar el mensaje del navegador.
+    if (e.status === 401) {
+      $('app-section').classList.add('hidden');
+      $('auth-section').classList.remove('hidden');
+      err.textContent = 'La sesión expiró. Volvé a entrar.';
+    } else if (e.message === 'Failed to fetch') {
+      err.textContent = 'No se pudo contactar al servidor. Revisá tu conexión y reintentá.';
+    } else {
+      err.textContent = e.message;
+    }
   }
 }
 
 // C8: ya no hay registro público. El alta es por invitación de PENSIA:
 $('btn-show-invitation').onclick = () => {
-  $('invitation-section').classList.toggle('hidden');
+  const section = $('invitation-section');
+  section.classList.toggle('hidden');
+  // Fase 6: al mostrar el formulario, el foco va al primer campo.
+  if (!section.classList.contains('hidden')) $('inv-token').focus();
 };
 
-$('btn-accept').onclick = async () => {
+// Fase 6: entrar y aceptar usan withLoading como el resto de las acciones:
+// evitan dobles envíos y muestran que algo está pasando.
+$('btn-accept').onclick = () => withLoading($('btn-accept'), async () => {
   err.textContent = '';
   try {
     await api('/api/auth/accept-invitation', {
@@ -496,9 +518,9 @@ $('btn-accept').onclick = async () => {
   } catch (e) {
     err.textContent = e.message;
   }
-};
+});
 
-$('btn-login').onclick = async () => {
+$('btn-login').onclick = () => withLoading($('btn-login'), async () => {
   err.textContent = '';
   try {
     await api('/api/auth/login', {
@@ -509,7 +531,7 @@ $('btn-login').onclick = async () => {
   } catch (e) {
     err.textContent = e.message;
   }
-};
+});
 
 $('btn-logout').onclick = async () => {
   // C7: cierra la sesión httpOnly en el servidor; la UI se oculta igual
@@ -523,7 +545,9 @@ $('btn-logout').onclick = async () => {
   $('auth-section').classList.remove('hidden');
 };
 
-$('btn-refresh').onclick = refresh;
+// Fase 6: actualizar también deshabilita el botón mientras carga, para
+// que dos actualizaciones no se pisen entre sí.
+$('btn-refresh').onclick = () => withLoading($('btn-refresh'), refresh);
 
 $('btn-create-opp').onclick = async () => {
   await withLoading($('btn-create-opp'), async () => {

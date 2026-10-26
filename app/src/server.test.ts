@@ -509,3 +509,35 @@ describe('alta por invitación (C8)', () => {
     await app.close();
   });
 });
+
+describe('Fase 6 — QA y cierre', () => {
+  it('la pantalla de acceso anuncia errores y los mensajes de sección son en vivo', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const index = await app.inject({ method: 'GET', url: '/' });
+    expect(index.body).toContain('id="error" class="alert alert-error" role="alert"');
+    for (const id of ['opp-feedback', 'task-feedback', 'draft-feedback', 'activity-feedback']) {
+      expect(index.body).toContain(`id="${id}" class="alert" aria-live="polite"`);
+    }
+    await app.close();
+  });
+
+  it('la UI maneja sesión expirada, fallo de red y dobles envíos', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.body).toContain('La sesión expiró. Volvé a entrar.');
+    expect(js.body).toContain('No se pudo contactar al servidor.');
+    expect(js.body).toContain("withLoading($('btn-login')");
+    expect(js.body).toContain("withLoading($('btn-accept')");
+    expect(js.body).toContain("withLoading($('btn-refresh')");
+    expect(js.body).toContain("inv-token').focus()");
+    await app.close();
+  });
+
+  it('los tokens de texto pasan WCAG AA en blanco y en canvas', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const css = await app.inject({ method: 'GET', url: '/styles/tokens.css' });
+    expect(css.body).toContain('--color-text-secondary: #5a6a80');
+    expect(css.body).toContain('--color-text-muted: #63738c');
+    await app.close();
+  });
+});

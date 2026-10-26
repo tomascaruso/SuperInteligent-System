@@ -8,8 +8,14 @@
   --color-primary-hover: #4338ca;
   --color-primary-subtle: #eef2ff;
   --color-text-primary: #172033;
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
+  /* Fase 6 (desviación documentada de la especificación): los tokens
+     oficiales #64748b y #94a3b8 no alcanzan WCAG AA en todos los fondos
+     (secundario 4,48:1 sobre canvas; auxiliar 2,56:1 sobre blanco). Los
+     valores nuevos pasan AA en blanco y en canvas (medido): secundario
+     5,51:1 / 5,20:1; auxiliar 4,81:1 / 4,54:1. La jerarquía se mantiene
+     (auxiliar más claro que secundario). */
+  --color-text-secondary: #5a6a80;
+  --color-text-muted: #63738c;
   --color-surface: #ffffff;
   --color-canvas: #f7f8fc;
   --color-border: #e2e8f0;
