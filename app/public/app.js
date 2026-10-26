@@ -1,5 +1,5 @@
-// Interfaz mínima de la demo. Sin frameworks; el token vive en localStorage
-// (demo local; en producción usar cookie httpOnly + HTTPS).
+// Interfaz de la demo (UI/UX System OS v1.1, Fase 1: Foundations). Sin frameworks;
+// el token vive en localStorage (demo; en producción usar cookie httpOnly + HTTPS).
 const $ = (id) => document.getElementById(id);
 const err = $('error');
 
@@ -11,6 +11,17 @@ function esc(s) {
 
 function token() {
   return localStorage.getItem('sis_token') || '';
+}
+
+// Badges de presentación. El texto acompaña siempre al color; los valores no
+// mapeados caen a neutral. Prioridad: high/medium/low (datos del seed).
+// Estado de oportunidad: proposal_draft, in_follow_up, new (según routes.ts).
+function priorityBadge(p) {
+  return { high: 'badge-danger', medium: 'badge-warning', low: 'badge-neutral' }[p] || 'badge-neutral';
+}
+
+function statusBadge(s) {
+  return { proposal_draft: 'badge-info', in_follow_up: 'badge-success', new: 'badge-neutral' }[s] || 'badge-neutral';
 }
 
 async function api(path, options = {}) {
@@ -45,12 +56,14 @@ async function refresh() {
       `Creadas hoy: ${stats.createdToday}/${stats.maxPerDay}`;
     const { opportunities } = await api('/api/opportunities');
     $('opps').innerHTML = opportunities.map((o) =>
-      `<tr><td>${esc(o.contact_name)}</td><td>${esc(o.company)}</td><td>${esc(o.category)}</td><td>${esc(o.priority)}</td><td>${esc(o.status)}</td></tr>`,
+      `<tr><td>${esc(o.contact_name)}</td><td>${esc(o.company)}</td><td>${esc(o.category)}</td>` +
+      `<td><span class="badge ${priorityBadge(o.priority)}">${esc(o.priority)}</span></td>` +
+      `<td><span class="badge ${statusBadge(o.status)}">${esc(o.status)}</span></td></tr>`,
     ).join('') || '<tr><td colspan="5">Sin oportunidades todavía.</td></tr>';
     const { tasks } = await api('/api/tasks?status=open');
     $('tasks').innerHTML = tasks.map((t) =>
       `<li>${esc(t.title)} — vence ${esc(t.due_at.slice(0, 10))} ` +
-      `<button data-done="${t.id}">Marcar hecha</button></li>`,
+      `<button class="btn btn-secondary btn-sm" data-done="${t.id}">Marcar hecha</button></li>`,
     ).join('') || '<li>Sin tareas abiertas.</li>';
     document.querySelectorAll('[data-done]').forEach((b) => {
       b.onclick = async () => {
@@ -61,9 +74,9 @@ async function refresh() {
     const { drafts } = await api('/api/drafts');
     const pending = drafts.filter((d) => d.status === 'pending_approval');
     $('drafts').innerHTML = pending.map((d) =>
-      `<pre>${esc(d.body)}</pre>` +
-      `<button data-approve="${d.id}">Aprobar</button> ` +
-      `<button data-reject="${d.id}">Rechazar</button>`,
+      `<pre class="draft-body">${esc(d.body)}</pre>` +
+      `<button class="btn btn-primary btn-sm" data-approve="${d.id}">Aprobar</button> ` +
+      `<button class="btn btn-danger btn-sm" data-reject="${d.id}">Rechazar</button>`,
     ).join('') || '<p>Sin borradores pendientes.</p>';
     document.querySelectorAll('[data-approve]').forEach((b) => {
       b.onclick = async () => { await api(`/api/drafts/${b.dataset.approve}/approve`, { method: 'POST', body: '{}' }); await refresh(); };
@@ -78,7 +91,7 @@ async function refresh() {
     const { executions } = await api('/api/executions');
     $('executions').innerHTML = executions.slice(0, 20).map((e) =>
       `<li>${esc(e.created_at.slice(0, 19))} — ${esc(e.workflow)} v${esc(e.workflow_version)}: ${esc(e.status)}` +
-      (e.status === 'failed' ? ` <button data-retry="${e.id}">Reintentar</button> — ${esc(e.error || '')}` : '') + '</li>',
+      (e.status === 'failed' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button> — ${esc(e.error || '')}` : '') + '</li>',
     ).join('') || '<li>Sin ejecuciones.</li>';
     document.querySelectorAll('[data-retry]').forEach((b) => {
       b.onclick = async () => { await api(`/api/executions/${b.dataset.retry}/retry`, { method: 'POST', body: '{}' }); await refresh(); };

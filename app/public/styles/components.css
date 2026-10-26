@@ -1,0 +1,266 @@
+/* UI/UX System OS v1.1 — Componentes base (Fase 1: Foundations).
+   Button, TextField, Badge, Card, DataTable, Alert y ApprovalPanel parcial
+   (cuerpo de borrador). Sin frameworks; clases reutilizables sobre el DOM actual. */
+
+/* ---------- Button ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--line-height-label);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, filter 120ms ease;
+}
+
+.btn:active {
+  filter: brightness(0.94);
+}
+
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn.is-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-canvas);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+}
+
+.btn-ghost:hover {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-text-primary);
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: var(--color-surface);
+}
+
+.btn-danger:hover {
+  filter: brightness(0.92);
+}
+
+.btn-sm {
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-caption-size);
+}
+
+.btn-lg {
+  min-height: 48px;
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-body-lg-size);
+}
+
+/* ---------- TextField ---------- */
+.field-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 220px;
+  min-width: 200px;
+}
+
+.field-wrap--full {
+  flex-basis: 100%;
+}
+
+.field-label {
+  display: block;
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--line-height-label);
+  color: var(--color-text-primary);
+}
+
+.field {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.field:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+}
+
+.field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+textarea.field {
+  min-height: 72px;
+  resize: vertical;
+}
+
+/* ---------- Badge ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--line-height-label);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.badge-neutral {
+  color: var(--color-text-secondary);
+  background-color: var(--color-canvas);
+  border-color: var(--color-border);
+}
+
+.badge-info {
+  color: var(--color-info);
+  background-color: var(--color-info-bg);
+  border-color: var(--color-info);
+}
+
+.badge-success {
+  color: var(--color-success);
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success);
+}
+
+.badge-warning {
+  color: var(--color-warning);
+  background-color: var(--color-warning-bg);
+  border-color: var(--color-warning);
+}
+
+.badge-danger {
+  color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+}
+
+/* ---------- Card / Section ---------- */
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+/* ---------- DataTable ---------- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body-size);
+}
+
+.data-table th {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  color: var(--color-text-secondary);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+/* ---------- Alert ---------- */
+.alert {
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-body-size);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+}
+
+.alert:empty {
+  display: none;
+}
+
+.alert-error {
+  color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+}
+
+.alert-info {
+  color: var(--color-info);
+  background-color: var(--color-info-bg);
+  border-color: var(--color-info);
+}
+
+.alert-success {
+  color: var(--color-success);
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success);
+}
+
+.alert-warning {
+  color: var(--color-warning);
+  background-color: var(--color-warning-bg);
+  border-color: var(--color-warning);
+}
+
+/* ---------- ApprovalPanel (cuerpo del borrador, Fase 1) ---------- */
+.draft-body {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+/* ---------- Texto auxiliar ---------- */
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}

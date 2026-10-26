@@ -4,58 +4,75 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SuperInteligent System — Demo</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
-  section { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
-  input, textarea, button { font-size: 1rem; padding: 0.4rem; margin: 0.2rem 0; }
-  input, textarea { width: 100%; box-sizing: border-box; }
-  table { width: 100%; border-collapse: collapse; }
-  td, th { border-bottom: 1px solid #eee; padding: 0.4rem; text-align: left; }
-  .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  .hidden { display: none; }
-  .error { color: #b00020; }
-  pre { white-space: pre-wrap; background: #f6f6f6; padding: 0.5rem; border-radius: 4px; }
-</style>
+<link rel="stylesheet" href="/styles/tokens.css" />
+<link rel="stylesheet" href="/styles/base.css" />
+<link rel="stylesheet" href="/styles/components.css" />
 </head>
 <body>
 <h1>SuperInteligent System</h1>
-<p>Orquestador de operaciones comerciales — demo local con datos ficticios.</p>
-<p id="error" class="error"></p>
+<p>Orquestador de operaciones comerciales — demo con datos ficticios.</p>
+<p id="error" class="alert alert-error"></p>
 
-<section id="auth-section">
+<section id="auth-section" class="card">
   <h2>Acceso</h2>
   <div class="row">
-    <input id="orgName" placeholder="Nombre de la organización (solo registro)" />
-    <input id="name" placeholder="Tu nombre (solo registro)" />
-    <input id="email" placeholder="Correo" />
-    <input id="password" type="password" placeholder="Contraseña (mín. 8 caracteres)" />
+    <div class="field-wrap">
+      <label class="field-label" for="orgName">Nombre de la organización (solo registro)</label>
+      <input id="orgName" class="field" />
+    </div>
+    <div class="field-wrap">
+      <label class="field-label" for="name">Tu nombre (solo registro)</label>
+      <input id="name" class="field" />
+    </div>
+    <div class="field-wrap">
+      <label class="field-label" for="email">Correo</label>
+      <input id="email" class="field" />
+    </div>
+    <div class="field-wrap">
+      <label class="field-label" for="password">Contraseña (mín. 8 caracteres)</label>
+      <input id="password" class="field" type="password" />
+    </div>
   </div>
   <div class="row">
-    <button id="btn-register">Crear organización</button>
-    <button id="btn-login">Entrar</button>
+    <button id="btn-register" class="btn btn-secondary">Crear organización</button>
+    <button id="btn-login" class="btn btn-primary">Entrar</button>
   </div>
   <p>Demo sembrada: <code>demo@agenciamartin.demo</code> / <code>Demo1234!</code> (tras <code>npm run seed</code>).</p>
 </section>
 
-<section id="app-section" class="hidden">
+<section id="app-section" class="card hidden">
   <h2>Panel <span id="who"></span></h2>
   <div class="row">
-    <button id="btn-logout">Salir</button>
-    <button id="btn-refresh">Actualizar</button>
+    <button id="btn-logout" class="btn btn-ghost">Salir</button>
+    <button id="btn-refresh" class="btn btn-secondary">Actualizar</button>
   </div>
-  <p id="stats"></p>
+  <p id="stats" class="text-secondary"></p>
 
   <h3>Nueva oportunidad (alta manual)</h3>
   <div class="row">
-    <input id="opp-name" placeholder="Nombre de contacto" />
-    <input id="opp-email" placeholder="Correo de contacto" />
-    <input id="opp-company" placeholder="Empresa (opcional)" />
-    <textarea id="opp-message" placeholder="Mensaje de la oportunidad"></textarea>
-    <button id="btn-create-opp">Crear oportunidad</button>
+    <div class="field-wrap">
+      <label class="field-label" for="opp-name">Nombre de contacto</label>
+      <input id="opp-name" class="field" />
+    </div>
+    <div class="field-wrap">
+      <label class="field-label" for="opp-email">Correo de contacto</label>
+      <input id="opp-email" class="field" />
+    </div>
+    <div class="field-wrap">
+      <label class="field-label" for="opp-company">Empresa (opcional)</label>
+      <input id="opp-company" class="field" />
+    </div>
+    <div class="field-wrap field-wrap--full">
+      <label class="field-label" for="opp-message">Mensaje de la oportunidad</label>
+      <textarea id="opp-message" class="field"></textarea>
+    </div>
+  </div>
+  <div class="row">
+    <button id="btn-create-opp" class="btn btn-primary">Crear oportunidad</button>
   </div>
 
   <h3>Oportunidades</h3>
-  <table><thead><tr><th>Contacto</th><th>Empresa</th><th>Categoría</th><th>Prioridad</th><th>Estado</th></tr></thead>
+  <table class="data-table"><thead><tr><th>Contacto</th><th>Empresa</th><th>Categoría</th><th>Prioridad</th><th>Estado</th></tr></thead>
   <tbody id="opps"></tbody></table>
 
   <h3>Tareas abiertas</h3>
