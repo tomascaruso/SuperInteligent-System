@@ -533,6 +533,36 @@ $('btn-login').onclick = () => withLoading($('btn-login'), async () => {
   }
 });
 
+// Contacto (F3-DEMO): el formulario solo se muestra si el servidor tiene
+// el envío configurado. El correo de destino vive solo en el servidor
+// (variables de entorno) y nunca aparece en esta página. Sin configuración,
+// la sección queda oculta y no se ofrece un formulario que no puede enviar.
+api('/api/contact/status').then((s) => {
+  if (s.enabled) $('contact-section').classList.remove('hidden');
+}).catch(() => {});
+
+$('btn-contact').onclick = () => withLoading($('btn-contact'), async () => {
+  try {
+    await api('/api/contact', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: $('contact-name').value,
+        email: $('contact-email').value,
+        company: $('contact-company').value,
+        message: $('contact-message').value,
+        website: $('contact-website').value,
+      }),
+    });
+    $('contact-name').value = '';
+    $('contact-email').value = '';
+    $('contact-company').value = '';
+    $('contact-message').value = '';
+    setFeedback('contact-feedback', 'success', 'Gracias, recibimos tu mensaje. PENSIA te va a contactar.');
+  } catch (e) {
+    setFeedback('contact-feedback', 'error', e.message);
+  }
+});
+
 $('btn-logout').onclick = async () => {
   // C7: cierra la sesión httpOnly en el servidor; la UI se oculta igual
   // aunque la llamada falle (por ejemplo, sesión ya vencida).

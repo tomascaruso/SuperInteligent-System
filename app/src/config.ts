@@ -1,3 +1,5 @@
+import type { ContactConfig } from './contact.js';
+
 export interface AppConfig {
   host: string;
   port: number;
@@ -9,6 +11,11 @@ export interface AppConfig {
   // C8: secreto del operador de PENSIA (crea invitaciones). Opcional: sin
   // él, la creación de invitaciones está cerrada.
   operatorToken?: string;
+  // F3-DEMO: envío del formulario de contacto. Opcional: sin SMTP
+  // completo, el contacto está cerrado y el formulario no se muestra.
+  // El correo de destino vive solo acá (variables de entorno), nunca en
+  // el código, la página ni el repo.
+  contact?: ContactConfig;
 }
 
 function requiredInt(name: string, fallback: number): number {
@@ -35,6 +42,25 @@ export function assertProductionSecret(config: AppConfig, nodeEnv: string | unde
 // entorno compartido (ver SECURITY.md y OPERATIONS.md).
 export function loadConfig(): AppConfig {
   const jwtSecret = process.env.JWT_SECRET;
+  // F3-DEMO: el contacto solo queda configurado si están las 4 piezas
+  // (servidor, usuario, contraseña y destino). Si falta alguna, el
+  // formulario no se muestra y el endpoint responde 503: nunca se acepta
+  // un mensaje que no se puede enviar.
+  const smtpHost = process.env.CONTACT_SMTP_HOST || '';
+  const smtpUser = process.env.CONTACT_SMTP_USER || '';
+  const smtpPass = process.env.CONTACT_SMTP_PASS || '';
+  const contactTo = process.env.CONTACT_TO || '';
+  const contact: ContactConfig | undefined =
+    smtpHost !== '' && smtpUser !== '' && smtpPass !== '' && contactTo !== ''
+      ? {
+          smtpHost,
+          smtpPort: requiredInt('CONTACT_SMTP_PORT', 587),
+          smtpUser,
+          smtpPass,
+          to: contactTo,
+          from: process.env.CONTACT_FROM || smtpUser,
+        }
+      : undefined;
   return {
     host: process.env.HOST ?? '127.0.0.1',
     port: requiredInt('PORT', 3000),
@@ -45,5 +71,6 @@ export function loadConfig(): AppConfig {
     jwtSecretIsDefault: jwtSecret === undefined || jwtSecret === '',
     maxOpportunitiesPerDay: requiredInt('MAX_OPPORTUNITIES_PER_DAY', 100),
     operatorToken: process.env.OPERATOR_TOKEN || undefined,
+    contact,
   };
 }

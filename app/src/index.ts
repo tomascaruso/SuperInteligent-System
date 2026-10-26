@@ -16,6 +16,7 @@ async function main(): Promise<void> {
     jwtSecret: config.jwtSecret,
     maxOpportunitiesPerDay: config.maxOpportunitiesPerDay,
     operatorToken: config.operatorToken,
+    contact: config.contact,
   });
 
   const shutdown = async (signal: string): Promise<void> => {

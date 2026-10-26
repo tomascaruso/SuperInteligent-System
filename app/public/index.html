@@ -15,6 +15,14 @@
 <p id="error" class="alert alert-error" role="alert"></p>
 
 <section id="auth-section" class="card">
+  <h2>Qué hace</h2>
+  <p>Los contactos que llegan a una agencia se pierden y los seguimientos quedan sin hacer. SuperInteligent System coordina ese trabajo para que ningún contacto quede sin respuesta.</p>
+  <p>Para agencias y consultoras B2B. Un servicio de PENSIA.</p>
+  <ol>
+    <li>Entra un contacto.</li>
+    <li>El sistema lo clasifica, crea la tarea con su vencimiento y redacta el borrador de respuesta.</li>
+    <li>Una persona aprueba antes de que pase nada: el sistema no envía mensajes solo.</li>
+  </ol>
   <h2>Acceso</h2>
   <div class="row">
     <div class="field-wrap">
@@ -50,7 +58,39 @@
       <button id="btn-accept" class="btn btn-primary">Crear mi organización</button>
     </div>
   </div>
-  <p>Demo sembrada: <code>demo@agenciamartin.demo</code> / <code>Demo1234!</code> (tras <code>npm run seed</code>).</p>
+  <p>Cuenta de demostración: <code>demo@agenciamartin.demo</code> / <code>Demo1234!</code>.</p>
+  <div id="contact-section" class="hidden">
+    <h2>Quiero una demo para mi empresa</h2>
+    <p class="text-muted">Contanos quién sos y qué necesitás; PENSIA te responde.</p>
+    <div class="row">
+      <div class="field-wrap">
+        <label class="field-label" for="contact-name">Nombre</label>
+        <input id="contact-name" class="field" />
+      </div>
+      <div class="field-wrap">
+        <label class="field-label" for="contact-email">Correo</label>
+        <input id="contact-email" class="field" />
+      </div>
+      <div class="field-wrap">
+        <label class="field-label" for="contact-company">Empresa (opcional)</label>
+        <input id="contact-company" class="field" />
+      </div>
+    </div>
+    <div class="row">
+      <div class="field-wrap">
+        <label class="field-label" for="contact-message">Mensaje</label>
+        <textarea id="contact-message" class="field"></textarea>
+      </div>
+    </div>
+    <div class="hidden">
+      <label class="field-label" for="contact-website">Sitio web</label>
+      <input id="contact-website" class="field" tabindex="-1" autocomplete="off" />
+    </div>
+    <div class="row">
+      <button id="btn-contact" class="btn btn-primary">Enviar mensaje</button>
+    </div>
+    <p id="contact-feedback" class="alert" aria-live="polite"></p>
+  </div>
 </section>
 
 <section id="app-section" class="hidden">
