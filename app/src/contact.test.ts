@@ -29,10 +29,9 @@ const VALID = {
   website: '',
 };
 
-function relayResponse(body: unknown, status = 200, location: string | null = null) {
+function relayResponse(body: unknown, status = 200) {
   return {
     status,
-    headers: { get: (name: string) => (name === 'location' ? location : null) },
     json: async () => body,
   };
 }
@@ -64,22 +63,14 @@ describe('contacto: configuración y relay', () => {
     expect(sent.email).toBe('martina@empresa.com');
   });
 
-  it('sendContactViaRelay sigue la redirección reenviando el POST', async () => {
-    const urls: string[] = [];
-    const fetchStub: RelayFetch = async (url) => {
-      urls.push(url);
-      if (urls.length === 1) {
-        return relayResponse({}, 302, 'https://contenido.test/exec');
-      }
-      return relayResponse({ ok: true });
-    };
-    await sendContactViaRelay(FULL_CONTACT, VALID, fetchStub);
-    expect(urls).toEqual(['https://relay.test/exec', 'https://contenido.test/exec']);
+  it('sendContactViaRelay conserva el código de error del relay', async () => {
+    const refused: RelayFetch = async () => relayResponse({ ok: false, error: 'forbidden' });
+    await expect(sendContactViaRelay(FULL_CONTACT, VALID, refused)).rejects.toThrow('relay_failed:forbidden');
+    const failed: RelayFetch = async () => relayResponse({ ok: false, error: 'failed' });
+    await expect(sendContactViaRelay(FULL_CONTACT, VALID, failed)).rejects.toThrow('relay_failed:failed');
   });
 
-  it('sendContactViaRelay rechaza { ok: false } y un fallo de red', async () => {
-    const refused: RelayFetch = async () => relayResponse({ ok: false });
-    await expect(sendContactViaRelay(FULL_CONTACT, VALID, refused)).rejects.toThrow('relay_failed');
+  it('sendContactViaRelay rechaza un fallo de red', async () => {
     const broken: RelayFetch = async () => {
       throw new Error('boom');
     };

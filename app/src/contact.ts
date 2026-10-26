@@ -46,16 +46,24 @@ export function isContactConfigured(contact: ContactConfig | undefined): contact
 // Envía el mensaje al relay. El `fetchFn` inyectable existe para testear
 // sin red (los tests pasan un stub); en producción es el fetch global.
 // El token viaja en el cuerpo, nunca en la URL (las URLs quedan en logs).
-// Las redirecciones se siguen a mano reenviando el POST: Apps Script
-// responde al POST con una redirección a su dominio de contenido, y un
-// fetch con redirección automática convertiría el reenvío en GET y
-// perdería el cuerpo. Apps Script siempre responde 200 con el resultado
-// en el cuerpo ({ ok: true/false }); un cuerpo distinto o un error de
-// red es un fallo de envío.
+//
+// IMPORTANTE: las redirecciones se dejan en el comportamiento estándar
+// del fetch (seguirlas). Apps Script responde al POST con una redirección
+// a su dominio de contenido y SIRVE el resultado del doPost en el
+// pedido siguiente; reenviar el POST a mano a esa URL devuelve una
+// página HTML en vez del JSON (eso fue exactamente el fallo del
+// 26-oct-2026: el doPost corrió y terminó, pero la app recibió HTML y
+// falló parseando). El flujo estándar es el mismo que usa el formulario
+// de captación del ebook, que funciona.
+// Apps Script siempre responde 200 con el resultado en el cuerpo
+// ({ ok: true/false }); el código de error del relay se conserva en el
+// mensaje de la excepción para que el log del servidor diga la causa
+// (forbidden = token distinto, invalid = datos inválidos,
+// failed = el script falló al enviar).
 export type RelayFetch = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal; redirect: 'manual' },
-) => Promise<{ status: number; headers: { get(name: string): string | null }; json(): Promise<unknown> }>;
+  init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal },
+) => Promise<{ status: number; json(): Promise<unknown> }>;
 
 export async function sendContactViaRelay(
   contact: ContactConfig,
@@ -69,28 +77,16 @@ export async function sendContactViaRelay(
     message: input.message,
     token: contact.relayToken,
   });
-  const signal = AbortSignal.timeout(15_000);
-  let url = contact.relayUrl;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetchFn(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: payload,
-      signal,
-      redirect: 'manual',
-    });
-    if (res.status >= 300 && res.status < 400) {
-      const location = res.headers.get('location');
-      if (location) {
-        url = location;
-        continue;
-      }
-    }
-    const data = (await res.json()) as { ok?: unknown };
-    if (res.status >= 200 && res.status < 300 && data.ok === true) {
-      return;
-    }
-    throw new Error('relay_failed');
+  const res = await fetchFn(contact.relayUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: payload,
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = (await res.json()) as { ok?: unknown; error?: unknown };
+  if (res.status >= 200 && res.status < 300 && data.ok === true) {
+    return;
   }
-  throw new Error('relay_failed');
+  const code = typeof data.error === 'string' ? data.error : 'unknown';
+  throw new Error(`relay_failed:${code}`);
 }

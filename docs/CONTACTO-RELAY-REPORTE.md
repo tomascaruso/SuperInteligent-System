@@ -75,8 +75,40 @@ por evidencia, no por preferencia.
   con relay configurado; POST a un relay inalcanzable → 502
   `send_failed` (fallo visible, sin colgarse).
 
+## Primer reintento con relay: fallo por la redirección (26-oct-2026)
+
+El reintento del 26-oct ~17:39 ART (20:39 UTC) volvió a fallar en
+pantalla, pero esta vez la evidencia es completa y señala al código de
+la app, no al script:
+
+- Apps Script → Ejecuciones: un `doPost` de aplicación web a las
+  17:39:53, 0,425 s, **Completada**. El pedido SÍ llegó al script.
+- Log de Render (req-6g, 20:39:54 UTC): `SyntaxError: Unexpected
+  token '<', "<!DOCTYPE "... is not valid JSON` al parsear la
+  respuesta. La app recibió HTML, no el JSON del script.
+- El correo NO llegó.
+
+Diagnóstico: la app seguía las redirecciones a mano reenviando el POST
+a la URL de contenido de Google, y esa URL devuelve una página HTML en
+vez del JSON del doPost. El flujo correcto es el estándar del fetch
+(seguir la redirección): Apps Script sirve el resultado del doPost en
+el pedido siguiente, y es el mismo flujo que usa el formulario de
+captación del ebook, que funciona.
+
+Corrección (commit local pendiente de subir y mergear):
+
+- `sendContactViaRelay` ya no sigue redirecciones a mano: usa el fetch
+  con su comportamiento estándar.
+- El código de error del relay se conserva en la excepción
+  (`relay_failed:forbidden|invalid|failed|unknown`) para que el próximo
+  log diga la causa sin adivinar: si el reintento vuelve a fallar, el
+  código dirá si es token distinto, datos inválidos o fallo del script.
+- Test de redirección manual reemplazado por tests del código de error.
+
 ## Pendiente (NO verificado)
 
-El envío real de punta a punta: falta subir y mergear, que el operador
-despliegue el script y cargue las variables, y reintentar el mensaje de
-prueba ("Prueba Loki") para confirmar que llega a su correo.
+El envío real de punta a punta: falta subir y mergear esta corrección,
+y reintentar el mensaje de prueba ("Prueba Loki") para confirmar que
+llega al correo del operador. Si el reintento da
+`relay_failed:forbidden`, el token del script y el de Render no
+coinciden y hay que igualarlos (sin pegarlos en ningún chat).
