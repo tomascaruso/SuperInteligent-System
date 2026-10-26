@@ -49,6 +49,14 @@ function statusLabel(s) {
   return { proposal_draft: 'Borrador de propuesta', in_follow_up: 'En seguimiento', new: 'Nueva' }[s] || s;
 }
 
+// Solo presentación: el clasificador guarda 'general' cuando ningún tema
+// coincide; en pantalla se lee 'Consulta general', que dice lo mismo sin
+// el token técnico. El valor guardado no cambia (las reglas de
+// clasificación son otro tema, no un texto).
+function categoryLabel(c) {
+  return { general: 'Consulta general' }[c] || c;
+}
+
 // Feedback por sección (Fase 3): el alert vacío se oculta solo vía :empty.
 // No lo borra refresh(): el mensaje describe la última operación de la sección.
 function setFeedback(id, kind, message) {
@@ -414,7 +422,7 @@ async function refresh() {
     const { opportunities } = await api('/api/opportunities');
     $('opps').innerHTML = opportunities.map((o) =>
       `<tr><td data-label="Contacto">${esc(o.contact_name)}</td><td data-label="Empresa">${esc(o.company)}</td>` +
-      `<td data-label="Categoría">${esc(o.category)}</td>` +
+      `<td data-label="Categoría">${esc(categoryLabel(o.category))}</td>` +
       `<td data-label="Prioridad"><span class="badge ${priorityBadge(o.priority)}">${esc(priorityLabel(o.priority))}</span></td>` +
       `<td data-label="Estado"><span class="badge ${statusBadge(o.status)}">${esc(statusLabel(o.status))}</span></td></tr>`,
     ).join('') || '<tr><td colspan="5"><div class="empty-state">Aún no hay oportunidades. Creá la primera con el formulario de alta manual.</div></td></tr>';
@@ -465,7 +473,7 @@ async function refresh() {
     const oppContext = (d) => {
       const o = oppById.get(d.opportunity_id);
       const company = d.company ? ` (${esc(d.company)})` : '';
-      const category = o ? ` · ${esc(o.category)}` : '';
+      const category = o ? ` · ${esc(categoryLabel(o.category))}` : '';
       return `${esc(d.contact_name)}${company}${category}`;
     };
     // Solo admin ve aprobar/rechazar (el servidor lo exige); el resto solo lee.
@@ -520,13 +528,17 @@ async function refresh() {
         return o ? ` · oportunidad: ${esc(o.contact_name)}${o.company ? ` (${esc(o.company)})` : ''}` : '';
       }
       const parts = [];
-      if (d.category) parts.push(`categoría ${esc(d.category)}`);
+      if (d.category) parts.push(`categoría ${esc(categoryLabel(d.category))}`);
       if (d.priority) parts.push(`prioridad ${esc(priorityLabel(d.priority))}`);
       return parts.length ? ` · ${parts.join(' · ')}` : '';
     };
     const auditItems = (a) => `<li>${esc(formatDateTime(a.created_at))} — ${esc(a.actor)}: ${esc(auditActionLabel(a.action))} (${esc(auditEntityLabel(a.entity))})${auditDetail(a)}</li>`;
     $('audit').innerHTML = audit.slice(0, 20).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
-    $('activity').innerHTML = audit.slice(0, 5).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
+    // F3-DEMO: el resumen de Inicio muestra qué está pasando en el negocio,
+    // no los inicios de sesión (que tapaban todo tras cada verificación).
+    // La auditoría completa, con los inicios de sesión, sigue en Actividad.
+    const businessAudit = audit.filter((a) => a.action !== 'user.login');
+    $('activity').innerHTML = businessAudit.slice(0, 5).map(auditItems).join('') || '<li class="empty-state">Sin actividad comercial todavía.</li>';
     const { executions } = await api('/api/executions');
     // C3 (alineación PENSIA): corridas de proceso, una por ejecución en
     // este flujo. 'En curso' es un estado real guardado (una corrida puede
@@ -548,7 +560,7 @@ async function refresh() {
     // directo).
     const stepSummary = (s) => {
       const out = parseJson(s.output_json);
-      if (out.category && out.priority) return ` · categoría ${esc(out.category)} · prioridad ${esc(priorityLabel(out.priority))}`;
+      if (out.category && out.priority) return ` · categoría ${esc(categoryLabel(out.category))} · prioridad ${esc(priorityLabel(out.priority))}`;
       if (typeof out.matched === 'boolean') return ` · duplicado: ${out.matched ? 'sí' : 'no'}`;
       return '';
     };
