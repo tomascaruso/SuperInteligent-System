@@ -73,6 +73,7 @@ interface DraftRow {
   org_id: string;
   opportunity_id: string;
   body: string;
+  source_message: string | null;
   status: string;
   note: string | null;
   decided_by: string | null;
@@ -452,16 +453,31 @@ export function registerRoutes(
   });
 
   // ---------- Borradores y aprobaciones (solo admin aprueba/rechaza) ----------
+  // C5: un borrador vence a los 7 días y se desactualiza si el mensaje de
+  // su oportunidad cambió desde que se generó. Solo afecta a aprobar:
+  // rechazar un borrador vencido o desactualizado sigue permitido (es la
+  // forma de descartarlo; luego un intake nuevo genera uno fresco).
+  const DRAFT_EXPIRY_MS = 7 * 24 * 3600_000;
+  const isDraftExpired = (d: DraftRow): boolean => Date.now() - Date.parse(d.created_at) > DRAFT_EXPIRY_MS;
+  const isDraftStale = (d: DraftRow, currentMessage: string): boolean =>
+    d.source_message !== null && d.source_message !== currentMessage;
+
   app.get('/api/drafts', { preHandler: auth }, async (request) => {
     const user = getUser(request);
-    const rows = await queryAll<DraftRow & { contact_name: string; company: string }>(
+    const rows = await queryAll<DraftRow & { contact_name: string; company: string; opportunity_message: string }>(
       db,
-      `SELECT d.*, o.contact_name, o.company FROM drafts d
+      `SELECT d.*, o.contact_name, o.company, o.message AS opportunity_message FROM drafts d
        JOIN opportunities o ON o.id = d.opportunity_id
        WHERE d.org_id = ? ORDER BY d.created_at DESC`,
       user.orgId,
     );
-    return { drafts: rows };
+    return {
+      drafts: rows.map((d) => ({
+        ...d,
+        expired: isDraftExpired(d),
+        stale: isDraftStale(d, d.opportunity_message),
+      })),
+    };
   });
 
   const decideDraft = async (
@@ -482,6 +498,31 @@ export function registerRoutes(
     if (draft.status !== 'pending_approval') {
       await reply.code(409).send({ error: 'conflict', message: 'El borrador ya fue decidido' });
       return;
+    }
+    if (decision === 'approved') {
+      const opp = await queryOne<{ message: string }>(
+        db,
+        'SELECT message FROM opportunities WHERE id = ?',
+        draft.opportunity_id,
+      );
+      if (!opp) {
+        await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
+        return;
+      }
+      if (isDraftExpired(draft)) {
+        await reply.code(409).send({
+          error: 'draft_expired',
+          message: 'El borrador venció: pasaron más de 7 días desde que se creó y ya no se puede aprobar',
+        });
+        return;
+      }
+      if (isDraftStale(draft, opp.message)) {
+        await reply.code(409).send({
+          error: 'draft_stale',
+          message: 'El borrador quedó desactualizado: el mensaje de la oportunidad cambió desde que se creó y ya no se puede aprobar',
+        });
+        return;
+      }
     }
     await exec(
       db,

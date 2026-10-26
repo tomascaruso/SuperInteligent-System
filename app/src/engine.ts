@@ -60,6 +60,7 @@ export interface DraftRow {
   org_id: string;
   opportunity_id: string;
   body: string;
+  source_message: string | null;
   status: string;
   note: string | null;
   decided_by: string | null;
@@ -159,11 +160,12 @@ async function ensureTaskAndDraft(
     const draftId = newId();
     await exec(
       db,
-      'INSERT INTO drafts (id, org_id, opportunity_id, body, status, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO drafts (id, org_id, opportunity_id, body, source_message, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       draftId,
       orgId,
       opp.id,
       draftBody(n, c),
+      opp.message,
       'pending_approval',
       nowIso(),
     );

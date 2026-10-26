@@ -340,18 +340,29 @@ async function refresh() {
     const roleNote = pending.length && currentRole !== 'admin'
       ? '<p class="text-muted">Tu rol no permite aprobar ni rechazar borradores.</p>'
       : '';
-    $('drafts').innerHTML = roleNote + pending.map((d) =>
-      `<div class="card"><p><span class="badge badge-warning">Pendiente de aprobación</span></p>` +
-      `<p><strong>Oportunidad relacionada:</strong> ${oppContext(d)}</p>` +
-      `<p><strong>Canal:</strong> No disponible</p>` +
-      `<p><strong>Alcance de la decisión:</strong> actualiza el estado de la oportunidad y registra la decisión en la auditoría. No envía ningún mensaje.</p>` +
-      `<pre class="draft-body">${esc(d.body)}</pre>` +
-      (currentRole === 'admin'
-        ? `<button class="btn btn-primary btn-sm" data-approve="${d.id}">Aprobar</button> ` +
-          `<button class="btn btn-danger btn-sm" data-reject="${d.id}">Rechazar</button>`
-        : '') +
-      `</div>`,
-    ).join('') || '<p>Sin borradores pendientes.</p>';
+    $('drafts').innerHTML = roleNote + pending.map((d) => {
+      // C5: un borrador vencido o desactualizado no se puede aprobar (el
+      // servidor lo rechaza con 409); rechazarlo sigue permitido y es la
+      // forma de descartarlo para generar uno nuevo.
+      const blocked = d.expired ? 'Vencido' : (d.stale ? 'Desactualizado' : '');
+      const blockedNote = d.expired
+        ? 'Este borrador venció: pasaron más de 7 días desde que se creó y ya no se puede aprobar. Podés rechazarlo y generar uno nuevo.'
+        : (d.stale
+          ? 'Este borrador quedó desactualizado: el mensaje de la oportunidad cambió desde que se creó y ya no se puede aprobar. Podés rechazarlo y generar uno nuevo.'
+          : '');
+      return `<div class="card"><p><span class="badge badge-warning">Pendiente de aprobación</span>` +
+        (blocked ? ` <span class="badge badge-danger">${blocked}</span>` : '') + `</p>` +
+        `<p><strong>Oportunidad relacionada:</strong> ${oppContext(d)}</p>` +
+        `<p><strong>Canal:</strong> No disponible</p>` +
+        `<p><strong>Alcance de la decisión:</strong> actualiza el estado de la oportunidad y registra la decisión en la auditoría. No envía ningún mensaje.</p>` +
+        (blockedNote ? `<p class="text-muted">${blockedNote}</p>` : '') +
+        `<pre class="draft-body">${esc(d.body)}</pre>` +
+        (currentRole === 'admin'
+          ? `<button class="btn btn-primary btn-sm" data-approve="${d.id}"${blocked ? ' disabled title="Este borrador ya no se puede aprobar"' : ''}>Aprobar</button> ` +
+            `<button class="btn btn-danger btn-sm" data-reject="${d.id}">Rechazar</button>`
+          : '') +
+        `</div>`;
+    }).join('') || '<p>Sin borradores pendientes.</p>';
     $('decided').innerHTML = decided.map((d) =>
       `<div class="card"><p><span class="badge ${draftStatusBadge(d.status)}">${esc(draftStatusLabel(d.status))}</span></p>` +
       `<p><strong>Oportunidad relacionada:</strong> ${oppContext(d)}</p>` +
