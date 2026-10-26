@@ -24,7 +24,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
 |---|---|---|---|---|---|---|
 | F1-SCAFF | Alta | Scaffold TS + Fastify + estructura modular | G0-D1, G0-D3 | `npm run dev` y `npm test` funcionan en local | Bajo | PASS |
-| F1-CI | Media | CI básica (lint, tipos, tests) | F1-SCAFF, G0-D3 | PR en verde antes de merge | Bajo | PLANNED |
+| F1-CI | Media | CI básica (lint, tipos, tests) | F1-SCAFF, G0-D3 | PR en verde antes de merge | Bajo | IN_PROGRESS | Workflow creado y verificado en local (docs/F1-CI-REPORTE.md); PASS cuando corra en verde en GitHub tras el merge. Sin paso de lint: el proyecto no tiene linter configurado.
 | F1-AUTH | Alta | Auth + orgs + roles + usuarios | F1-SCAFF | Tests de escape multiempresa en verde | Alto | PASS |
 | F1-INGEST | Alta | Alta manual + webhook firmado + idempotencia | F1-AUTH | Evento duplicado sin efectos duplicados | Alto | PASS |
 | F1-NORM | Alta | Normalización + dedup + upsert | F1-INGEST | Casos de prueba de normalización y dedup en verde | Medio | PASS |

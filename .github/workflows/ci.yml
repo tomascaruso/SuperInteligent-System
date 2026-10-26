@@ -1,0 +1,67 @@
+# CI básica (F1-CI): corre en cada push a main o a la rama de trabajo y en
+# cada pull request. Un PR solo se mergea con estos trabajos en verde.
+# No despliega nada: solo verifica que el cambio no rompa el build ni los tests.
+
+name: CI
+
+on:
+  push:
+    branches: [main, ui-fase1-foundations]
+  pull_request:
+
+jobs:
+  ci:
+    name: Tipos, build, tests y smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Chequeo de tipos
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      # tsc no compila public/app.js, así que su sintaxis se verifica aparte.
+      - name: Sintaxis del frontend
+        run: node --check public/app.js
+      - name: Tests
+        run: npm test
+      - name: Smoke /health con servidor real
+        run: |
+          DATABASE_PATH=/tmp/ci-superinteligent.db PORT=3456 node dist/index.js &
+          SERVER_PID=$!
+          trap "kill $SERVER_PID" EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3456/health; then exit 0; fi
+            sleep 1
+          done
+          echo "El servidor no respondió /health a tiempo" >&2
+          exit 1
+
+  build-prod:
+    name: Build como en producción (sin devDependencies)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      # Reproduce la condición que rompió el despliegue de C8 en Render:
+      # instalar sin dependencias de desarrollo y compilar igual.
+      - name: Instalar solo dependencias de producción
+        run: npm ci --omit=dev
+      - name: Build
+        run: npm run build
