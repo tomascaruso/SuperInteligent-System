@@ -12,9 +12,12 @@ Fase 6, criterios de la sección 11 y estrategia de la sección 12
   accesibilidad, errores y recuperación, permisos, regresiones,
   revisión del diff y documentación del design system (sección 14).
 - Estado: PASS. Ningún criterio en FAIL y ningún bloqueo de lanzamiento
-  detectado. Tres criterios quedan en NOT_VERIFIED con su motivo (ver
-  tabla): recorrido de teclado, matriz real de viewports y captura de
-  consola. No se afirma lo que no se probó.
+  detectado. En la entrega original, tres criterios quedaron en
+  NOT_VERIFIED con su motivo (ver tabla): recorrido de teclado, matriz
+  real de viewports y captura de consola. El 26-oct-2026, verificación
+  en vivo posterior (ver sección al final): A11Y-001 y RWD-001 pasan a
+  PASS con evidencia; QA-003 sigue NOT_VERIFIED. No se afirma lo que
+  no se probó.
 - Archivos modificados: `app/public/index.html`,
   `app/public/app.js`, `app/public/styles/tokens.css`,
   `app/src/server.test.ts`, `README.md`.
@@ -30,7 +33,7 @@ Fase 6, criterios de la sección 11 y estrategia de la sección 12
   JS con contrastes medidos.
 - Resultados reales: ver abajo.
 - Riesgos detectados: ninguno crítico. Ver limitaciones.
-- Limitaciones pendientes: A11Y-001, RWD-001 y QA-003 (NOT_VERIFIED).
+- Limitaciones pendientes: QA-003 (NOT_VERIFIED; consola no leída directamente, solo ausencia de errores visibles).
 - Próximo paso recomendado: decidir si se sube la Fase 6 a la rama
   remota (sin mergear a `main`) o se mergea; la verificación visual en
   vivo post-merge puede cubrir el recorrido de teclado y la ausencia de
@@ -85,9 +88,7 @@ Fase 6, criterios de la sección 11 y estrategia de la sección 12
 
 ### Pendiente
 
-- Recorrido de teclado en navegador real (A11Y-001).
-- Matriz real de viewports 375/640/768/1024/1440 (RWD-001).
-- Captura de consola en navegador real (QA-003).
+- Captura de consola en navegador real (QA-003): revisión manual pendiente (ver sección al final).
 - UI de operador para crear invitaciones (C8 la dejó solo por API).
 - Servicio worker en Render (pendiente desde C7, plan gratis por
   verificar).
@@ -101,9 +102,10 @@ NOT_VERIFIED en vez de afirmarse.
 
 ### No verificado
 
-- A11Y-001, RWD-001, QA-003 (ver tabla). La verificación en vivo
-  post-merge en la demo puede verificar teclado y roturas visibles;
-  la matriz de viewports y la consola requieren prueba manual dedicada.
+- QA-003 (ver tabla y sección al final). A11Y-001 y RWD-001 se verificaron
+  en vivo el 26-oct-2026 (ver sección al final); la consola requiere
+  revisión manual dedicada porque las herramientas disponibles no leen
+  el registro de consola del navegador.
 
 ## Auditoría: hallazgos y qué se hizo con cada uno
 
@@ -140,13 +142,13 @@ NOT_VERIFIED en vez de afirmarse.
 | IA-001 | PASS | Diálogo con alcance real; canal «No disponible» honesto. |
 | IA-002 | PASS | Aprobación por id; 409 vencido/desactualizado (C5). |
 | IA-003 | PASS | Nueva ejecución por reintento; tope y solo admin (C6). |
-| A11Y-001 | NOT_VERIFIED | Implementado, sin recorrido manual registrado. |
+| A11Y-001 | PASS | Recorrido completo con Tab en vivo 26-oct-2026 (6 vistas + acceso + diálogo; ver sección al final). Observación menor: tras varios Tab desde Cancelar, el contorno quedó fijo sin moverse visiblemente (Shift+Tab volvía a Aprobar; nada inalcanzable). |
 | A11Y-002 | PASS | Foco visible; contrastes medidos. |
-| RWD-001 | NOT_VERIFIED | Reglas inspeccionadas; sin matriz real (sin navegador automatizado). |
+| RWD-001 | PASS | Matriz real en vivo 26-oct-2026 (375/768/1280/1920, un ancho por cada rango de la especificación; ver sección al final). Detalle menor: en 768 el ítem Agentes queda cortado al borde, alcanzable con desplazamiento. |
 | SEC-001 | PASS | 401/403/404 en suite; ocultar no autoriza. |
 | QA-001 | PASS | Suite 72/72 + smoke, sin regresiones conocidas. |
 | QA-002 | PASS | Solo estados reales; carga y vacío etiquetados. |
-| QA-003 | NOT_VERIFIED | Consola no capturada. |
+| QA-003 | NOT_VERIFIED | Sin errores visibles en página durante el recorrido 26-oct-2026, pero el registro de consola no pudo leerse directamente (sin acceso a devtools); falta revisión manual. |
 
 ## Bloqueos de lanzamiento (sección 11, revisión punto por punto)
 
@@ -174,3 +176,48 @@ dobles envíos y color. El diff completo queda en el commit de la fase.
 Esperar la decisión de Tomás: subir Fase 6 a la rama y/o mergear a
 `main` (con su verificación visual posterior), o encarar lo siguiente
 (F1-CI, revisión demo, `OPERATOR_TOKEN`, servicio worker).
+
+## Verificación en vivo posterior — 26-oct-2026 (A11Y-001, RWD-001, QA-003)
+
+Solo lectura en la demo pública, sin cambios de estado (indicadores
+3/3/1/0 idénticos al inicio y al final; borrador de Lucía Fernández
+sigue pendiente). La ventana se redimensionó a mano (las herramientas
+no permiten redimensionar) con ayuda de Tomás.
+
+### A11Y-001 → PASS
+
+Recorrido completo con Tab: encabezado (Recorrido guiado → Actualizar
+→ Salir), navegación (Inicio → Oportunidades → Tareas y seguimientos
+→ Aprobaciones → Actividad y ejecuciones → Agentes) y contenido.
+Paradas: Inicio 14 (ciclo completo verificado), Oportunidades 14
+(formulario completo; celdas de tabla no enfocables), Tareas 12 (3
+«Marcar hecha» solo recorridos), Aprobaciones 11 (Aprobar → Rechazar
+solo recorridos), Actividad 12 (3 «Ver pasos» solo recorridos),
+Agentes 9 (solo tarjetas), acceso 9 (Correo → Contraseña → Entrar →
+Tengo una invitación → Nombre → Correo → Empresa → Mensaje → Enviar;
+ningún formulario enviado). Diálogo «Aprobar borrador» (Lucía): foco
+inicial en Aprobar, orden Aprobar → Cancelar, cierre con Escape y con
+Cancelar verificados, sin aprobar ni rechazar. Observación menor:
+tras varios Tab desde Cancelar, el contorno visible quedó fijo sin
+moverse; Shift+Tab volvía a Aprobar. Nada inalcanzable.
+
+### RWD-001 → PASS
+
+Un ancho por cada rango de la especificación (móvil <640, tablet
+640–1023, escritorio 1024–1439, ancho ≥1440): 375 (tabla colapsada en
+tarjetas con etiqueta y valor; navegación en tira con desplazamiento;
+formulario apilado sin cortes), 768 (tabla completa 5 columnas
+legible; navegación en tira, ítem Agentes cortado al borde pero
+alcanzable con desplazamiento), 1280 (navegación completa sin
+desplazamiento; formulario en 3 columnas; indicadores en grilla de 2
+columnas), 1920 (todo completo, sin roturas). El panel del recorrido
+guiado nunca se inició: en todos los anchos es solo un botón y no tapa
+contenido.
+
+### QA-003 → sigue NOT_VERIFIED
+
+Durante el recorrido no apareció ningún error visible en la página y
+todas las vistas cargaron completas, pero el registro de consola no
+pudo leerse directamente con las herramientas disponibles (sin acceso
+a las herramientas de desarrollo del navegador). No se afirma consola
+limpia: falta una revisión manual de la consola.
