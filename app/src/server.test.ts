@@ -1,6 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { buildServer } from './server.js';
 
+// C8: el alta es por invitación (ya no hay registro público). Crea la
+// invitación como operador y la canjea; devuelve la respuesta del canje.
+async function registerViaInvitation(
+  app: Awaited<ReturnType<typeof buildServer>>['app'],
+  orgName = 'Agencia Test',
+  name = 'Ana',
+  email = 'ana@test.com',
+) {
+  const inv = await app.inject({
+    method: 'POST',
+    url: '/api/invitations',
+    headers: { 'x-operator-token': 'test-operator' },
+    payload: { orgName, email },
+  });
+  expect(inv.statusCode).toBe(201);
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/auth/accept-invitation',
+    payload: { token: inv.json().token as string, name, password: 'Secreto123' },
+  });
+  expect(res.statusCode).toBe(201);
+  return res;
+}
+
 describe('health y raíz', () => {
   it('GET /health responde ok', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
@@ -200,12 +224,8 @@ describe('procesos (C3)', () => {
 
 describe('agentes (C4)', () => {
   it('GET /api/agents sirve los 5 agentes deterministas en orden, con sus pasos reales', async () => {
-    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia Test', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100, operatorToken: 'test-operator' });
+    const reg = await registerViaInvitation(app);
     const token = reg.json().token as string;
     const res = await app.inject({ method: 'GET', url: '/api/agents', headers: { authorization: `Bearer ${token}` } });
     expect(res.statusCode).toBe(200);
@@ -248,12 +268,8 @@ describe('aprobaciones con expiración (C5)', () => {
 
 describe('políticas y herramientas (C6)', () => {
   async function authed() {
-    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia Test', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100, operatorToken: 'test-operator' });
+    const reg = await registerViaInvitation(app);
     return { app, token: reg.json().token as string };
   }
 
@@ -315,12 +331,8 @@ describe('endurecimiento (C7)', () => {
   });
 
   it('el login pone cookie httpOnly, la cookie autentica y el logout la borra', async () => {
-    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia Test', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100, operatorToken: 'test-operator' });
+    const reg = await registerViaInvitation(app);
     expect(reg.statusCode).toBe(201);
     const setCookie = [reg.headers['set-cookie']].flat().join('; ');
     expect(setCookie).toContain('HttpOnly');
@@ -376,6 +388,124 @@ describe('endurecimiento (C7)', () => {
     expect(js.statusCode).toBe(200);
     expect(js.body).not.toContain('localStorage');
     expect(js.body).toContain('/api/auth/logout');
+    await app.close();
+  });
+});
+
+describe('alta por invitación (C8)', () => {
+  it('el registro público está cerrado', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia Test', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    expect(res.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('crear invitación exige el secreto del operador', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100, operatorToken: 'test-operator' });
+    const sinHeader = await app.inject({
+      method: 'POST',
+      url: '/api/invitations',
+      payload: { orgName: 'Nueva Empresa', email: 'nueva@empresa.com' },
+    });
+    expect(sinHeader.statusCode).toBe(403);
+    expect(sinHeader.json().error).toBe('operator_forbidden');
+    const malSecreto = await app.inject({
+      method: 'POST',
+      url: '/api/invitations',
+      headers: { 'x-operator-token': 'incorrecto' },
+      payload: { orgName: 'Nueva Empresa', email: 'nueva@empresa.com' },
+    });
+    expect(malSecreto.statusCode).toBe(403);
+    await app.close();
+    const sinConfig = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await sinConfig.app.inject({
+      method: 'POST',
+      url: '/api/invitations',
+      headers: { 'x-operator-token': 'test-operator' },
+      payload: { orgName: 'Nueva Empresa', email: 'nueva@empresa.com' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('operator_not_configured');
+    await sinConfig.app.close();
+  });
+
+  it('el ciclo completo: invitación → canje → org con admin; reuso, vencida, desconocida y duplicada se rechazan', async () => {
+    const { app, db } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100, operatorToken: 'test-operator' });
+    const inv = await app.inject({
+      method: 'POST',
+      url: '/api/invitations',
+      headers: { 'x-operator-token': 'test-operator' },
+      payload: { orgName: 'Nueva Empresa', email: 'nueva@empresa.com' },
+    });
+    expect(inv.statusCode).toBe(201);
+    expect(inv.json().token as string).toMatch(/^[0-9a-f]{64}$/);
+    expect(inv.json().invitation.org_name).toBe('Nueva Empresa');
+    const token = inv.json().token as string;
+    const accept = await app.inject({
+      method: 'POST',
+      url: '/api/auth/accept-invitation',
+      payload: { token, name: 'Nora', password: 'Secreto123' },
+    });
+    expect(accept.statusCode).toBe(201);
+    expect(accept.json().org.name).toBe('Nueva Empresa');
+    expect(accept.json().user.email).toBe('nueva@empresa.com');
+    expect(accept.json().user.role).toBe('admin');
+    expect([accept.headers['set-cookie']].flat().join('; ')).toContain('HttpOnly');
+    const reuse = await app.inject({
+      method: 'POST',
+      url: '/api/auth/accept-invitation',
+      payload: { token, name: 'Nora', password: 'Secreto123' },
+    });
+    expect(reuse.statusCode).toBe(410);
+    expect(reuse.json().error).toBe('invitation_accepted');
+    const inv2 = await app.inject({
+      method: 'POST',
+      url: '/api/invitations',
+      headers: { 'x-operator-token': 'test-operator' },
+      payload: { orgName: 'Otra Empresa', email: 'otra@empresa.com' },
+    });
+    const past = new Date(Date.now() - 1000).toISOString();
+    await db.exec('UPDATE invitations SET expires_at = ? WHERE id = ?', past, inv2.json().invitation.id as string);
+    const expired = await app.inject({
+      method: 'POST',
+      url: '/api/auth/accept-invitation',
+      payload: { token: inv2.json().token as string, name: 'Omar', password: 'Secreto123' },
+    });
+    expect(expired.statusCode).toBe(410);
+    expect(expired.json().error).toBe('invitation_expired');
+    const unknown = await app.inject({
+      method: 'POST',
+      url: '/api/auth/accept-invitation',
+      payload: { token: '0'.repeat(64), name: 'Nadie', password: 'Secreto123' },
+    });
+    expect(unknown.statusCode).toBe(404);
+    const dup = await app.inject({
+      method: 'POST',
+      url: '/api/invitations',
+      headers: { 'x-operator-token': 'test-operator' },
+      payload: { orgName: 'Duplicada', email: 'nueva@empresa.com' },
+    });
+    const dupAccept = await app.inject({
+      method: 'POST',
+      url: '/api/auth/accept-invitation',
+      payload: { token: dup.json().token as string, name: 'Nora', password: 'Secreto123' },
+    });
+    expect(dupAccept.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it('la UI ya no ofrece registro público y sí aceptación de invitación', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const index = await app.inject({ method: 'GET', url: '/' });
+    expect(index.body).toContain('Tengo una invitación');
+    expect(index.body).not.toContain('btn-register');
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.body).not.toContain('/api/auth/register');
+    expect(js.body).toContain('/api/auth/accept-invitation');
     await app.close();
   });
 });

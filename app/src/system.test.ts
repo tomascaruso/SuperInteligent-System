@@ -7,14 +7,28 @@ import { buildServer } from './server.js';
 import { ensureAgentCatalog, ensureProcessCatalog, exec, newId, nowIso } from './db.js';
 
 async function testServer(max = 100) {
-  return await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: max });
+  return await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: max, operatorToken: 'test-operator' });
 }
 
-async function register(app: Awaited<ReturnType<typeof buildServer>>['app'], orgName = 'Agencia Test') {
+// C8: el alta es por invitación (ya no hay registro público). El helper
+// crea la invitación como operador y la canjea, como haría un cliente.
+async function register(
+  app: Awaited<ReturnType<typeof buildServer>>['app'],
+  orgName = 'Agencia Test',
+  name = 'Ana',
+  email = 'ana@test.com',
+) {
+  const inv = await app.inject({
+    method: 'POST',
+    url: '/api/invitations',
+    headers: { 'x-operator-token': 'test-operator' },
+    payload: { orgName, email },
+  });
+  expect(inv.statusCode).toBe(201);
   const res = await app.inject({
     method: 'POST',
-    url: '/api/auth/register',
-    payload: { orgName, name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    url: '/api/auth/accept-invitation',
+    payload: { token: inv.json().token as string, name, password: 'Secreto123' },
   });
   expect(res.statusCode).toBe(201);
   return res.json() as { token: string; org: { id: string; webhook_secret: string } };
@@ -180,12 +194,7 @@ describe('MVP — 12 criterios de aceptación', () => {
     const { app } = await testServer();
     const a = await register(app, 'Org A');
     const created = await app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(a.token), payload: OPP });
-    const bRes = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Org B', name: 'Bea', email: 'bea@test.com', password: 'Secreto123' },
-    });
-    const bToken = bRes.json().token as string;
+    const { token: bToken } = await register(app, 'Org B', 'Bea', 'bea@test.com');
     const foreign = await app.inject({ method: 'GET', url: `/api/opportunities/${created.json().opportunity.id}`, headers: auth(bToken) });
     expect(foreign.statusCode).toBe(404);
     const bList = await app.inject({ method: 'GET', url: '/api/opportunities', headers: auth(bToken) });
@@ -261,16 +270,11 @@ describe('C2 — trazabilidad expuesta (alineación PENSIA)', () => {
     expect(created.statusCode).toBe(201);
     const list = await app.inject({ method: 'GET', url: '/api/executions', headers: auth(token) });
     const executionId = list.json().executions[0].id as string;
-    const other = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Otra Agencia', name: 'Beto', email: 'beto@otra.com', password: 'Secreto123' },
-    });
-    expect(other.statusCode).toBe(201);
+    const { token: otherToken } = await register(app, 'Otra Agencia', 'Beto', 'beto@otra.com');
     const cross = await app.inject({
       method: 'GET',
       url: `/api/executions/${executionId}/steps`,
-      headers: auth(other.json().token as string),
+      headers: auth(otherToken),
     });
     expect(cross.statusCode).toBe(404);
     const missing = await app.inject({ method: 'GET', url: '/api/executions/inexistente/steps', headers: auth(token) });
@@ -321,13 +325,8 @@ describe('C3 — proceso como entidad (alineación PENSIA)', () => {
     expect(created.statusCode).toBe(201);
     const runs = await app.inject({ method: 'GET', url: '/api/processes', headers: auth(token) });
     const runId = runs.json().processes[0].id as string;
-    const other = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Otra Agencia', name: 'Beto', email: 'beto@otra.com', password: 'Secreto123' },
-    });
-    expect(other.statusCode).toBe(201);
-    const cross = await app.inject({ method: 'GET', url: `/api/processes/${runId}`, headers: auth(other.json().token as string) });
+    const { token: otherToken } = await register(app, 'Otra Agencia', 'Beto', 'beto@otra.com');
+    const cross = await app.inject({ method: 'GET', url: `/api/processes/${runId}`, headers: auth(otherToken) });
     expect(cross.statusCode).toBe(404);
     const missing = await app.inject({ method: 'GET', url: '/api/processes/inexistente', headers: auth(token) });
     expect(missing.statusCode).toBe(404);

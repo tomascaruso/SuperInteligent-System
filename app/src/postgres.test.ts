@@ -28,7 +28,7 @@ async function pgServer() {
   });
   await initSchema(db);
   const app = Fastify({ logger: false });
-  registerRoutes(app, db, { jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+  registerRoutes(app, db, { jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100, operatorToken: 'test-operator' });
   return { app, db };
 }
 
@@ -39,14 +39,33 @@ const OPP = {
   message: 'Necesitamos automatizar nuestro seguimiento comercial urgente, esta semana.',
 };
 
+// C8: alta por invitación (ya no hay registro público).
+async function registerViaInvitation(
+  app: Awaited<ReturnType<typeof pgServer>>['app'],
+  orgName: string,
+  name: string,
+  email: string,
+) {
+  const inv = await app.inject({
+    method: 'POST',
+    url: '/api/invitations',
+    headers: { 'x-operator-token': 'test-operator' },
+    payload: { orgName, email },
+  });
+  expect(inv.statusCode).toBe(201);
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/auth/accept-invitation',
+    payload: { token: inv.json().token as string, name, password: 'Secreto123' },
+  });
+  expect(res.statusCode).toBe(201);
+  return res;
+}
+
 describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
   it('intake, dedup, tarea, borrador, aprobación, auditoría y stats', async () => {
     const { app, db } = await pgServer();
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const reg = await registerViaInvitation(app, 'Agencia PG', 'Ana', 'ana@test.com');
     expect(reg.statusCode).toBe(201);
     const token = reg.json().token as string;
     const auth = { authorization: `Bearer ${token}` };
@@ -92,11 +111,7 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
 
   it('una organización no ve los datos de otra', async () => {
     const { app, db } = await pgServer();
-    const a = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Org A', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const a = await registerViaInvitation(app, 'Org A', 'Ana', 'ana@test.com');
     const aToken = a.json().token as string;
     const created = await app.inject({
       method: 'POST',
@@ -104,11 +119,7 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
       headers: { authorization: `Bearer ${aToken}` },
       payload: OPP,
     });
-    const b = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Org B', name: 'Bea', email: 'bea@test.com', password: 'Secreto123' },
-    });
+    const b = await registerViaInvitation(app, 'Org B', 'Bea', 'bea@test.com');
     const bToken = b.json().token as string;
     const foreign = await app.inject({
       method: 'GET',
@@ -122,11 +133,7 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
 
   it('C4: catálogo de agentes y tarea con agente en Postgres', async () => {
     const { app, db } = await pgServer();
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const reg = await registerViaInvitation(app, 'Agencia PG', 'Ana', 'ana@test.com');
     const token = reg.json().token as string;
     const agents = await app.inject({ method: 'GET', url: '/api/agents', headers: { authorization: `Bearer ${token}` } });
     expect(agents.statusCode).toBe(200);
@@ -147,11 +154,7 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
 
   it('C5: un borrador vencido no se puede aprobar en Postgres', async () => {
     const { app, db } = await pgServer();
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const reg = await registerViaInvitation(app, 'Agencia PG', 'Ana', 'ana@test.com');
     const token = reg.json().token as string;
     await app.inject({
       method: 'POST',
@@ -179,11 +182,7 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
 describe('Postgres (pg-mem) — C6: políticas, herramientas y reintento con vínculo', () => {
   it('políticas sembradas, herramientas completas y reintento guarda retry_of', async () => {
     const { app, db } = await pgServer();
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const reg = await registerViaInvitation(app, 'Agencia PG', 'Ana', 'ana@test.com');
     expect(reg.statusCode).toBe(201);
     const token = reg.json().token as string;
     const orgId = reg.json().org.id as string;
@@ -222,11 +221,7 @@ describe('Postgres (pg-mem) — C7: jobs del worker', () => {
   it('encolar y procesar un job en Postgres', async () => {
     const { processPendingJobs } = await import('./engine.js');
     const { app, db } = await pgServer();
-    const reg = await app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
-    });
+    const reg = await registerViaInvitation(app, 'Agencia PG', 'Ana', 'ana@test.com');
     expect(reg.statusCode).toBe(201);
     const auth = { authorization: `Bearer ${reg.json().token as string}` };
     const enqueued = await app.inject({ method: 'POST', url: '/api/jobs', headers: auth, payload: OPP });

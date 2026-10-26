@@ -28,5 +28,10 @@ services:
         value: 0.0.0.0
       - key: JWT_SECRET
         generateValue: true
+      # C8: secreto del operador de PENSIA (crea invitaciones de alta).
+      # Se carga a mano en el dashboard; sin él, la creación de
+      # invitaciones está cerrada (la demo sembrada sigue funcionando).
+      - key: OPERATOR_TOKEN
+        sync: false
       - key: DATABASE_URL
         sync: false

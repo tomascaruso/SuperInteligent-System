@@ -49,6 +49,12 @@ externas (el sistema no llama a ningún servicio ni envía nada): las
 herramientas reales son los 6 pasos del pipeline, cada uno de un agente
 (C6). Se consultan con `GET /api/tools`, derivado del catálogo de agentes.
 
+## Alta operada por PENSIA
+
+El alta de una empresa cliente no es autoservicio: PENSIA crea una
+invitación (C8) y el cliente la canjea para crear su organización. Sin
+invitación no hay registro.
+
 ## Agente especializado
 
 Ejecuta tareas específicas dentro de los permisos y responsabilidades que se

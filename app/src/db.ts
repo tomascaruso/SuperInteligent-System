@@ -125,6 +125,15 @@ const SCHEMA = `
       note TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS invitations (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      org_name TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      accepted_at TEXT,
+      created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
       org_id TEXT NOT NULL REFERENCES organizations(id),

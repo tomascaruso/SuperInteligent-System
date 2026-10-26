@@ -19,7 +19,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 |---|---|---|---|---|---|---|
 | VAL-E1 | Alta | 10–15 entrevistas a fundadores del segmento prioritario | G0-D2 | Guion ejecutado, pregunta central respondida, patrón de dolor en ≥ 60% o H1 revisada | Alto | CANCELLED | Cancelado 25-oct-2026 (D12: no habrá entrevistas) |
 
-## Fase 1 — MVP Core (completada 25-oct-2026, salvo CI y TENANT)
+## Fase 1 — MVP Core (completada 25-oct-2026, salvo CI; TENANT decidida en C8, D16)
 
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
 |---|---|---|---|---|---|---|
@@ -80,7 +80,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | P-C5 | Alta | Aprobaciones con expiración (7 días) + invalidación si cambia el mensaje | P-C4 | Un borrador viejo o desincronizado no se puede aprobar | Medio | PASS |
 | P-C6 | Media | Policy/Tool Registry mínimo + reintento con tope y solo admin | P-C5 | Tests de permisos en verde | Medio | PASS (26-oct-2026; informe docs/C6-REPORTE.md; 57/57 tests, 8 nuevos C6; smoke con servidor real OK) |
 | P-C7 | Media | Worker asíncrono + endurecimiento (httpOnly, headers, rate limit, arranque sin secreto en prod) | P-C6 | Demo sigue verde + pruebas | Alto | PASS (26-oct-2026; informe docs/C7-REPORTE.md; 65/65 tests, 8 nuevos C7; smoke con servidor real + worker --once OK) |
-| P-C8 | Alta | Decisión TENANT + alta operada por PENSIA | P-C7 | Alta por invitación; sin registro público para clientes | Medio | PLANNED |
+| P-C8 | Alta | Decisión TENANT + alta operada por PENSIA | P-C7 | Alta por invitación; sin registro público para clientes | Medio | PASS (26-oct-2026; informe docs/C8-REPORTE.md; D16 multi-tenant; 69/69 tests, 4 nuevos C8; smoke con servidor real OK) |
 
 Evidencia P-C1: `docs/DIAGNOSTICO-ALINEACION-PENSIA.md`,
 `docs/GLOSARIO-PENSIA.md`, README actualizado, correcciones en
