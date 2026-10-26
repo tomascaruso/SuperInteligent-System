@@ -21,6 +21,13 @@ import {
   signToken,
   verifyPassword,
 } from './auth.js';
+import {
+  buildContactMail,
+  contactSchema,
+  createContactTransporter,
+  isContactConfigured,
+  type ContactConfig,
+} from './contact.js';
 import { LimitExceededError, enqueueIntakeJob, runIntake, type JobRow, type OpportunityRow } from './engine.js';
 
 // C7: cookie de sesión httpOnly. Secure solo en producción: en local se
@@ -40,6 +47,9 @@ export interface RouteOptions {
   // C8: secreto del operador de PENSIA (crea invitaciones). Sin él, la
   // creación de invitaciones está cerrada.
   operatorToken?: string;
+  // F3-DEMO: envío del formulario de contacto. Sin él, el contacto está
+  // cerrado y el formulario no se muestra.
+  contact?: ContactConfig;
 }
 
 interface OrgRow {
@@ -216,6 +226,56 @@ export function registerRoutes(
     service: 'superinteligent-system',
     version: SERVICE_VERSION,
   }));
+
+  // ---------- Contacto de la demo (F3-DEMO, público) ----------
+  // El correo de destino vive solo en la configuración del servidor y
+  // nunca se devuelve ni se muestra. Sin SMTP configurado, el estado es
+  // { enabled: false } y el envío responde 503.
+  app.get('/api/contact/status', async () => ({ enabled: isContactConfigured(opts.contact) }));
+
+  // Límite anti-spam: 5 mensajes por hora por IP. El estado vive en
+  // memoria (igual que el límite de login de C7).
+  const contactAttempts = new Map<string, { count: number; resetAt: number }>();
+  const CONTACT_MAX_ATTEMPTS = 5;
+  const CONTACT_WINDOW_MS = 60 * 60 * 1000;
+
+  app.post('/api/contact', async (request, reply) => {
+    const body = parse(contactSchema, request.body, reply);
+    if (!body) return;
+    // Honeypot: un bot que completa el campo invisible recibe un éxito
+    // fingido y el mensaje se descarta sin enviarse ni guardarse.
+    if (body.website !== '') {
+      await reply.send({ ok: true });
+      return;
+    }
+    const ip = request.ip;
+    const now = Date.now();
+    const entry = contactAttempts.get(ip);
+    if (entry && now < entry.resetAt && entry.count >= CONTACT_MAX_ATTEMPTS) {
+      await reply.code(429).send({ error: 'rate_limited', message: 'Demasiados mensajes; probá de nuevo más tarde' });
+      return;
+    }
+    contactAttempts.set(
+      ip,
+      entry && now < entry.resetAt
+        ? { count: entry.count + 1, resetAt: entry.resetAt }
+        : { count: 1, resetAt: now + CONTACT_WINDOW_MS },
+    );
+    const contact = opts.contact;
+    if (!isContactConfigured(contact)) {
+      await reply.code(503).send({ error: 'contact_not_configured', message: 'El contacto todavía no está disponible en esta demo.' });
+      return;
+    }
+    try {
+      const transporter = createContactTransporter(contact);
+      await transporter.sendMail(buildContactMail(body, contact.from, contact.to));
+    } catch (err) {
+      request.log.error({ err }, 'Fallo al enviar el mensaje de contacto');
+      await reply.code(502).send({ error: 'send_failed', message: 'No se pudo enviar el mensaje; probá de nuevo más tarde.' });
+      return;
+    }
+    await reply.send({ ok: true });
+  });
 
   // ---------- Interfaz web mínima (sin framework) ----------
   const publicDir = new URL('../public/', import.meta.url);

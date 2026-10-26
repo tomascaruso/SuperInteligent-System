@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { ContactConfig } from './contact.js';
 import { openDatabase, type Db } from './db.js';
 import { reconcileOrphans } from './engine.js';
 import { registerRoutes } from './routes.js';
@@ -11,6 +12,7 @@ export interface ServerOptions {
   jwtSecret: string;
   maxOpportunitiesPerDay: number;
   operatorToken?: string;
+  contact?: ContactConfig;
 }
 
 export interface BuiltServer {
@@ -41,6 +43,7 @@ export async function buildServer(opts: ServerOptions): Promise<BuiltServer> {
     jwtSecret: opts.jwtSecret,
     maxOpportunitiesPerDay: opts.maxOpportunitiesPerDay,
     operatorToken: opts.operatorToken,
+    contact: opts.contact,
   });
   return { app, db };
 }

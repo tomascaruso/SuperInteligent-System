@@ -174,6 +174,58 @@ cerrar el interés en 10 minutos.
   UTC) tocan el backend o el formato de datos, no solo textos: su costo
   real se ve al implementarlos.
 
+## Corrección aplicada 26-oct-2026 (pantalla de acceso)
+
+Primera corrección de la lista priorizada, solo textos, sin cambios de
+funcionalidad (commit local pendiente de subir y mergear):
+
+- La pantalla de acceso ahora explica el problema, el público y el
+  funcionamiento en 3 pasos («Qué hace»), antes del formulario de
+  acceso. Cubre la recomendación 1.
+- La línea de la cuenta demo ya no usa jerga de desarrollo («sembrada»,
+  referencia a `npm run seed`): ahora dice «Cuenta de demostración».
+  La contraseña sigue visible porque es la única vía de entrada a la
+  demo pública; quitarla exigiría otro mecanismo de acceso (por
+  ejemplo, un botón «Entrar a la demo»), decisión pendiente de Tomás.
+  Cubre parcialmente la recomendación 6.
+- Pendiente de esta primera tanda: el contacto visible o «Quiero una
+  demo» (recomendaciones 2 y 3), porque falta definir el canal de
+  contacto de PENSIA (correo, WhatsApp u otro).
+
+## Corrección aplicada 26-oct-2026 (formulario de contacto)
+
+Segunda corrección, con backend y frontend (commit local pendiente de
+subir y mergear):
+
+- Formulario «Quiero una demo para mi empresa» en la pantalla de
+  acceso (nombre, correo, empresa opcional, mensaje) que envía a
+  `POST /api/contact`. El correo de destino vive SOLO en variables de
+  entorno del servidor (`CONTACT_TO` y `CONTACT_SMTP_*`, declaradas en
+  `render.yaml` con `sync: false`, sin valores): nunca aparece en el
+  código, en la página, en ningún endpoint ni en el repo. Verificado
+  por búsqueda en el repo servido.
+- Sin SMTP configurado, el contacto está cerrado: `GET
+  /api/contact/status` responde `{ enabled: false }`, el formulario
+  queda oculto y el envío responde 503. Nada de formularios muertos a
+  la vista.
+- Anti-spam: límite de 5 mensajes por hora por IP, campo honeypot y
+  validación (nombre 1–100, correo válido, mensaje 1–2000). El mensaje
+  no se guarda en la base: solo se envía.
+- `nodemailer` en `dependencies` y sus tipos también en `dependencies`
+  (regla del fix de build: lo que `tsc` necesita no vive en
+  `devDependencies`); simulación de instalación de producción en
+  carpeta limpia: build OK, sin paquetes de desarrollo.
+- Pruebas: 83/83 en verde (11 nuevas de contacto: composición,
+  configuración, estado, validación, honeypot, 503, límite y 502 con
+  SMTP inalcanzable; ninguna respuesta expone el destino). El envío
+  real con SMTP queda pendiente de verificar tras cargar las variables
+  en Render y enviar un mensaje de prueba.
+- Pendiente: cargar en Render `CONTACT_SMTP_HOST`, `CONTACT_SMTP_PORT`,
+  `CONTACT_SMTP_USER`, `CONTACT_SMTP_PASS`, `CONTACT_TO` y
+  `CONTACT_FROM` (para Gmail: host smtp.gmail.com, puerto 587, usuario
+  de Gmail y contraseña de aplicación creada en la cuenta de Google;
+  nunca pegar secretos en el chat).
+
 ## Próximo paso
 
 Que Tomás lea esta revisión, haga su propia pasada como cliente

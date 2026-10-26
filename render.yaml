@@ -35,3 +35,19 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      # F3-DEMO: envío del formulario de contacto. Se cargan a mano en el
+      # dashboard; sin ellos, el formulario no se muestra y el envío
+      # responde 503. El correo de destino (CONTACT_TO) nunca va en el
+      # código ni en la página: solo en estas variables.
+      - key: CONTACT_SMTP_HOST
+        sync: false
+      - key: CONTACT_SMTP_PORT
+        sync: false
+      - key: CONTACT_SMTP_USER
+        sync: false
+      - key: CONTACT_SMTP_PASS
+        sync: false
+      - key: CONTACT_TO
+        sync: false
+      - key: CONTACT_FROM
+        sync: false
