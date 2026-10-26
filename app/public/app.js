@@ -306,7 +306,7 @@ async function refresh() {
     ).join('') || '<tr><td colspan="5"><div class="empty-state">Aún no hay oportunidades. Creá la primera con el formulario de alta manual.</div></td></tr>';
     const { tasks } = await api('/api/tasks?status=open');
     $('tasks').innerHTML = tasks.map((t) =>
-      `<li>${esc(t.title)} — vence ${esc(t.due_at.slice(0, 10))} ` +
+      `<li>${esc(t.title)} — Agente: ${esc(t.agent_name || t.assigned_to)} — vence ${esc(t.due_at.slice(0, 10))} ` +
       `<button class="btn btn-secondary btn-sm" data-done="${t.id}">Marcar hecha</button></li>`,
     ).join('') || '<li class="empty-state">Sin tareas abiertas. Cuando llegue una oportunidad, sus seguimientos aparecerán acá.</li>';
     document.querySelectorAll('[data-done]').forEach((b) => {

@@ -5,9 +5,10 @@
 > v1); estados reales de oportunidad `new`, `proposal_draft`,
 > `in_follow_up` (los demás estados del diagrama son objetivo, no código);
 > sin endpoint para editar borradores (solo aprobar/rechazar); sin
-> expiración de aprobaciones; los 5 «agentes» de abajo son mapeos
-> conceptuales sobre pasos del pipeline, no entidades implementadas. Ver
-> `docs/DIAGNOSTICO-ALINEACION-PENSIA.md`.
+> expiración de aprobaciones. Nota C4 (26-oct-2026): los agentes ya son
+> entidades (tabla `agents`, registry en `GET /api/agents`) y cada tarea
+> lleva su `agent_id`; el mapeo paso→agente vive en `steps_json`. Ver
+> `docs/DIAGNOSTICO-ALINEACION-PENSIA.md` y `docs/C4-REPORTE.md`.
 
 ## Workflow: `opportunity.intake` (v1)
 

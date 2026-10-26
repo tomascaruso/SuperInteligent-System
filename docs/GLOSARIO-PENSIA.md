@@ -41,9 +41,10 @@ hoy esa coordinación es la secuencia fija de `runIntake` en `engine.ts`.
 Ejecuta tareas específicas dentro de los permisos y responsabilidades que se
 le asignen. Su composición depende del problema, el proceso y las
 necesidades de cada organización: no es una lista fija e idéntica para todos
-los clientes. Estado actual: los 5 nombres de `WORKFLOWS.md` (Intake,
-Qualification, Response & Proposal, Follow-up, QA & Policy) son mapeos
-conceptuales sobre pasos del pipeline, no entidades implementadas.
+los clientes. Estado actual (C4, 26-oct-2026): los 5 agentes ya son
+entidades (tabla `agents`, registry en `GET /api/agents`) y cada tarea
+lleva su `agent_id`; el mapeo paso→agente vive en `steps_json`. Siguen
+siendo deterministas, sin IA ni autonomía agregada.
 
 ## Proceso / Workflow
 
