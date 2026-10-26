@@ -84,9 +84,57 @@ function draftStatusLabel(s) {
   return { pending_approval: 'Pendiente de aprobación', approved: 'Aprobada', rejected: 'Rechazada' }[s] || s;
 }
 
-// Solo presentación: "2026-10-26T13:06:00" → "2026-10-26 13:06:00".
+// Solo presentación. El servidor guarda UTC (ISO con Z): se muestra en la
+// zona horaria del navegador, no en UTC crudo (la revisión F3-DEMO encontró
+// horas 3 h por delante del reloj local sin advertencia). Si el valor no
+// parsea, se muestra tal cual como antes.
 function formatDateTime(s) {
-  return s ? String(s).slice(0, 19).replace('T', ' ') : '';
+  if (!s) return '';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return String(s).slice(0, 19).replace('T', ' ');
+  return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// Fecha local (AAAA-MM-DD) de un ISO, para vencimientos: se compara y se
+// muestra en la zona del navegador, no en UTC.
+function localDate(s) {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return String(s).slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDate(s) {
+  const l = localDate(s);
+  const parts = l.split('-');
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : l;
+}
+
+// Pluralización real, no "(es)": 1 borrador pendiente, 2 borradores pendientes.
+function plural(n, singular, pluralForm) {
+  return n === 1 ? `1 ${singular}` : `${n} ${pluralForm}`;
+}
+
+// Solo presentación: los pasos y el proceso se guardan con nombre técnico;
+// se muestran en lenguaje de negocio. Los no mapeados se muestran tal cual.
+function stepLabel(s) {
+  return {
+    normalize: 'Recibe y ordena el contacto',
+    dedup: 'Revisa si ya existe',
+    classify: 'Lo clasifica y le pone prioridad',
+    upsert: 'Registra la oportunidad',
+    next_action: 'Crea la tarea con vencimiento',
+    draft: 'Redacta el borrador de respuesta',
+  }[s] || s;
+}
+
+function workflowLabel(w) {
+  return { 'opportunity.intake': 'Captación de oportunidades' }[w] || w;
+}
+
+// Canal de entrada de la oportunidad: 'manual' es el alta manual del
+// formulario, 'webhook' es una entrada externa por integración.
+function channelLabel(s) {
+  return { manual: 'Alta manual', webhook: 'Entrada externa' }[s] || 'No disponible';
 }
 
 // ---------- Etiquetas de actividad y ejecuciones (Fase 5) ----------
@@ -307,10 +355,11 @@ async function refresh() {
       `<td data-label="Estado"><span class="badge ${statusBadge(o.status)}">${esc(statusLabel(o.status))}</span></td></tr>`,
     ).join('') || '<tr><td colspan="5"><div class="empty-state">Aún no hay oportunidades. Creá la primera con el formulario de alta manual.</div></td></tr>';
     const { tasks } = await api('/api/tasks?status=open');
-    $('tasks').innerHTML = tasks.map((t) =>
-      `<li>${esc(t.title)} — Agente: ${esc(t.agent_name || t.assigned_to)} — vence ${esc(t.due_at.slice(0, 10))} ` +
-      `<button class="btn btn-secondary btn-sm" data-done="${t.id}">Marcar hecha</button></li>`,
-    ).join('') || '<li class="empty-state">Sin tareas abiertas. Cuando llegue una oportunidad, sus seguimientos aparecerán acá.</li>';
+    $('tasks').innerHTML = tasks.map((t) => {
+      const who = t.contact_name ? ` — Para: ${esc(t.contact_name)}${t.company ? ` (${esc(t.company)})` : ''}` : '';
+      return `<li>${esc(t.title)}${who} — Agente: ${esc(t.agent_name || t.assigned_to)} — vence ${esc(formatDate(t.due_at))} ` +
+        `<button class="btn btn-secondary btn-sm" data-done="${t.id}">Marcar hecha</button></li>`;
+    }).join('') || '<li class="empty-state">Sin tareas abiertas. Cuando llegue una oportunidad, sus seguimientos aparecerán acá.</li>';
     document.querySelectorAll('[data-done]').forEach((b) => {
       b.onclick = async () => {
         await withLoading(b, async () => {
@@ -328,9 +377,9 @@ async function refresh() {
     const { drafts } = await api('/api/drafts');
     const pending = drafts.filter((d) => d.status === 'pending_approval');
     const decided = drafts.filter((d) => d.status !== 'pending_approval');
-    // Contexto real: el join de /api/drafts ya trae contacto y empresa; la
-    // categoría sale de la lista de oportunidades ya cargada. No hay campo
-    // de canal ni de tipo en el backend: el canal se muestra No disponible.
+    // Contexto real: el join de /api/drafts trae contacto, empresa y canal
+    // (source de la oportunidad); la categoría sale de la lista de
+    // oportunidades ya cargada.
     const oppById = new Map(opportunities.map((o) => [o.id, o]));
     const oppContext = (d) => {
       const o = oppById.get(d.opportunity_id);
@@ -355,7 +404,7 @@ async function refresh() {
       return `<div class="card"><p><span class="badge badge-warning">Pendiente de aprobación</span>` +
         (blocked ? ` <span class="badge badge-danger">${blocked}</span>` : '') + `</p>` +
         `<p><strong>Oportunidad relacionada:</strong> ${oppContext(d)}</p>` +
-        `<p><strong>Canal:</strong> No disponible</p>` +
+        `<p><strong>Canal:</strong> ${esc(channelLabel(d.opportunity_source))}</p>` +
         `<p><strong>Alcance de la decisión:</strong> actualiza el estado de la oportunidad y registra la decisión en la auditoría. No envía ningún mensaje.</p>` +
         (blockedNote ? `<p class="text-muted">${blockedNote}</p>` : '') +
         `<pre class="draft-body">${esc(d.body)}</pre>` +
@@ -407,7 +456,7 @@ async function refresh() {
     $('processes').innerHTML = processes.slice(0, 20).map((p) => {
       const ex = p.execution ? ` · ejecución <span class="text-muted" title="${esc(p.execution.id)}">(${esc(p.execution.id.slice(0, 8))})</span>` : '';
       return `<li><span class="badge ${executionStatusBadge(p.status)}">${esc(processStatusLabel(p.status))}</span> ` +
-        `${esc(p.workflow)} v${esc(p.workflow_version)} · ${esc(formatDateTime(p.created_at))}${ex}</li>`;
+        `${esc(workflowLabel(p.workflow))} v${esc(p.workflow_version)} · ${esc(formatDateTime(p.created_at))}${ex}</li>`;
     }).join('') || '<li class="empty-state">Sin procesos todavía.</li>';
     // C2 (alineación PENSIA): los pasos ya se persistían y ahora se exponen
     // por /api/executions/:id/steps. El detalle real es workflow, versión,
@@ -423,7 +472,7 @@ async function refresh() {
       return '';
     };
     const stepItems = (s) => `<li><span class="badge ${executionStatusBadge(s.status)}">${esc(executionStatusLabel(s.status))}</span> ` +
-      `${esc(s.step)} · ${esc(formatDateTime(s.created_at))}${stepSummary(s)}${s.error ? ` — Error: ${esc(s.error)}` : ''}</li>`;
+      `${esc(stepLabel(s.step))} · ${esc(formatDateTime(s.created_at))}${stepSummary(s)}${s.error ? ` — Error: ${esc(s.error)}` : ''}</li>`;
     $('executions').innerHTML = executions.slice(0, 20).map((e) => {
       const result = parseJson(e.result_json);
       const opp = result.opportunity;
@@ -433,7 +482,7 @@ async function refresh() {
       const fin = e.updated_at && e.updated_at.slice(0, 19) !== e.created_at.slice(0, 19)
         ? ` · Fin ${esc(formatDateTime(e.updated_at))}` : '';
       return `<li><span class="badge ${executionStatusBadge(e.status)}">${esc(executionStatusLabel(e.status))}</span> ` +
-        `${esc(formatDateTime(e.created_at))} — ${esc(e.workflow)} v${esc(e.workflow_version)}` +
+        `${esc(formatDateTime(e.created_at))} — ${esc(workflowLabel(e.workflow))} v${esc(e.workflow_version)}` +
         ` <span class="text-muted" title="${esc(e.id)}">(${esc(e.id.slice(0, 8))})</span>${fin}${detail}` +
         ` <button class="btn btn-secondary btn-sm" data-steps="${e.id}">Ver pasos</button>` +
         (e.status === 'failed' && currentRole === 'admin' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button>` : '') +
@@ -470,12 +519,12 @@ async function refresh() {
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const items = [];
-    tasks.filter((t) => t.due_at.slice(0, 10) < today).forEach((t) => {
-      items.push(`<li>${esc(t.title)} — venció ${esc(t.due_at.slice(0, 10))} <a href="#tareas">Ver tareas</a></li>`);
+    tasks.filter((t) => localDate(t.due_at) < today).forEach((t) => {
+      items.push(`<li>${esc(t.title)} — venció ${esc(formatDate(t.due_at))} <a href="#tareas">Ver tareas</a></li>`);
     });
-    if (pending.length) items.push(`<li>${pending.length} borrador(es) pendiente(s) de aprobación — <a href="#aprobaciones">Revisar</a></li>`);
+    if (pending.length) items.push(`<li>${plural(pending.length, 'borrador pendiente', 'borradores pendientes')} de aprobación — <a href="#aprobaciones">Revisar</a></li>`);
     const failed = executions.filter((e) => e.status === 'failed');
-    if (failed.length) items.push(`<li>${failed.length} ejecución(es) fallida(s) — <a href="#actividad">Ver actividad</a></li>`);
+    if (failed.length) items.push(`<li>${plural(failed.length, 'ejecución fallida', 'ejecuciones fallidas')} — <a href="#actividad">Ver actividad</a></li>`);
     $('priority').innerHTML = items.join('') || '<li>Sin acciones urgentes.</li>';
   } catch (e) {
     // Fase 6 — recuperación: una sesión expirada vuelve a la pantalla de

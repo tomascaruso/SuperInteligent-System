@@ -386,6 +386,30 @@ describe('C4 — agentes como entidades (alineación PENSIA)', () => {
   });
 });
 
+describe('F3-DEMO — correcciones de lenguaje y contexto', () => {
+  it('la tarea muestra el contacto y la empresa de su oportunidad', async () => {
+    const { app } = await testServer();
+    const { token } = await register(app);
+    await app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    const tasks = await app.inject({ method: 'GET', url: '/api/tasks?status=open', headers: auth(token) });
+    expect(tasks.json().tasks).toHaveLength(1);
+    expect(tasks.json().tasks[0].contact_name).toBe('Lucía Fernández');
+    expect(tasks.json().tasks[0].company).toBe('Empresa Ejemplo');
+    await app.close();
+  });
+
+  it('el borrador muestra el canal de entrada de su oportunidad', async () => {
+    const { app } = await testServer();
+    const { token } = await register(app);
+    await app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    const drafts = await app.inject({ method: 'GET', url: '/api/drafts', headers: auth(token) });
+    expect(drafts.json().drafts).toHaveLength(1);
+    // Alta manual por la API: el esquema pone source 'manual' por defecto.
+    expect(drafts.json().drafts[0].opportunity_source).toBe('manual');
+    await app.close();
+  });
+});
+
 describe('C5 — expiración e invalidación de borradores (alineación PENSIA)', () => {
   async function setupPending(s: Awaited<ReturnType<typeof testServer>>, token: string) {
     const created = await s.app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });

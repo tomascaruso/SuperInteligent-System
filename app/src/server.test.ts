@@ -130,7 +130,11 @@ describe('centro de aprobaciones (Fase 4)', () => {
     const res = await app.inject({ method: 'GET', url: '/app.js' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Pendiente de aprobación');
-    expect(res.body).toContain('Canal:</strong> No disponible');
+    // F3-DEMO: el canal ya no es un texto fijo, sale del source de la
+    // oportunidad (Alta manual / Entrada externa, resto No disponible).
+    expect(res.body).toContain('Canal:</strong>');
+    expect(res.body).toContain('Alta manual');
+    expect(res.body).toContain('Entrada externa');
     expect(res.body).toContain('Borrador aprobado. La oportunidad pasó a seguimiento; no se envió ningún mensaje.');
     expect(res.body).toContain('dialog-reason');
     await app.close();
