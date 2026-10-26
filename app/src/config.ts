@@ -6,6 +6,9 @@ export interface AppConfig {
   jwtSecret: string;
   jwtSecretIsDefault: boolean;
   maxOpportunitiesPerDay: number;
+  // C8: secreto del operador de PENSIA (crea invitaciones). Opcional: sin
+  // él, la creación de invitaciones está cerrada.
+  operatorToken?: string;
 }
 
 function requiredInt(name: string, fallback: number): number {
@@ -41,5 +44,6 @@ export function loadConfig(): AppConfig {
     jwtSecret: jwtSecret ?? 'dev-jwt-secret',
     jwtSecretIsDefault: jwtSecret === undefined || jwtSecret === '',
     maxOpportunitiesPerDay: requiredInt('MAX_OPPORTUNITIES_PER_DAY', 100),
+    operatorToken: process.env.OPERATOR_TOKEN || undefined,
   };
 }

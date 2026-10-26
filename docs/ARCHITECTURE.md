@@ -83,12 +83,13 @@ El Core es la plantilla; cada cliente es una ADAPTACIÓN, no una bifurcación:
 - **Regla:** una adaptación de cliente nunca modifica el núcleo; si algo
   falta en el núcleo, se agrega como capacidad general con pruebas, no como
   parche del cliente.
-- **Despliegue por cliente (decisión pendiente en Fase 1):** multi-tenant
-  (un despliegue, un tenant por cliente, aislamiento por `org_id` + RLS) o
-  instancia dedicada por cliente (un despliegue por cliente, más
-  aislamiento, más operación). El MVP usa multi-tenant con `org_id`
-  porque ya está diseñado así; la instancia dedicada se evalúa si un
-  cliente lo exige por seguridad o volumen.
+- **Despliegue por cliente (D16, decidida en C8):** multi-tenant
+  confirmado: un despliegue, un tenant por cliente, aislamiento por
+  `org_id` en cada consulta. La instancia dedicada por cliente (un
+  despliegue por cliente, más aislamiento, más operación) se descarta por
+  ahora: multiplica costo y operación y el plan gratis no la sostiene; se
+  revisa si un cliente exige aislamiento más allá del filtrado por
+  `org_id` (RLS queda como endurecimiento futuro, no implementado).
 - **Demo:** el tenant ficticio de la agencia de Martín es la vidriera de la
   plantilla: demuestra el flujo completo sin exponer datos de clientes.
 

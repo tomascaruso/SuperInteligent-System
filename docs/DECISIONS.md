@@ -158,6 +158,23 @@ funcional, no la identidad del producto. Diagnóstico y brechas en
 `docs/DIAGNOSTICO-ALINEACION-PENSIA.md`; plan incremental C1–C8 en
 `BACKLOG.md` (sección Alineación PENSIA).
 
+## D16 — Multi-tenant + alta operada por PENSIA (adoptada 26-oct-2026, C8)
+
+**Decisión:** la plantilla corre multi-tenant: un despliegue, una base,
+una organización por cliente separada por `org_id` en cada consulta (ya
+implementado así desde el MVP; F1-TENANT queda cerrada). La alternativa
+(instancia dedicada por cliente: servicio + base propios) se descarta por
+ahora: multiplica costo y operación por cliente y el plan gratis de
+Render/Neon no la sostiene; se revisa si un cliente exige aislamiento
+más allá del filtrado por `org_id` (RLS queda como endurecimiento
+futuro, no implementado).
+
+**Alta:** sin registro público. PENSIA crea invitaciones (protegidas por
+`OPERATOR_TOKEN`, no por sesión) y el cliente las canjea para crear su
+organización (token de un solo uso, 7 días, solo su hash en base). El
+registro público anterior se eliminó; la UI ofrece login + canje de
+invitación. El seed y las organizaciones existentes no se ven afectados.
+
 ## Decisiones pendientes de humanos (bloquean el cierre de Gate 0)
 
 - **G0-D1:** confirmar o cambiar el stack (D1–D4, D6–D7).

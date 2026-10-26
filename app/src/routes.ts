@@ -1,13 +1,14 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { audit, exec, newId, nowIso, queryAll, queryOne, todayUtc, type Db, type Param } from './db.js';
 import {
+  acceptInvitationSchema,
   draftRejectSchema,
+  invitationSchema,
   loginSchema,
   opportunityInputSchema,
-  registerSchema,
   taskPatchSchema,
   type OpportunityInput,
 } from './domain.js';
@@ -36,6 +37,9 @@ export const SERVICE_VERSION = '0.1.0';
 export interface RouteOptions {
   jwtSecret: string;
   maxOpportunitiesPerDay: number;
+  // C8: secreto del operador de PENSIA (crea invitaciones). Sin él, la
+  // creación de invitaciones está cerrada.
+  operatorToken?: string;
 }
 
 interface OrgRow {
@@ -52,6 +56,16 @@ interface UserRow {
   email: string;
   password_hash: string;
   role: string;
+}
+
+interface InvitationRow {
+  id: string;
+  email: string;
+  org_name: string;
+  token_hash: string;
+  expires_at: string;
+  accepted_at: string | null;
+  created_at: string;
 }
 
 interface TaskRow {
@@ -225,10 +239,67 @@ export function registerRoutes(
   });
 
   // ---------- Auth ----------
-  app.post('/api/auth/register', async (request, reply) => {
-    const body = parse(registerSchema, request.body, reply);
+
+  // C8: alta operada por PENSIA (D16). Ya NO hay registro público: el
+  // endpoint /api/auth/register se eliminó. PENSIA crea una invitación
+  // (protegida por el secreto del operador, no por sesión: el operador no
+  // es usuario de ninguna org) y el cliente la canjea. El token viaja una
+  // sola vez en la respuesta de creación; en la base solo queda su hash.
+  // Sin OPERATOR_TOKEN configurado, la creación está cerrada.
+  app.post('/api/invitations', async (request, reply) => {
+    const operatorToken = request.headers['x-operator-token'];
+    if (!opts.operatorToken) {
+      await reply.code(403).send({ error: 'operator_not_configured', message: 'El alta por invitación no está configurada en este servidor' });
+      return;
+    }
+    if (operatorToken !== opts.operatorToken) {
+      await reply.code(403).send({ error: 'operator_forbidden', message: 'Se requiere el secreto del operador' });
+      return;
+    }
+    const body = parse(invitationSchema, request.body, reply);
     if (!body) return;
-    const existing = await queryOne<UserRow>(db, 'SELECT * FROM users WHERE email = ?', body.email.toLowerCase());
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const id = newId();
+    const now = nowIso();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600_000).toISOString();
+    await exec(
+      db,
+      'INSERT INTO invitations (id, email, org_name, token_hash, expires_at, accepted_at, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)',
+      id,
+      body.email.toLowerCase(),
+      body.orgName,
+      tokenHash,
+      expiresAt,
+      now,
+    );
+    await reply.code(201).send({
+      invitation: { id, email: body.email.toLowerCase(), org_name: body.orgName, expires_at: expiresAt },
+      token,
+    });
+  });
+
+  app.post('/api/auth/accept-invitation', async (request, reply) => {
+    const body = parse(acceptInvitationSchema, request.body, reply);
+    if (!body) return;
+    const tokenHash = createHash('sha256').update(body.token).digest('hex');
+    const invitation = await queryOne<InvitationRow>(db, 'SELECT * FROM invitations WHERE token_hash = ?', tokenHash);
+    if (!invitation) {
+      await reply.code(404).send({ error: 'invitation_not_found', message: 'Invitación no encontrada' });
+      return;
+    }
+    if (invitation.accepted_at) {
+      await reply.code(410).send({ error: 'invitation_accepted', message: 'Esta invitación ya fue usada' });
+      return;
+    }
+    if (Date.parse(invitation.expires_at) < Date.now()) {
+      await reply.code(410).send({ error: 'invitation_expired', message: 'Esta invitación venció' });
+      return;
+    }
+    // El correo ya registrado no puede abrir otra organización: el login
+    // busca por correo y dos filas lo dejarían ambiguo (misma regla que
+    // tenía el registro público).
+    const existing = await queryOne<UserRow>(db, 'SELECT * FROM users WHERE email = ?', invitation.email);
     if (existing) {
       await reply.code(409).send({ error: 'conflict', message: 'El correo ya está registrado' });
       return;
@@ -239,7 +310,7 @@ export function registerRoutes(
       db,
       'INSERT INTO organizations (id, name, webhook_secret, created_at) VALUES (?, ?, ?, ?)',
       orgId,
-      body.orgName,
+      invitation.org_name,
       webhookSecret,
       nowIso(),
     );
@@ -250,19 +321,20 @@ export function registerRoutes(
       userId,
       orgId,
       body.name,
-      body.email.toLowerCase(),
+      invitation.email,
       hashPassword(body.password),
       'admin',
       nowIso(),
     );
-    await audit(db, orgId, body.email.toLowerCase(), 'org.created', 'organization', orgId, {});
-    const user = { id: userId, orgId, role: 'admin' as const, email: body.email.toLowerCase(), name: body.name };
-    // C7: la sesión también viaja en cookie httpOnly (la UI ya no usa
-    // localStorage); el token en el cuerpo se mantiene para clientes API.
+    await exec(db, 'UPDATE invitations SET accepted_at = ? WHERE id = ?', nowIso(), invitation.id);
+    await audit(db, orgId, invitation.email, 'org.created', 'organization', orgId, {});
+    const user = { id: userId, orgId, role: 'admin' as const, email: invitation.email, name: body.name };
+    // C7: la sesión también viaja en cookie httpOnly; el token en el
+    // cuerpo se mantiene para clientes API.
     reply.header('Set-Cookie', authCookie(signToken(opts.jwtSecret, user)));
     await reply.code(201).send({
       token: signToken(opts.jwtSecret, user),
-      org: { id: orgId, name: body.orgName, webhook_secret: webhookSecret },
+      org: { id: orgId, name: invitation.org_name, webhook_secret: webhookSecret },
       user: { id: userId, name: body.name, email: user.email, role: 'admin' },
     });
   });

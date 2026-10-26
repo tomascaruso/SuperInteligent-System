@@ -3,10 +3,16 @@ import { z } from 'zod';
 
 // ---------- Validación de entrada (borde de la API) ----------
 
-export const registerSchema = z.object({
+// C8: ya no hay registro público (ver routes.ts). El alta es por
+// invitación: PENSIA crea la invitación y el cliente la canjea.
+export const invitationSchema = z.object({
   orgName: z.string().trim().min(1).max(200),
-  name: z.string().trim().min(1).max(200),
   email: z.string().trim().email().max(200),
+});
+
+export const acceptInvitationSchema = z.object({
+  token: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   password: z.string().min(8).max(200),
 });
 

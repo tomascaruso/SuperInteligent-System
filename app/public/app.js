@@ -476,16 +476,20 @@ async function refresh() {
   }
 }
 
-$('btn-register').onclick = async () => {
+// C8: ya no hay registro público. El alta es por invitación de PENSIA:
+$('btn-show-invitation').onclick = () => {
+  $('invitation-section').classList.toggle('hidden');
+};
+
+$('btn-accept').onclick = async () => {
   err.textContent = '';
   try {
-    const data = await api('/api/auth/register', {
+    await api('/api/auth/accept-invitation', {
       method: 'POST',
       body: JSON.stringify({
-        orgName: $('orgName').value,
-        name: $('name').value,
-        email: $('email').value,
-        password: $('password').value,
+        token: $('inv-token').value,
+        name: $('inv-name').value,
+        password: $('inv-password').value,
       }),
     });
     await refresh();

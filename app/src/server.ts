@@ -10,6 +10,7 @@ export interface ServerOptions {
   dbPath: string;
   jwtSecret: string;
   maxOpportunitiesPerDay: number;
+  operatorToken?: string;
 }
 
 export interface BuiltServer {
@@ -39,6 +40,7 @@ export async function buildServer(opts: ServerOptions): Promise<BuiltServer> {
   registerRoutes(app, db, {
     jwtSecret: opts.jwtSecret,
     maxOpportunitiesPerDay: opts.maxOpportunitiesPerDay,
+    operatorToken: opts.operatorToken,
   });
   return { app, db };
 }
