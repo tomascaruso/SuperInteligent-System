@@ -280,6 +280,31 @@ textarea.field {
   margin-left: auto;
 }
 
+/* ---------- Dialog de confirmación (Fase 4) ---------- */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 100;
+}
+
+.dialog {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  max-width: 520px;
+  width: 100%;
+}
+
+.dialog h3 {
+  margin-top: 0;
+}
+
 /* ---------- ApprovalPanel (cuerpo del borrador, Fase 1) ---------- */
 .draft-body {
   margin: 0 0 var(--space-2);

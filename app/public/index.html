@@ -125,7 +125,12 @@
       <section id="view-aprobaciones" class="view hidden">
         <div class="card">
           <h3>Borradores pendientes de aprobación</h3>
+          <p id="draft-feedback" class="alert"></p>
           <div id="drafts"></div>
+        </div>
+        <div class="card">
+          <h3>Borradores decididos</h3>
+          <div id="decided"></div>
         </div>
       </section>
 
@@ -142,6 +147,21 @@
     </main>
   </div>
 </section>
+
+<div id="dialog-overlay" class="dialog-overlay hidden">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+    <h3 id="dialog-title"></h3>
+    <p id="dialog-text"></p>
+    <div id="dialog-reason-wrap" class="field-wrap hidden">
+      <label class="field-label" for="dialog-reason">Motivo del rechazo (opcional)</label>
+      <textarea id="dialog-reason" class="field"></textarea>
+    </div>
+    <div class="row">
+      <button id="dialog-confirm" class="btn btn-primary">Confirmar</button>
+      <button id="dialog-cancel" class="btn btn-secondary">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <script src="/app.js"></script>
 </body>
