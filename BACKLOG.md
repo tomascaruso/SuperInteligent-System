@@ -60,7 +60,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
 |---|---|---|---|---|---|---|
-| F3-DEMO | Alta | Demo con tenant ficticio, recorrido guiado y caso documentado | F1-DEMO | Revisión de Tomás como potencial cliente: comprensible en < 10 min, profesional y creíble | Medio | IN_PROGRESS | Revisión de Loki como cliente potencial entregada 26-oct-2026 (docs/F3-DEMO-REVISION.md, solo lectura, sin cambios de estado); pendiente la revisión del propio Tomás y la decisión sobre qué corregir primero.
+| F3-DEMO | Alta | Demo con tenant ficticio, recorrido guiado y caso documentado | F1-DEMO | Revisión de Tomás como potencial cliente: comprensible en < 10 min, profesional y creíble | Medio | PASS | Revisión de Loki como cliente potencial entregada 26-oct-2026 (docs/F3-DEMO-REVISION.md); las 6 correcciones aplicadas y verificadas en vivo en la demo pública (acceso, contacto con relay, lenguaje de negocio, agentes, recorrido guiado, detalles finales; PR #17, #21, #22, #23, #24); revisión del propio Tomás APROBADA el 26-oct-2026.
 
 ## Fase 4 — Plantilla y servicio (PLANNED)
 
