@@ -258,6 +258,21 @@ describe('agentes (C4)', () => {
     await app.close();
   });
 
+  // F3-DEMO: recorrido guiado dentro de la demo (panel de pasos).
+  it('GET / sirve el botón y el panel del recorrido; GET /app.js trae sus pasos', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const page = await app.inject({ method: 'GET', url: '/' });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('id="btn-tour"');
+    expect(page.body).toContain('Recorrido guiado');
+    expect(page.body).toContain('id="tour-panel"');
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toContain('Así funciona, en 2 minutos');
+    expect(js.body).toContain('¿Querés esto para tu empresa?');
+    await app.close();
+  });
+
   // F3-DEMO: sección visible de agentes (vista nueva, no solo etiqueta).
   it('GET / sirve la vista Agentes y GET /app.js la describe en negocio', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });

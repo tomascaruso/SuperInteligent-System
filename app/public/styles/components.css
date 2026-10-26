@@ -305,6 +305,26 @@ textarea.field {
   margin-top: 0;
 }
 
+/* ---------- Recorrido guiado (F3-DEMO) ---------- */
+/* Panel fijo no modal: acompaña la navegación sin tapar la vista. */
+.tour-panel {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 90;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  max-width: 360px;
+  width: calc(100% - 2 * var(--space-4));
+  box-shadow: var(--shadow-lg);
+}
+
+.tour-panel h3 {
+  margin-top: 0;
+}
+
 /* ---------- ApprovalPanel (cuerpo del borrador, Fase 1) ---------- */
 .draft-body {
   margin: 0 0 var(--space-2);
