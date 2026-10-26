@@ -142,6 +142,22 @@ queda como paso siguiente, con `render.yaml` ya creado. Node fijado en
 por defecto según su documentación oficial, así que no hay bloqueo de
 versión.
 
+## D15 — Jerarquía PENSIA y identidad del producto (adoptada, 26-oct-2026)
+
+Decisión estratégica de Tomás (Directiva de Alineación Estratégica
+26-oct-2026): PENSIA es la empresa responsable (estrategia, desarrollo,
+implementación, operación); SuperInteligent System es el servicio que
+PENSIA diseña e implementa para empresas; cada empresa cliente tiene su
+propio sistema de agentes, cuya composición depende de su problema y
+proceso (no una lista fija). El producto NO se define como un CRM con IA
+agregada: es coordinación y ejecución de procesos por un orquestador y
+agentes especializados, con interfaces y contratos explícitos, sin lógica
+dispersa en la UI. Los módulos actuales (oportunidades, tareas,
+aprobaciones, ejecuciones, auditoría) son la primera demostración
+funcional, no la identidad del producto. Diagnóstico y brechas en
+`docs/DIAGNOSTICO-ALINEACION-PENSIA.md`; plan incremental C1–C8 en
+`BACKLOG.md` (sección Alineación PENSIA).
+
 ## Decisiones pendientes de humanos (bloquean el cierre de Gate 0)
 
 - **G0-D1:** confirmar o cambiar el stack (D1–D4, D6–D7).
@@ -149,3 +165,7 @@ versión.
   con agencias reales; ver D12).
 - **G0-D3:** decidir dónde vive el repositorio remoto y crear
   proyecto/cuentas (Supabase, proveedor de IA en Fase 2) con sus claves.
+  Actualización 26-oct-2026 (C1): repositorio remoto creado en GitHub y
+  base verificada en Neon (25-oct-2026); Supabase quedó sustituido por
+  Neon por decisión de Tomás (Render + Neon, 25-oct-2026). Pendiente solo
+  el proveedor de IA (Fase 2).

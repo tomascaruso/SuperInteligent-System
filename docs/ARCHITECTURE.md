@@ -96,8 +96,11 @@ El Core es la plantilla; cada cliente es una ADAPTACIÓN, no una bifurcación:
 
 - Sin claves de proveedor de IA: el MVP funciona con reglas + stub; la IA
   real es Fase 2 y requiere aprobación y claves.
-- Sin acceso verificado a Supabase: el MVP usa SQLite local (D14); el
-  adaptador Postgres/Supabase queda pendiente de G0-D3.
+- Persistencia dual verificada (D14, actualización 26-oct-2026, C1): el
+  adaptador Postgres está implementado y verificado contra Neon; la demo
+  pública corre en Render + Neon y SQLite local queda solo para desarrollo.
+  Supabase fue sustituido por Neon por decisión de Tomás (25-oct-2026);
+  G0-D3 queda pendiente solo del proveedor de IA (Fase 2).
 - Ejecución síncrona con pasos persistidos: no hay worker asíncrono
   separado todavía; el reintento existe y converge por dedup. El worker
   dedicado es endurecimiento posterior, no un hueco en los criterios

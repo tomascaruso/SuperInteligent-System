@@ -167,3 +167,17 @@ describe('navegación (Fase 2)', () => {
     await app.close();
   });
 });
+
+describe('trazabilidad (C2)', () => {
+  it('GET /app.js sirve el botón y la lista de pasos de ejecución', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Ver pasos');
+    expect(res.body).toContain('data-steps');
+    expect(res.body).toContain('/steps');
+    expect(res.body).toContain('Sin pasos registrados.');
+    expect(res.body).toContain('Cargando pasos…');
+    await app.close();
+  });
+});

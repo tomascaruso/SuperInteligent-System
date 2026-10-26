@@ -235,3 +235,48 @@ describe('MVP — 12 criterios de aceptación', () => {
     await app.close();
   });
 });
+
+describe('C2 — trazabilidad expuesta (alineación PENSIA)', () => {
+  it('los pasos de una ejecución se exponen en orden', async () => {
+    const { app } = await testServer();
+    const { token } = await register(app);
+    const created = await app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    expect(created.statusCode).toBe(201);
+    const list = await app.inject({ method: 'GET', url: '/api/executions', headers: auth(token) });
+    const executionId = list.json().executions[0].id as string;
+    const res = await app.inject({ method: 'GET', url: `/api/executions/${executionId}/steps`, headers: auth(token) });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().executionId).toBe(executionId);
+    expect(res.json().steps.map((s: { step: string }) => s.step)).toEqual([
+      'normalize', 'dedup', 'classify', 'upsert', 'next_action', 'draft',
+    ]);
+    expect(res.json().steps.every((s: { status: string }) => s.status === 'done')).toBe(true);
+    await app.close();
+  });
+
+  it('pasos de otra org, ejecución inexistente y sin token se rechazan', async () => {
+    const { app } = await testServer();
+    const { token } = await register(app);
+    const created = await app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    expect(created.statusCode).toBe(201);
+    const list = await app.inject({ method: 'GET', url: '/api/executions', headers: auth(token) });
+    const executionId = list.json().executions[0].id as string;
+    const other = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Otra Agencia', name: 'Beto', email: 'beto@otra.com', password: 'Secreto123' },
+    });
+    expect(other.statusCode).toBe(201);
+    const cross = await app.inject({
+      method: 'GET',
+      url: `/api/executions/${executionId}/steps`,
+      headers: auth(other.json().token as string),
+    });
+    expect(cross.statusCode).toBe(404);
+    const missing = await app.inject({ method: 'GET', url: '/api/executions/inexistente/steps', headers: auth(token) });
+    expect(missing.statusCode).toBe(404);
+    const anon = await app.inject({ method: 'GET', url: `/api/executions/${executionId}/steps` });
+    expect(anon.statusCode).toBe(401);
+    await app.close();
+  });
+});

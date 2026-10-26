@@ -1,5 +1,14 @@
 # WORKFLOWS — Primer flujo de negocio: oportunidad comercial
 
+> Nota de estado (26-oct-2026, C1): este documento describe el flujo
+> objetivo. Lo implementado hoy: un solo workflow (`opportunity.intake`
+> v1); estados reales de oportunidad `new`, `proposal_draft`,
+> `in_follow_up` (los demás estados del diagrama son objetivo, no código);
+> sin endpoint para editar borradores (solo aprobar/rechazar); sin
+> expiración de aprobaciones; los 5 «agentes» de abajo son mapeos
+> conceptuales sobre pasos del pipeline, no entidades implementadas. Ver
+> `docs/DIAGNOSTICO-ALINEACION-PENSIA.md`.
+
 ## Workflow: `opportunity.intake` (v1)
 
 ```text
@@ -19,9 +28,12 @@ corregirla y esa corrección queda auditada.
 
 1. **Ingest:** recibe evento (webhook firmado o alta manual). Valida esquema.
    Sin `Idempotency-Key` válido o sin firma → rechazo con 401/400, sin
-   efectos. Duplicado exacto → devuelve la ejecución original.
-2. **Normalize:** limpia y normaliza (correo en minúsculas, dominio,
-   teléfono solo dígitos, nombre con capitalización simple, empresa).
+   efectos. Duplicado exacto → por webhook devuelve la respuesta
+   almacenada (idempotencia); por alta manual re-ejecuta y devuelve
+   `duplicate: true` con una ejecución nueva (no la original).
+2. **Normalize:** limpia y normaliza (correo en minúsculas, espacios
+   colapsados, empresa sin espacios extra). No hay campo teléfono en el
+   MVP ni capitalización del nombre.
    Entrada inválida → `failed` con causa `validation_error`, sin persistir
    oportunidad parcial.
 3. **Dedup:** calcula `dedup_key`. Coincidencia → actualiza la oportunidad
@@ -34,8 +46,11 @@ corregirla y esa corrección queda auditada.
    responsable y vencimiento.
 7. **Draft:** genera borrador de respuesta/propuesta (plantilla en MVP;
    generación con IA solo en Fase 2) en estado `pending_approval`.
-8. **Approval:** el humano aprueba, edita o rechaza. Sin aprobación no hay
-   acción externa. La aprobación expira (propuesta: 7 días) y queda auditada.
+8. **Approval:** el humano aprueba o rechaza (no hay edición de
+   borradores en el MVP). Sin aprobación no hay acción externa. La
+   aprobación expira (propuesta: 7 días) y queda auditada — la expiración
+   es propuesta, NO implementada: hoy las aprobaciones pendientes no
+   expiran.
 9. **Execute (solo si aprobado y dentro de límites):** ejecuta la acción
    autorizada con su propia clave de idempotencia. En el MVP, la «ejecución»
    puede ser solo el registro de la acción a realizar fuera del sistema
