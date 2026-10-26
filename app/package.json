@@ -1,20 +1,20 @@
 {
   "dependencies": {
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^22.0.0",
     "@types/pg": "^8.23.1",
     "bcryptjs": "^3.0.0",
     "fastify": "^5.0.0",
     "jsonwebtoken": "^9.0.0",
     "pg": "^8.23.1",
+    "typescript": "^5.0.0",
     "zod": "^4.0.0"
   },
   "description": "SuperInteligent Core + Business Operations Orchestrator (plantilla reutilizable)",
   "devDependencies": {
     "@types/bcryptjs": "^2.4.0",
-    "@types/jsonwebtoken": "^9.0.0",
-    "@types/node": "^22.0.0",
     "pg-mem": "^3.0.14",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0",
     "vitest": "^3.0.0"
   },
   "name": "superinteligent-system",
