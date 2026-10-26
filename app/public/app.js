@@ -1,4 +1,4 @@
-// Interfaz de la demo (UI/UX System OS v1.1, Fase 3: Oportunidades y tareas). Sin frameworks;
+// Interfaz de la demo (UI/UX System OS v1.1, Fase 4: Centro de aprobaciones). Sin frameworks;
 // el token vive en localStorage (demo; en producción usar cookie httpOnly + HTTPS).
 const $ = (id) => document.getElementById(id);
 const err = $('error');
@@ -67,6 +67,112 @@ async function withLoading(btn, fn) {
     btn.disabled = false;
   }
 }
+
+// ---------- Diálogo de confirmación (Fase 4) ----------
+// Requisitos de la especificación (5.7): título descriptivo, efecto real
+// (nunca un genérico "¿Estás seguro?"), acciones diferenciadas, foco inicial
+// en Cancelar, cierre con Escape, foco restaurado al elemento que abrió el
+// diálogo y fondo inerte mientras está abierto (la superposición lo cubre).
+// No existe "solicitar revisión" en el backend: no se muestra esa acción.
+function draftStatusBadge(s) {
+  return { pending_approval: 'badge-warning', approved: 'badge-success', rejected: 'badge-danger' }[s] || 'badge-neutral';
+}
+
+function draftStatusLabel(s) {
+  return { pending_approval: 'Pendiente de aprobación', approved: 'Aprobada', rejected: 'Rechazada' }[s] || s;
+}
+
+// Solo presentación: "2026-10-26T13:06:00" → "2026-10-26 13:06:00".
+function formatDateTime(s) {
+  return s ? String(s).slice(0, 19).replace('T', ' ') : '';
+}
+
+let dialogOpener = null;
+let dialogAction = null;
+
+function openDialog(kind, draft, opener) {
+  if (!draft) return;
+  dialogOpener = opener || null;
+  dialogAction = { kind, id: draft.id };
+  const who = `${draft.contact_name}${draft.company ? ` (${draft.company})` : ''}`;
+  const confirmBtn = $('dialog-confirm');
+  if (kind === 'approve') {
+    $('dialog-title').textContent = 'Aprobar borrador';
+    $('dialog-text').textContent = `Vas a aprobar el borrador para ${who}. La oportunidad pasará a seguimiento y la decisión quedará registrada en la auditoría. No se enviará ningún mensaje.`;
+    $('dialog-reason-wrap').classList.add('hidden');
+    confirmBtn.className = 'btn btn-primary';
+    confirmBtn.textContent = 'Aprobar';
+  } else {
+    $('dialog-title').textContent = 'Rechazar borrador';
+    $('dialog-text').textContent = `Vas a rechazar el borrador para ${who}. La oportunidad volverá a nueva y la decisión quedará registrada en la auditoría. No se enviará ningún mensaje.`;
+    $('dialog-reason-wrap').classList.remove('hidden');
+    confirmBtn.className = 'btn btn-danger';
+    confirmBtn.textContent = 'Rechazar';
+  }
+  $('dialog-reason').value = '';
+  $('dialog-overlay').classList.remove('hidden');
+  $('dialog-cancel').focus();
+}
+
+function closeDialog() {
+  $('dialog-overlay').classList.add('hidden');
+  $('dialog-reason').value = '';
+  dialogAction = null;
+  if (dialogOpener) {
+    dialogOpener.focus();
+    dialogOpener = null;
+  }
+}
+
+$('dialog-cancel').onclick = closeDialog;
+
+$('dialog-overlay').onclick = (e) => {
+  if (e.target === $('dialog-overlay')) closeDialog();
+};
+
+document.addEventListener('keydown', (e) => {
+  if ($('dialog-overlay').classList.contains('hidden')) return;
+  if (e.key === 'Escape') {
+    closeDialog();
+    return;
+  }
+  if (e.key === 'Tab') {
+    const focusables = [...document.querySelectorAll('#dialog-overlay button, #dialog-overlay textarea')].filter((el) => !el.disabled);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+});
+
+$('dialog-confirm').onclick = async () => {
+  if (!dialogAction) return;
+  await withLoading($('dialog-confirm'), async () => {
+    try {
+      if (dialogAction.kind === 'approve') {
+        await api(`/api/drafts/${dialogAction.id}/approve`, { method: 'POST', body: '{}' });
+        setFeedback('draft-feedback', 'success', 'Borrador aprobado. La oportunidad pasó a seguimiento; no se envió ningún mensaje.');
+      } else {
+        await api(`/api/drafts/${dialogAction.id}/reject`, { method: 'POST', body: JSON.stringify({ note: $('dialog-reason').value }) });
+        setFeedback('draft-feedback', 'success', 'Borrador rechazado. La oportunidad volvió a nueva.');
+      }
+      closeDialog();
+      await refresh();
+    } catch (e) {
+      // Conflicto (409, "ya fue decidido") u otro error: se cierra el diálogo,
+      // se informa en la sección y se recarga para mostrar el estado real.
+      closeDialog();
+      setFeedback('draft-feedback', 'error', e.message);
+      await refresh();
+    }
+  });
+};
 
 // ---------- Navegación (Fase 2) ----------
 // Sin Configuración en la navegación: todavía no existen opciones funcionales.
@@ -154,23 +260,46 @@ async function refresh() {
     });
     const { drafts } = await api('/api/drafts');
     const pending = drafts.filter((d) => d.status === 'pending_approval');
+    const decided = drafts.filter((d) => d.status !== 'pending_approval');
+    // Contexto real: el join de /api/drafts ya trae contacto y empresa; la
+    // categoría sale de la lista de oportunidades ya cargada. No hay campo
+    // de canal ni de tipo en el backend: el canal se muestra No disponible.
+    const oppById = new Map(opportunities.map((o) => [o.id, o]));
+    const oppContext = (d) => {
+      const o = oppById.get(d.opportunity_id);
+      const company = d.company ? ` (${esc(d.company)})` : '';
+      const category = o ? ` · ${esc(o.category)}` : '';
+      return `${esc(d.contact_name)}${company}${category}`;
+    };
     // Solo admin ve aprobar/rechazar (el servidor lo exige); el resto solo lee.
     const roleNote = pending.length && currentRole !== 'admin'
       ? '<p class="text-muted">Tu rol no permite aprobar ni rechazar borradores.</p>'
       : '';
     $('drafts').innerHTML = roleNote + pending.map((d) =>
-      `<div class="card"><pre class="draft-body">${esc(d.body)}</pre>` +
+      `<div class="card"><p><span class="badge badge-warning">Pendiente de aprobación</span></p>` +
+      `<p><strong>Oportunidad relacionada:</strong> ${oppContext(d)}</p>` +
+      `<p><strong>Canal:</strong> No disponible</p>` +
+      `<p><strong>Alcance de la decisión:</strong> actualiza el estado de la oportunidad y registra la decisión en la auditoría. No envía ningún mensaje.</p>` +
+      `<pre class="draft-body">${esc(d.body)}</pre>` +
       (currentRole === 'admin'
         ? `<button class="btn btn-primary btn-sm" data-approve="${d.id}">Aprobar</button> ` +
           `<button class="btn btn-danger btn-sm" data-reject="${d.id}">Rechazar</button>`
         : '') +
       `</div>`,
     ).join('') || '<p>Sin borradores pendientes.</p>';
+    $('decided').innerHTML = decided.map((d) =>
+      `<div class="card"><p><span class="badge ${draftStatusBadge(d.status)}">${esc(draftStatusLabel(d.status))}</span></p>` +
+      `<p><strong>Oportunidad relacionada:</strong> ${oppContext(d)}</p>` +
+      `<p>Decidido por ${esc(d.decided_by)} el ${esc(formatDateTime(d.decided_at))}</p>` +
+      (d.note ? `<p><strong>Motivo:</strong> ${esc(d.note)}</p>` : '') +
+      `<pre class="draft-body">${esc(d.body)}</pre></div>`,
+    ).join('') || '<p>Aún no hay borradores decididos.</p>';
+    const draftsById = new Map(drafts.map((d) => [d.id, d]));
     document.querySelectorAll('[data-approve]').forEach((b) => {
-      b.onclick = async () => { await api(`/api/drafts/${b.dataset.approve}/approve`, { method: 'POST', body: '{}' }); await refresh(); };
+      b.onclick = () => openDialog('approve', draftsById.get(b.dataset.approve), b);
     });
     document.querySelectorAll('[data-reject]').forEach((b) => {
-      b.onclick = async () => { await api(`/api/drafts/${b.dataset.reject}/reject`, { method: 'POST', body: JSON.stringify({ note: 'Rechazado desde la demo' }) }); await refresh(); };
+      b.onclick = () => openDialog('reject', draftsById.get(b.dataset.reject), b);
     });
     const { audit } = await api('/api/audit');
     const auditItems = (a) => `<li>${esc(a.created_at.slice(0, 19))} — ${esc(a.actor)}: ${esc(a.action)} (${esc(a.entity)})</li>`;

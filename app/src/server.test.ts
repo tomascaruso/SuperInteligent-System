@@ -89,6 +89,39 @@ describe('oportunidades y tareas (Fase 3)', () => {
   });
 });
 
+describe('centro de aprobaciones (Fase 4)', () => {
+  it('GET / sirve el panel de aprobaciones y el diálogo de confirmación', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('draft-feedback');
+    expect(res.body).toContain('Borradores decididos');
+    expect(res.body).toContain('dialog-overlay');
+    expect(res.body).toContain('dialog-title');
+    await app.close();
+  });
+
+  it('GET /app.js sirve estados, contexto y confirmación con efecto real', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Pendiente de aprobación');
+    expect(res.body).toContain('Canal:</strong> No disponible');
+    expect(res.body).toContain('Borrador aprobado. La oportunidad pasó a seguimiento; no se envió ningún mensaje.');
+    expect(res.body).toContain('dialog-reason');
+    await app.close();
+  });
+
+  it('GET /styles/components.css sirve los estilos del diálogo', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/styles/components.css' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('.dialog-overlay');
+    expect(res.body).toContain('.dialog');
+    await app.close();
+  });
+});
+
 describe('navegación (Fase 2)', () => {
   it('GET / sirve la navegación y el enlace a layout.css', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
