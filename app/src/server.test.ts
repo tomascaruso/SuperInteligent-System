@@ -273,6 +273,16 @@ describe('agentes (C4)', () => {
     await app.close();
   });
 
+  // F3-DEMO: detalles finales (categoría legible, actividad sin logins).
+  it('GET /app.js traduce general y filtra logins de la actividad reciente', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toContain('Consulta general');
+    expect(js.body).toContain('Sin actividad comercial todavía');
+    await app.close();
+  });
+
   // F3-DEMO: sección visible de agentes (vista nueva, no solo etiqueta).
   it('GET / sirve la vista Agentes y GET /app.js la describe en negocio', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });

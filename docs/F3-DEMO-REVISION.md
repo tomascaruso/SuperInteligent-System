@@ -345,6 +345,28 @@ subir y mergear):
 - Pendiente: la revisión del propio Tomás (criterio de aceptación),
   la categoría «general» y «Actividad reciente».
 
+## Corrección aplicada 26-oct-2026 (detalles finales)
+
+Sexta corrección, solo frontend, sin cambios de backend ni de base
+(commit local pendiente de subir y mergear):
+
+- **Categoría legible.** El clasificador sigue guardando `general`
+  cuando ningún tema coincide, pero en pantalla se lee «Consulta
+  general» (tabla de oportunidades, contexto del borrador, detalle de
+  auditoría y resumen del paso de clasificación). Las reglas de
+  clasificación no se tocaron: eso es otro tema, no un texto.
+- **Actividad reciente sin inicios de sesión.** El resumen de Inicio
+  muestra los últimos 5 eventos comerciales (oportunidades, tareas,
+  borradores), no los inicios de sesión que lo tapaban tras cada
+  verificación. La auditoría completa, con los inicios de sesión,
+  sigue intacta en la vista Actividad.
+- Pruebas: 90/90 en verde (1 nueva: «Consulta general» y el texto
+  vacío nuevo en el app.js servido). Typecheck, build y sintaxis de
+  app.js limpios; smoke con servidor real: `/health` exacto y el
+  app.js servido trae los dos textos nuevos.
+- Pendiente: solo la revisión del propio Tomás (criterio de
+  aceptación de F3-DEMO).
+
 ## Próximo paso
 
 Que Tomás lea esta revisión, haga su propia pasada como cliente
