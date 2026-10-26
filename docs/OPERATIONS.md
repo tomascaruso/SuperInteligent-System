@@ -58,6 +58,14 @@
   15 min sin tráfico (~1 min en despertar) y el disco es efímero; por
   eso los datos viven en Neon y no en SQLite. La demo usa solo datos
   ficticios; no es un entorno de producción para clientes reales.
+- Worker (verificación 26-oct-2026): Render NO ofrece instancia gratis
+  para background workers (documentación oficial de Render; el mínimo
+  es Starter, USD 7/mes). Por eso `render.yaml` NO incluye el servicio
+  worker: el worker (`app/src/worker.ts`, `npm run worker -- --once`)
+  queda disponible para ejecuciones locales o despliegues con plan
+  pago. Sin worker en marcha, los jobs encolados por `POST /api/jobs`
+  quedan pendientes; el alta manual y el webhook siguen sincrónicos
+  (ver C7).
 - Postgres real (Neon) NO verificado todavía: los tests cubren el camino
   Postgres contra pg-mem; la primera verificación real es el paso 5.
 
