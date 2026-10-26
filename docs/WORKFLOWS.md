@@ -4,8 +4,10 @@
 > objetivo. Lo implementado hoy: un solo workflow (`opportunity.intake`
 > v1); estados reales de oportunidad `new`, `proposal_draft`,
 > `in_follow_up` (los demás estados del diagrama son objetivo, no código);
-> sin endpoint para editar borradores (solo aprobar/rechazar); sin
-> expiración de aprobaciones. Nota C4 (26-oct-2026): los agentes ya son
+> sin endpoint para editar borradores (solo aprobar/rechazar). Nota C5
+> (26-oct-2026): las aprobaciones ya vencen a los 7 días y se invalidan
+> si el mensaje cambió (`draft_expired`/`draft_stale` al aprobar;
+> rechazar sigue permitido). Nota C4 (26-oct-2026): los agentes ya son
 > entidades (tabla `agents`, registry en `GET /api/agents`) y cada tarea
 > lleva su `agent_id`; el mapeo paso→agente vive en `steps_json`. Ver
 > `docs/DIAGNOSTICO-ALINEACION-PENSIA.md` y `docs/C4-REPORTE.md`.

@@ -109,6 +109,7 @@ const SCHEMA = `
       org_id TEXT NOT NULL REFERENCES organizations(id),
       opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
       body TEXT NOT NULL,
+      source_message TEXT,
       status TEXT NOT NULL CHECK (status IN ('pending_approval', 'approved', 'rejected')),
       note TEXT,
       decided_by TEXT,
@@ -265,6 +266,7 @@ export async function initSchema(db: Db): Promise<void> {
   }
   await ensureProcessCatalog(db);
   await ensureAgentCatalog(db);
+  await ensureDraftSnapshots(db);
 }
 
 // ---------- Catálogo de procesos (C3, alineación PENSIA) ----------
@@ -421,6 +423,34 @@ export async function ensureAgentCatalog(db: Db): Promise<void> {
     'Fundador',
     FOLLOW_UP_AGENT_NAME,
   );
+}
+
+// ---------- Foto del mensaje por borrador (C5, alineación PENSIA) ----------
+//
+// Cada borrador guarda el mensaje de la oportunidad con el que se generó.
+// Así, aprobar puede verificar que el contenido no cambió desde entonces
+// (un intake duplicado actualiza el mensaje sin regenerar el borrador
+// pendiente). Migración como en C4: probar la columna y ALTER solo si
+// falta; backfill en JS (bucle sobre filas, no subconsulta correlacionada)
+// para no depender de emuladores. Limitación honesta del backfill: para
+// borradores pre-C5 se asume que el mensaje actual es el original; en la
+// demo vale (el seed no tuvo intakes duplicados), pero un borrador viejo
+// ya desincronizado antes de C5 no quedaría marcado como tal.
+export async function ensureDraftSnapshots(db: Db): Promise<void> {
+  const hasColumn = await queryOne<Record<string, unknown>>(db, 'SELECT source_message FROM drafts LIMIT 0').then(
+    () => true,
+    () => false,
+  );
+  if (!hasColumn) {
+    await exec(db, 'ALTER TABLE drafts ADD COLUMN source_message TEXT');
+  }
+  const legacy = await queryAll<{ id: string; message: string }>(
+    db,
+    'SELECT d.id, o.message FROM drafts d JOIN opportunities o ON o.id = d.opportunity_id WHERE d.source_message IS NULL',
+  );
+  for (const row of legacy) {
+    await exec(db, 'UPDATE drafts SET source_message = ? WHERE id = ?', row.message, row.id);
+  }
 }
 
 export interface OpenOptions {

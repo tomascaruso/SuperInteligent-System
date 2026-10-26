@@ -71,9 +71,11 @@ Autorización humana vinculada a una acción y a un contenido concretos. Sin
 aprobación no hay acción externa. Reglas vigentes en código: solo admin
 aprueba/rechaza; un borrador decidido no se puede volver a decidir (409);
 aprobar NO envía ningún mensaje (solo cambia el estado de la oportunidad).
-Pendiente: expiración (propuesta: 7 días) e invalidación si el contenido
-cambia (hoy un intake duplicado actualiza el mensaje sin regenerar el
-borrador pendiente).
+Desde C5 (26-oct-2026): un borrador vence a los 7 días y se invalida si
+el mensaje cambió desde que se generó (409 `draft_expired`/`draft_stale`
+al aprobar); rechazarlo sigue permitido. Sigue vigente: un intake
+duplicado actualiza el mensaje sin regenerar el borrador pendiente (por
+eso existe la invalidación).
 
 ## Ejecución
 

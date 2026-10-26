@@ -77,7 +77,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | P-C2 | Alta | Trazabilidad expuesta (pasos por ejecución en API + UI) | P-C1 | Ver los pasos reales de una ejecución en la demo | Medio | PASS |
 | P-C3 | Alta | Proceso como entidad + Workflow Registry mínimo | P-C2 | Una ejecución pertenece a un proceso versionado consultable; `runIntake` sin cambios internos | Medio | PASS |
 | P-C4 | Alta | Agentes como entidades (los 5 actuales, deterministas) | P-C3 | La tarea muestra qué agente la generó; `assigned_to` deja de ser texto fijo | Medio | PASS |
-| P-C5 | Alta | Aprobaciones con expiración (7 días) + invalidación si cambia el mensaje | P-C4 | Un borrador viejo o desincronizado no se puede aprobar | Medio | PLANNED |
+| P-C5 | Alta | Aprobaciones con expiración (7 días) + invalidación si cambia el mensaje | P-C4 | Un borrador viejo o desincronizado no se puede aprobar | Medio | PASS |
 | P-C6 | Media | Policy/Tool Registry mínimo + reintento con tope y solo admin | P-C5 | Tests de permisos en verde | Medio | PLANNED |
 | P-C7 | Media | Worker asíncrono + endurecimiento (httpOnly, headers, rate limit, arranque sin secreto en prod) | P-C6 | Demo sigue verde + pruebas | Alto | PLANNED |
 | P-C8 | Alta | Decisión TENANT + alta operada por PENSIA | P-C7 | Alta por invitación; sin registro público para clientes | Medio | PLANNED |
@@ -107,6 +107,18 @@ backfill de tareas legado a Seguimiento), `GET /api/agents`,
 copia pre-C4 (migración, backfill y intake nuevo con agente).
 Informe en `docs/C4-REPORTE.md`. Aprobado por Tomás el 26-oct-2026
 («podemos continuar con lo siguiente», sobre el cierre de C3).
+Sin push ni merge todavía.
+Evidencia P-C5: columna `source_message` en borradores (foto del
+mensaje con el que se generó), `ensureDraftSnapshots` en arranque
+(migración portable y backfill), controles al aprobar (409
+`draft_expired` a los 7 días, 409 `draft_stale` si cambió el mensaje;
+rechazar sigue permitido), `expired`/`stale` en `GET /api/drafts`,
+marcas «Vencido»/«Desactualizado» y Aprobar deshabilitado en la UI;
+49/49 tests en verde (5 nuevos C5); smoke con servidor real sobre
+copia pre-C5 (los 4 caminos: vencido, desactualizado, fresco,
+rechazo). Informe en `docs/C5-REPORTE.md`. Aprobado por Tomás el
+26-oct-2026 («okey podes continuar», sobre el cierre de C4), con la
+regla de explicar cada C terminado de forma sencilla y clara.
 Sin push ni merge todavía.
 Sin push ni merge todavía.
 

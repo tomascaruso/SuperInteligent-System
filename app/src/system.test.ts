@@ -386,3 +386,58 @@ describe('C4 — agentes como entidades (alineación PENSIA)', () => {
     await s.app.close();
   });
 });
+
+describe('C5 — expiración e invalidación de borradores (alineación PENSIA)', () => {
+  async function setupPending(s: Awaited<ReturnType<typeof testServer>>, token: string) {
+    const created = await s.app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    expect(created.statusCode).toBe(201);
+    const drafts = await s.app.inject({ method: 'GET', url: '/api/drafts', headers: auth(token) });
+    expect(drafts.json().drafts).toHaveLength(1);
+    return { oppId: created.json().opportunity.id as string, draftId: drafts.json().drafts[0].id as string };
+  }
+
+  it('un borrador de más de 7 días no se puede aprobar', async () => {
+    const s = await testServer();
+    const { token } = await register(s.app);
+    const { oppId, draftId } = await setupPending(s, token);
+    const old = new Date(Date.now() - 8 * 24 * 3600_000).toISOString();
+    await s.db.exec('UPDATE drafts SET created_at = ? WHERE id = ?', old, draftId);
+    const flags = await s.app.inject({ method: 'GET', url: '/api/drafts', headers: auth(token) });
+    expect(flags.json().drafts[0].expired).toBe(true);
+    expect(flags.json().drafts[0].stale).toBe(false);
+    const res = await s.app.inject({ method: 'POST', url: `/api/drafts/${draftId}/approve`, headers: auth(token), payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('draft_expired');
+    const opp = await s.app.inject({ method: 'GET', url: `/api/opportunities/${oppId}`, headers: auth(token) });
+    expect(opp.json().opportunity.status).toBe('proposal_draft');
+    await s.app.close();
+  });
+
+  it('un borrador desactualizado no se puede aprobar', async () => {
+    const s = await testServer();
+    const { token } = await register(s.app);
+    const { oppId, draftId } = await setupPending(s, token);
+    await s.db.exec('UPDATE opportunities SET message = ? WHERE id = ?', 'mensaje cambiado después', oppId);
+    const flags = await s.app.inject({ method: 'GET', url: '/api/drafts', headers: auth(token) });
+    expect(flags.json().drafts[0].stale).toBe(true);
+    expect(flags.json().drafts[0].expired).toBe(false);
+    const res = await s.app.inject({ method: 'POST', url: `/api/drafts/${draftId}/approve`, headers: auth(token), payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('draft_stale');
+    await s.app.close();
+  });
+
+  it('un borrador vencido sí se puede rechazar', async () => {
+    const s = await testServer();
+    const { token } = await register(s.app);
+    const { oppId, draftId } = await setupPending(s, token);
+    const old = new Date(Date.now() - 8 * 24 * 3600_000).toISOString();
+    await s.db.exec('UPDATE drafts SET created_at = ? WHERE id = ?', old, draftId);
+    const res = await s.app.inject({ method: 'POST', url: `/api/drafts/${draftId}/reject`, headers: auth(token), payload: {} });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().draft.status).toBe('rejected');
+    const opp = await s.app.inject({ method: 'GET', url: `/api/opportunities/${oppId}`, headers: auth(token) });
+    expect(opp.json().opportunity.status).toBe('new');
+    await s.app.close();
+  });
+});

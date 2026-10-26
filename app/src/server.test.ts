@@ -233,3 +233,14 @@ describe('agentes (C4)', () => {
     await app.close();
   });
 });
+
+describe('aprobaciones con expiración (C5)', () => {
+  it('GET /app.js sirve las marcas de vencido y desactualizado', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toContain('Vencido');
+    expect(js.body).toContain('Desactualizado');
+    await app.close();
+  });
+});

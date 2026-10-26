@@ -144,4 +144,34 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
     await app.close();
     await db.close();
   });
+
+  it('C5: un borrador vencido no se puede aprobar en Postgres', async () => {
+    const { app, db } = await pgServer();
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    const token = reg.json().token as string;
+    await app.inject({
+      method: 'POST',
+      url: '/api/opportunities',
+      headers: { authorization: `Bearer ${token}` },
+      payload: OPP,
+    });
+    const drafts = await app.inject({ method: 'GET', url: '/api/drafts', headers: { authorization: `Bearer ${token}` } });
+    const draftId = drafts.json().drafts[0].id as string;
+    const old = new Date(Date.now() - 8 * 24 * 3600_000).toISOString();
+    await db.exec('UPDATE drafts SET created_at = ? WHERE id = ?', old, draftId);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/drafts/${draftId}/approve`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('draft_expired');
+    await app.close();
+    await db.close();
+  });
 });
