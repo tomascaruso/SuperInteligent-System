@@ -33,7 +33,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | F1-AUDIT | Alta | Auditoría, ejecuciones, límites y métricas | F1-TASK | Ejecución auditable de punta a punta; fallo recuperable | Medio | PASS |
 | F1-E2E | Alta | Tests de los 12 criterios de aceptación | F1-AUDIT | 12/12 criterios con test ejecutado | Alto | PASS |
 | F1-DEMO | Media | Demo reproducible con datos ficticios | F1-E2E | Informe de pruebas + grabación o pasos reproducibles | Bajo | PASS |
-| F1-TENANT | Media | Decidir modelo de despliegue por cliente | F1-AUTH | Decisión registrada (multi-tenant vs instancia dedicada) | Medio | PLANNED |
+| F1-TENANT | Media | Decidir modelo de despliegue por cliente | F1-AUTH | Decisión registrada (multi-tenant vs instancia dedicada) | Medio | PASS | Decidida en C8 (D16, 26-oct-2026): multi-tenant, una org por cliente por org_id; instancia dedicada descartada; RLS futuro no implementado. El estado PLANNED era un resto sin actualizar.
 
 ## Fase 1 — Resultado (25-oct-2026)
 
@@ -53,7 +53,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
 |---|---|---|---|---|---|---|
-| F2-EVAL | Alta | Conjunto de evaluación fijo | F1-E2E | Casos con salida esperada, versionados | Medio | PLANNED |
+| F2-EVAL | Alta | Conjunto de evaluación fijo | F1-E2E | Casos con salida esperada, versionados | Medio | IN_PROGRESS | v1 entregada 26-oct-2026 (app/src/eval/cases-v1.json + eval.test.ts + docs/F2-EVAL-README.md): 8 regression (incluye los 3 del seed) y 3 challenge con divergencia solo de categoría; pendiente la aprobación de Tomás para PASS.
 | F2-AI | Alta | Proveedor de IA + clasificación/borradores con IA | F2-EVAL, claves aprobadas | Supera a reglas con margen predefinido o se descarta | Alto | PLANNED |
 
 ## Fase 3 — Demo de portafolio (PLANNED)
