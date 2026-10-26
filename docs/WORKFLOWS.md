@@ -80,5 +80,10 @@ de tiempo/coste, errores tipados y registro de ejecución.
 - Errores de validación o política: sin reintento; `failed` con causa.
 - Una ejecución `failed` puede reanudarse desde el último paso exitoso
   (nunca desde cero si ya hubo efectos), con intervención humana.
+- Reintento de ejecución (C6, implementado): solo un admin puede
+  reintentar una ejecución fallida, con un máximo por ejecución original
+  según el registry de políticas (`retry.max_attempts`, 3 por defecto);
+  cada reintento queda vinculado a su ejecución original (`retry_of`) y
+  superado el tope el servidor responde 409 `retry_limit`.
 - El worker outbox reprocesa eventos no confirmados; la idempotencia evita
   efectos duplicados.

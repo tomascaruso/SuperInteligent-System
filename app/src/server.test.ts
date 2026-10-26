@@ -216,7 +216,8 @@ describe('agentes (C4)', () => {
       'follow_up',
       'qa_policy',
     ]);
-    expect(res.json().agents[0].steps).toEqual(['normalize', 'dedup']);
+    // C6 corrige C4: upsert quedaba sin agente; pertenece a Captación.
+    expect(res.json().agents[0].steps).toEqual(['normalize', 'dedup', 'upsert']);
     expect(res.json().agents[3].steps).toEqual(['next_action']);
     // QA y políticas no tiene paso propio: lista vacía, no inventada.
     expect(res.json().agents[4].steps).toEqual([]);
@@ -241,6 +242,62 @@ describe('aprobaciones con expiración (C5)', () => {
     expect(js.statusCode).toBe(200);
     expect(js.body).toContain('Vencido');
     expect(js.body).toContain('Desactualizado');
+    await app.close();
+  });
+});
+
+describe('políticas y herramientas (C6)', () => {
+  async function authed() {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia Test', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    return { app, token: reg.json().token as string };
+  }
+
+  it('GET /api/policies sirve las 4 políticas y exige auth', async () => {
+    const { app, token } = await authed();
+    const res = await app.inject({ method: 'GET', url: '/api/policies', headers: { authorization: `Bearer ${token}` } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().policies.map((p: { key: string }) => p.key).sort()).toEqual([
+      'draft.approval.admin_only',
+      'draft.expiry_days',
+      'retry.admin_only',
+      'retry.max_attempts',
+    ]);
+    expect(res.json().policies.find((p: { key: string }) => p.key === 'retry.max_attempts').value).toBe('3');
+    const anon = await app.inject({ method: 'GET', url: '/api/policies' });
+    expect(anon.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('GET /api/tools sirve los 6 pasos con su agente dueño', async () => {
+    const { app, token } = await authed();
+    const res = await app.inject({ method: 'GET', url: '/api/tools', headers: { authorization: `Bearer ${token}` } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().tools).toHaveLength(6);
+    expect(res.json().tools.map((t: { step: string }) => t.step).sort()).toEqual([
+      'classify',
+      'dedup',
+      'draft',
+      'next_action',
+      'normalize',
+      'upsert',
+    ]);
+    expect(res.json().tools.find((t: { step: string }) => t.step === 'draft').agent_id).toBe('response_proposal');
+    expect(res.json().tools.find((t: { step: string }) => t.step === 'next_action').agent_id).toBe('follow_up');
+    expect(res.json().tools.find((t: { step: string }) => t.step === 'upsert').agent_id).toBe('intake');
+    expect(res.json().tools.some((t: { agent_id: string }) => t.agent_id === 'qa_policy')).toBe(false);
+    await app.close();
+  });
+
+  it('GET /app.js sirve la nota de reintento solo-admin', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toContain('Solo un admin puede reintentar');
     await app.close();
   });
 });

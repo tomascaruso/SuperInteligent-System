@@ -88,6 +88,7 @@ interface ExecutionRow {
   workflow_version: string;
   input_json: string;
   idempotency_key: string | null;
+  retry_of: string | null;
   status: string;
   result_json: string | null;
   error: string | null;
@@ -453,17 +454,27 @@ export function registerRoutes(
   });
 
   // ---------- Borradores y aprobaciones (solo admin aprueba/rechaza) ----------
-  // C5: un borrador vence a los 7 días y se desactualiza si el mensaje de
-  // su oportunidad cambió desde que se generó. Solo afecta a aprobar:
+  // C5: un borrador vence y se desactualiza si el mensaje de su
+  // oportunidad cambió desde que se generó. Solo afecta a aprobar:
   // rechazar un borrador vencido o desactualizado sigue permitido (es la
   // forma de descartarlo; luego un intake nuevo genera uno fresco).
-  const DRAFT_EXPIRY_MS = 7 * 24 * 3600_000;
-  const isDraftExpired = (d: DraftRow): boolean => Date.now() - Date.parse(d.created_at) > DRAFT_EXPIRY_MS;
+  // C6: el vencimiento se lee del registry de políticas (default 7 días).
+  const loadPolicies = async (): Promise<Record<string, string>> => {
+    const rows = await queryAll<{ key: string; value: string }>(db, 'SELECT key, value FROM policies');
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  };
+  const draftExpiryMs = (policies: Record<string, string>): number => {
+    const days = Number(policies['draft.expiry_days'] ?? 7);
+    return Number.isFinite(days) && days > 0 ? days * 24 * 3600_000 : 7 * 24 * 3600_000;
+  };
+  const isDraftExpired = (d: DraftRow, expiryMs: number): boolean =>
+    Date.now() - Date.parse(d.created_at) > expiryMs;
   const isDraftStale = (d: DraftRow, currentMessage: string): boolean =>
     d.source_message !== null && d.source_message !== currentMessage;
 
   app.get('/api/drafts', { preHandler: auth }, async (request) => {
     const user = getUser(request);
+    const expiryMs = draftExpiryMs(await loadPolicies());
     const rows = await queryAll<DraftRow & { contact_name: string; company: string; opportunity_message: string }>(
       db,
       `SELECT d.*, o.contact_name, o.company, o.message AS opportunity_message FROM drafts d
@@ -474,7 +485,7 @@ export function registerRoutes(
     return {
       drafts: rows.map((d) => ({
         ...d,
-        expired: isDraftExpired(d),
+        expired: isDraftExpired(d, expiryMs),
         stale: isDraftStale(d, d.opportunity_message),
       })),
     };
@@ -509,10 +520,12 @@ export function registerRoutes(
         await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
         return;
       }
-      if (isDraftExpired(draft)) {
+      const policies = await loadPolicies();
+      const expiryDays = Number(policies['draft.expiry_days'] ?? 7);
+      if (isDraftExpired(draft, draftExpiryMs(policies))) {
         await reply.code(409).send({
           error: 'draft_expired',
-          message: 'El borrador venció: pasaron más de 7 días desde que se creó y ya no se puede aprobar',
+          message: `El borrador venció: pasaron más de ${Number.isFinite(expiryDays) && expiryDays > 0 ? expiryDays : 7} días desde que se creó y ya no se puede aprobar`,
         });
         return;
       }
@@ -658,10 +671,41 @@ export function registerRoutes(
       await reply.code(409).send({ error: 'conflict', message: 'Solo se pueden reintentar ejecuciones fallidas' });
       return;
     }
+    // C6: el reintento se rige por el registry de políticas. El admin es
+    // exigible salvo que la política diga lo contrario; el tope cuenta
+    // por ejecución original (raíz de la cadena), no por cada reintento.
+    const policies = await loadPolicies();
+    if (policies['retry.admin_only'] !== 'false' && user.role !== 'admin') {
+      await reply.code(403).send({ error: 'forbidden', message: 'Se requiere rol admin' });
+      return;
+    }
+    const maxRaw = Number(policies['retry.max_attempts'] ?? 3);
+    const maxAttempts = Number.isFinite(maxRaw) && maxRaw > 0 ? Math.floor(maxRaw) : 3;
+    let rootId = id;
+    for (;;) {
+      const row = await queryOne<{ retry_of: string | null }>(
+        db,
+        'SELECT retry_of FROM executions WHERE id = ?',
+        rootId,
+      );
+      if (!row || !row.retry_of) break;
+      rootId = row.retry_of;
+    }
+    const attempts = Number(
+      (await queryOne<{ c: number }>(db, 'SELECT COUNT(*) AS c FROM executions WHERE retry_of = ?', rootId))?.c ?? 0,
+    );
+    if (attempts >= maxAttempts) {
+      await reply.code(409).send({
+        error: 'retry_limit',
+        message: `Esta ejecución ya alcanzó el máximo de ${maxAttempts} reintentos`,
+      });
+      return;
+    }
     const input = JSON.parse(execution.input_json) as OpportunityInput;
     const result = await runIntake(db, user.orgId, input, {
       actor: user.email,
       maxOpportunitiesPerDay: opts.maxOpportunitiesPerDay,
+      retryOf: rootId,
     });
     await audit(db, user.orgId, user.email, 'execution.retried', 'execution', id, {
       newExecutionId: result.executionId,
@@ -699,6 +743,35 @@ export function registerRoutes(
         steps: JSON.parse(a.steps_json) as string[],
       })),
     };
+  });
+
+  // Registry de políticas (C6): global, con auth. Los valores vigentes
+  // viven en la tabla; el reintento y el vencimiento los leen de acá.
+  app.get('/api/policies', { preHandler: auth }, async () => {
+    const rows = await queryAll<{ key: string; value: string; description: string }>(
+      db,
+      'SELECT key, value, description FROM policies ORDER BY key ASC',
+    );
+    return { policies: rows };
+  });
+
+  // Registry de herramientas (C6): no hay herramientas externas (el
+  // sistema no llama a ningún servicio ni envía nada); las herramientas
+  // reales son los pasos del pipeline, cada uno de un agente (C4). Se
+  // deriva del catálogo de agentes para no duplicar el mapeo.
+  app.get('/api/tools', { preHandler: auth }, async () => {
+    const agents = await queryAll<{ id: string; name: string; steps_json: string }>(
+      db,
+      'SELECT id, name, steps_json FROM agents ORDER BY sort_order ASC',
+    );
+    const tools = agents.flatMap((a) =>
+      (JSON.parse(a.steps_json) as string[]).map((step) => ({
+        step,
+        agent_id: a.id,
+        agent_name: a.name,
+      })),
+    );
+    return { tools };
   });
 
   app.get('/api/processes', { preHandler: auth }, async (request) => {

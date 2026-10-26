@@ -72,6 +72,8 @@ export interface IntakeOptions {
   actor: string;
   idempotencyKey?: string;
   maxOpportunitiesPerDay: number;
+  // C6: si esta ejecución es un reintento, la ejecución original (raíz).
+  retryOf?: string;
 }
 
 export interface IntakeResult {
@@ -202,13 +204,14 @@ export async function runIntake(
   const now = nowIso();
   await exec(
     db,
-    'INSERT INTO executions (id, org_id, workflow, workflow_version, input_json, idempotency_key, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO executions (id, org_id, workflow, workflow_version, input_json, idempotency_key, retry_of, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     executionId,
     orgId,
     'opportunity.intake',
     '1',
     JSON.stringify(input),
     opts.idempotencyKey ?? null,
+    opts.retryOf ?? null,
     'running',
     now,
     now,

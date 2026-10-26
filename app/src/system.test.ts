@@ -441,3 +441,96 @@ describe('C5 — expiración e invalidación de borradores (alineación PENSIA)'
     await s.app.close();
   });
 });
+
+describe('C6 — Policy/Tool Registry y reintento con tope (alineación PENSIA)', () => {
+  async function failedExecution(s: Awaited<ReturnType<typeof testServer>>, orgId: string) {
+    const failedId = newId();
+    await s.db.exec(
+      'INSERT INTO executions (id, org_id, workflow, workflow_version, input_json, status, error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      failedId,
+      orgId,
+      'opportunity.intake',
+      '1',
+      JSON.stringify(OPP),
+      'failed',
+      'simulated',
+      nowIso(),
+      nowIso(),
+    );
+    return failedId;
+  }
+
+  async function memberToken(s: Awaited<ReturnType<typeof testServer>>, adminToken: string) {
+    const created = await s.app.inject({
+      method: 'POST',
+      url: '/api/users',
+      headers: auth(adminToken),
+      payload: { name: 'Beto', email: 'beto@test.com', password: 'Secreto123' },
+    });
+    expect(created.statusCode).toBe(201);
+    const login = await s.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: 'beto@test.com', password: 'Secreto123' },
+    });
+    expect(login.statusCode).toBe(200);
+    return login.json().token as string;
+  }
+
+  it('un member no puede reintentar una ejecución fallida (403)', async () => {
+    const s = await testServer();
+    const { token, org } = await register(s.app);
+    const failedId = await failedExecution(s, org.id);
+    const member = await memberToken(s, token);
+    const res = await s.app.inject({ method: 'POST', url: `/api/executions/${failedId}/retry`, headers: auth(member), payload: {} });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('forbidden');
+    await s.app.close();
+  });
+
+  it('el tope es 3 reintentos por ejecución original, con vínculo guardado', async () => {
+    const s = await testServer();
+    const { token, org } = await register(s.app);
+    const failedId = await failedExecution(s, org.id);
+    for (let i = 0; i < 3; i++) {
+      const res = await s.app.inject({ method: 'POST', url: `/api/executions/${failedId}/retry`, headers: auth(token), payload: {} });
+      expect(res.statusCode).toBe(200);
+    }
+    const list = await s.app.inject({ method: 'GET', url: '/api/executions', headers: auth(token) });
+    const retries = list.json().executions.filter((e: { retry_of: string | null }) => e.retry_of === failedId);
+    expect(retries).toHaveLength(3);
+    const fourth = await s.app.inject({ method: 'POST', url: `/api/executions/${failedId}/retry`, headers: auth(token), payload: {} });
+    expect(fourth.statusCode).toBe(409);
+    expect(fourth.json().error).toBe('retry_limit');
+    await s.app.close();
+  });
+
+  it('el tope se lee del registry: con max 1, el segundo reintento se bloquea', async () => {
+    const s = await testServer();
+    const { token, org } = await register(s.app);
+    const failedId = await failedExecution(s, org.id);
+    await s.db.exec("UPDATE policies SET value = '1' WHERE key = 'retry.max_attempts'");
+    const first = await s.app.inject({ method: 'POST', url: `/api/executions/${failedId}/retry`, headers: auth(token), payload: {} });
+    expect(first.statusCode).toBe(200);
+    const second = await s.app.inject({ method: 'POST', url: `/api/executions/${failedId}/retry`, headers: auth(token), payload: {} });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error).toBe('retry_limit');
+    await s.app.close();
+  });
+
+  it('el vencimiento se lee del registry: con expiry 1 día, un borrador de 2 días no aprueba', async () => {
+    const s = await testServer();
+    const { token } = await register(s.app);
+    const created = await s.app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    expect(created.statusCode).toBe(201);
+    const drafts = await s.app.inject({ method: 'GET', url: '/api/drafts', headers: auth(token) });
+    const draftId = drafts.json().drafts[0].id as string;
+    await s.db.exec("UPDATE policies SET value = '1' WHERE key = 'draft.expiry_days'");
+    const old = new Date(Date.now() - 2 * 24 * 3600_000).toISOString();
+    await s.db.exec('UPDATE drafts SET created_at = ? WHERE id = ?', old, draftId);
+    const res = await s.app.inject({ method: 'POST', url: `/api/drafts/${draftId}/approve`, headers: auth(token), payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('draft_expired');
+    await s.app.close();
+  });
+});
