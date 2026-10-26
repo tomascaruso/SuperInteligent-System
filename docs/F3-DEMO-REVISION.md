@@ -367,11 +367,23 @@ Sexta corrección, solo frontend, sin cambios de backend ni de base
 - Pendiente: solo la revisión del propio Tomás (criterio de
   aceptación de F3-DEMO).
 
+## Cierre 26-oct-2026: revisión de Tomás aprobada
+
+Tomás aprobó el 26-oct-2026 («listo, aprobado»), con lo que se cumple
+el criterio de aceptación del BACKLOG (comprensible en menos de
+10 minutos, profesional y creíble, vista como potencial cliente).
+F3-DEMO pasa a PASS. Las 6 correcciones de esta revisión quedaron
+aplicadas y verificadas en vivo en la demo pública: pantalla de
+acceso, formulario de contacto con relay, pasos en lenguaje de
+negocio, sección de agentes, recorrido guiado y detalles finales
+(PR #17, #21, #22, #23, #24; 90/90 tests).
+
 ## Próximo paso
 
-Que Tomás lea esta revisión, haga su propia pasada como cliente
-potencial y decida qué hallazgos corregir primero. Con eso, F3-DEMO
-pasa a PASS o se abre el trabajo de corrección correspondiente.
+Ninguno para F3-DEMO. El trabajo que sigue es F4-TEMPLATE
+(empaquetar la plantilla reutilizable: guía de configuración por
+cliente y segundo vertical de ejemplo, sin tocar el núcleo) o lo que
+Tomás decida.
 
 ## Autorización requerida
 
