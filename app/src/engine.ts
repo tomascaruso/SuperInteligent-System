@@ -1,4 +1,14 @@
-import { audit, exec, newId, nowIso, queryOne, todayUtc, type Db } from './db.js';
+import {
+  FOLLOW_UP_AGENT_ID,
+  FOLLOW_UP_AGENT_NAME,
+  audit,
+  exec,
+  newId,
+  nowIso,
+  queryOne,
+  todayUtc,
+  type Db,
+} from './db.js';
 import {
   classifyOpportunity,
   dedupKey,
@@ -38,6 +48,7 @@ export interface TaskRow {
   opportunity_id: string;
   title: string;
   assigned_to: string;
+  agent_id: string | null;
   status: string;
   due_at: string;
   created_at: string;
@@ -121,12 +132,13 @@ async function ensureTaskAndDraft(
     const taskId = newId();
     await exec(
       db,
-      'INSERT INTO tasks (id, org_id, opportunity_id, title, assigned_to, status, due_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO tasks (id, org_id, opportunity_id, title, assigned_to, agent_id, status, due_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       taskId,
       orgId,
       opp.id,
       c.nextAction,
-      'Fundador',
+      FOLLOW_UP_AGENT_NAME,
+      FOLLOW_UP_AGENT_ID,
       'open',
       dueAt(c.dueHours),
       nowIso(),

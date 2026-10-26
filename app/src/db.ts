@@ -84,12 +84,21 @@ const SCHEMA = `
       updated_at TEXT NOT NULL,
       UNIQUE (org_id, dedup_key)
     );
+    CREATE TABLE IF NOT EXISTS agents (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      steps_json TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
       org_id TEXT NOT NULL REFERENCES organizations(id),
       opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
       title TEXT NOT NULL,
       assigned_to TEXT NOT NULL,
+      agent_id TEXT REFERENCES agents(id),
       status TEXT NOT NULL CHECK (status IN ('open', 'done')),
       due_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
@@ -255,6 +264,7 @@ export async function initSchema(db: Db): Promise<void> {
     if (sql) await db.exec(sql);
   }
   await ensureProcessCatalog(db);
+  await ensureAgentCatalog(db);
 }
 
 // ---------- Catálogo de procesos (C3, alineación PENSIA) ----------
@@ -321,6 +331,96 @@ export async function ensureProcessCatalog(db: Db): Promise<void> {
       e.updated_at,
     );
   }
+}
+
+// ---------- Catálogo de agentes (C4, alineación PENSIA) ----------
+//
+// Agentes conocidos: solo los 5 que el código realmente tiene como pasos
+// del pipeline (ver docs/WORKFLOWS.md). Siguen siendo deterministas: la
+// tabla los convierte en entidades consultables, no les agrega IA ni
+// autonomía. steps_json lista los pasos reales del pipeline que cada uno
+// posee; QA y políticas no tiene paso propio (revisa antes de aprobar,
+// sin poder aprobar solo), por eso su lista es vacía, no inventada.
+// El catálogo es global (no por org): el Core no se bifurca por cliente.
+export const FOLLOW_UP_AGENT_ID = 'follow_up';
+export const FOLLOW_UP_AGENT_NAME = 'Seguimiento';
+
+const KNOWN_AGENTS = [
+  {
+    id: 'intake',
+    name: 'Captación',
+    description: 'Normaliza y deduplica la oportunidad entrante.',
+    steps: ['normalize', 'dedup'],
+    sortOrder: 1,
+  },
+  {
+    id: 'qualification',
+    name: 'Calificación',
+    description: 'Clasifica por reglas: categoría y prioridad.',
+    steps: ['classify'],
+    sortOrder: 2,
+  },
+  {
+    id: 'response_proposal',
+    name: 'Respuesta y propuesta',
+    description: 'Genera el borrador desde plantillas.',
+    steps: ['draft'],
+    sortOrder: 3,
+  },
+  {
+    id: 'follow_up',
+    name: 'Seguimiento',
+    description: 'Recomienda y programa la próxima acción; crea la tarea.',
+    steps: ['next_action'],
+    sortOrder: 4,
+  },
+  {
+    id: 'qa_policy',
+    name: 'QA y políticas',
+    description:
+      'Revisa estructura, consistencia y políticas antes de la aprobación; no aprueba solo. Sin paso propio en el pipeline actual.',
+    steps: [] as string[],
+    sortOrder: 5,
+  },
+];
+
+export async function ensureAgentCatalog(db: Db): Promise<void> {
+  for (const a of KNOWN_AGENTS) {
+    const existing = await queryOne<{ id: string }>(db, 'SELECT id FROM agents WHERE id = ?', a.id);
+    if (!existing) {
+      await exec(
+        db,
+        'INSERT INTO agents (id, name, description, steps_json, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        a.id,
+        a.name,
+        a.description,
+        JSON.stringify(a.steps),
+        a.sortOrder,
+        nowIso(),
+      );
+    }
+  }
+  // Migración de bases pre-C4: la columna no existe en ellas. Probarla es
+  // portable (SQLite, Postgres y pg-mem fallan igual si falta); el ALTER
+  // solo corre en ese caso. En bases nuevas la columna ya viene del DDL.
+  const hasColumn = await queryOne<Record<string, unknown>>(db, 'SELECT agent_id FROM tasks LIMIT 0').then(
+    () => true,
+    () => false,
+  );
+  if (!hasColumn) {
+    await exec(db, 'ALTER TABLE tasks ADD COLUMN agent_id TEXT');
+  }
+  // Backfill: toda tarea del sistema la creó el paso next_action, del
+  // agente Seguimiento. Solo se tocan filas sin agente (legado); las
+  // creadas desde C4 ya lo traen. El assigned_to 'Fundador' era texto
+  // fijo, no una persona: se alinea con el nombre del agente.
+  await exec(
+    db,
+    'UPDATE tasks SET agent_id = ?, assigned_to = CASE WHEN assigned_to = ? THEN ? ELSE assigned_to END WHERE agent_id IS NULL',
+    FOLLOW_UP_AGENT_ID,
+    'Fundador',
+    FOLLOW_UP_AGENT_NAME,
+  );
 }
 
 export interface OpenOptions {

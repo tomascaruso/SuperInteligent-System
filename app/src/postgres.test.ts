@@ -119,4 +119,29 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
     await app.close();
     await db.close();
   });
+
+  it('C4: catálogo de agentes y tarea con agente en Postgres', async () => {
+    const { app, db } = await pgServer();
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    const token = reg.json().token as string;
+    const agents = await app.inject({ method: 'GET', url: '/api/agents', headers: { authorization: `Bearer ${token}` } });
+    expect(agents.statusCode).toBe(200);
+    expect(agents.json().agents).toHaveLength(5);
+    expect(agents.json().agents[4].id).toBe('qa_policy');
+    await app.inject({
+      method: 'POST',
+      url: '/api/opportunities',
+      headers: { authorization: `Bearer ${token}` },
+      payload: OPP,
+    });
+    const tasks = await app.inject({ method: 'GET', url: '/api/tasks?status=open', headers: { authorization: `Bearer ${token}` } });
+    expect(tasks.json().tasks[0].agent_id).toBe('follow_up');
+    expect(tasks.json().tasks[0].agent_name).toBe('Seguimiento');
+    await app.close();
+    await db.close();
+  });
 });

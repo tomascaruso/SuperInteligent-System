@@ -197,3 +197,39 @@ describe('procesos (C3)', () => {
     await app.close();
   });
 });
+
+describe('agentes (C4)', () => {
+  it('GET /api/agents sirve los 5 agentes deterministas en orden, con sus pasos reales', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia Test', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    const token = reg.json().token as string;
+    const res = await app.inject({ method: 'GET', url: '/api/agents', headers: { authorization: `Bearer ${token}` } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().agents.map((a: { id: string }) => a.id)).toEqual([
+      'intake',
+      'qualification',
+      'response_proposal',
+      'follow_up',
+      'qa_policy',
+    ]);
+    expect(res.json().agents[0].steps).toEqual(['normalize', 'dedup']);
+    expect(res.json().agents[3].steps).toEqual(['next_action']);
+    // QA y políticas no tiene paso propio: lista vacía, no inventada.
+    expect(res.json().agents[4].steps).toEqual([]);
+    const anon = await app.inject({ method: 'GET', url: '/api/agents' });
+    expect(anon.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('GET /app.js sirve el agente en la lista de tareas', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toContain('Agente:');
+    await app.close();
+  });
+});

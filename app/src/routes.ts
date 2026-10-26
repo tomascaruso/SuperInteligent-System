@@ -51,10 +51,21 @@ interface TaskRow {
   opportunity_id: string;
   title: string;
   assigned_to: string;
+  agent_id: string | null;
+  agent_name: string | null;
   status: string;
   due_at: string;
   created_at: string;
   updated_at: string;
+}
+
+interface AgentRow {
+  id: string;
+  name: string;
+  description: string;
+  steps_json: string;
+  sort_order: number;
+  created_at: string;
 }
 
 interface DraftRow {
@@ -415,9 +426,13 @@ export function registerRoutes(
   app.get('/api/tasks', { preHandler: auth }, async (request) => {
     const user = getUser(request);
     const status = (request.query as { status?: string }).status;
+    // Columnas explícitas: t.* duplicaría agent_id con el alias del JOIN.
+    const base = `SELECT t.id, t.org_id, t.opportunity_id, t.title, t.assigned_to, t.agent_id,
+              t.status, t.due_at, t.created_at, t.updated_at, a.name AS agent_name
+       FROM tasks t LEFT JOIN agents a ON a.id = t.agent_id WHERE t.org_id = ?`;
     const rows = status
-      ? await queryAll<TaskRow>(db, 'SELECT * FROM tasks WHERE org_id = ? AND status = ? ORDER BY due_at ASC', user.orgId, status)
-      : await queryAll<TaskRow>(db, 'SELECT * FROM tasks WHERE org_id = ? ORDER BY due_at ASC', user.orgId);
+      ? await queryAll<TaskRow>(db, `${base} AND t.status = ? ORDER BY t.due_at ASC`, user.orgId, status)
+      : await queryAll<TaskRow>(db, `${base} ORDER BY t.due_at ASC`, user.orgId);
     return { tasks: rows };
   });
 
@@ -628,6 +643,19 @@ export function registerRoutes(
         version: w.version,
         name: w.name,
         steps: JSON.parse(w.steps_json) as string[],
+      })),
+    };
+  });
+
+  // Registry de agentes (C4): global, como el de workflows; con auth.
+  app.get('/api/agents', { preHandler: auth }, async () => {
+    const rows = await queryAll<AgentRow>(db, 'SELECT * FROM agents ORDER BY sort_order ASC');
+    return {
+      agents: rows.map((a) => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        steps: JSON.parse(a.steps_json) as string[],
       })),
     };
   });

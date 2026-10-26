@@ -4,7 +4,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { buildServer } from './server.js';
-import { ensureProcessCatalog, exec, newId, nowIso } from './db.js';
+import { ensureAgentCatalog, ensureProcessCatalog, exec, newId, nowIso } from './db.js';
 
 async function testServer(max = 100) {
   return await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: max });
@@ -349,6 +349,40 @@ describe('C3 — proceso como entidad (alineación PENSIA)', () => {
     expect(runs.json().processes).toHaveLength(1);
     expect(runs.json().processes[0].execution.id).toBe(legacyId);
     expect(runs.json().processes[0].status).toBe('done');
+    await s.app.close();
+  });
+});
+
+describe('C4 — agentes como entidades (alineación PENSIA)', () => {
+  it('la tarea del intake queda asignada al agente Seguimiento, no al texto fijo', async () => {
+    const s = await testServer();
+    const { token } = await register(s.app);
+    const created = await s.app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    expect(created.statusCode).toBe(201);
+    const tasks = await s.app.inject({ method: 'GET', url: '/api/tasks?status=open', headers: auth(token) });
+    expect(tasks.json().tasks).toHaveLength(1);
+    expect(tasks.json().tasks[0].agent_id).toBe('follow_up');
+    expect(tasks.json().tasks[0].assigned_to).toBe('Seguimiento');
+    expect(tasks.json().tasks[0].agent_name).toBe('Seguimiento');
+    await s.app.close();
+  });
+
+  it('tareas previas a C4 reciben agente en el backfill', async () => {
+    const s = await testServer();
+    const { token, org } = await register(s.app);
+    const created = await s.app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    const oppId = created.json().opportunity.id as string;
+    // Fila legado: sin agent_id y con el texto fijo viejo.
+    await s.db.exec(
+      'INSERT INTO tasks (id, org_id, opportunity_id, title, assigned_to, agent_id, status, due_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      newId(), org.id, oppId, 'Tarea legado', 'Fundador', null, 'open', nowIso(), nowIso(), nowIso(),
+    );
+    await ensureAgentCatalog(s.db);
+    const tasks = await s.app.inject({ method: 'GET', url: '/api/tasks?status=open', headers: auth(token) });
+    const legacy = tasks.json().tasks.find((t: { title: string }) => t.title === 'Tarea legado');
+    expect(legacy.agent_id).toBe('follow_up');
+    expect(legacy.assigned_to).toBe('Seguimiento');
+    expect(legacy.agent_name).toBe('Seguimiento');
     await s.app.close();
   });
 });

@@ -76,7 +76,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | P-C1 | Alta | Alineación nominal y documental, sin código | Diagnóstico A+B | README/docs dicen lo que el código hace; glosario PENSIA; docs desactualizados corregidos | Bajo | PASS |
 | P-C2 | Alta | Trazabilidad expuesta (pasos por ejecución en API + UI) | P-C1 | Ver los pasos reales de una ejecución en la demo | Medio | PASS |
 | P-C3 | Alta | Proceso como entidad + Workflow Registry mínimo | P-C2 | Una ejecución pertenece a un proceso versionado consultable; `runIntake` sin cambios internos | Medio | PASS |
-| P-C4 | Alta | Agentes como entidades (los 5 actuales, deterministas) | P-C3 | La tarea muestra qué agente la generó; `assigned_to` deja de ser texto fijo | Medio | PLANNED |
+| P-C4 | Alta | Agentes como entidades (los 5 actuales, deterministas) | P-C3 | La tarea muestra qué agente la generó; `assigned_to` deja de ser texto fijo | Medio | PASS |
 | P-C5 | Alta | Aprobaciones con expiración (7 días) + invalidación si cambia el mensaje | P-C4 | Un borrador viejo o desincronizado no se puede aprobar | Medio | PLANNED |
 | P-C6 | Media | Policy/Tool Registry mínimo + reintento con tope y solo admin | P-C5 | Tests de permisos en verde | Medio | PLANNED |
 | P-C7 | Media | Worker asíncrono + endurecimiento (httpOnly, headers, rate limit, arranque sin secreto en prod) | P-C6 | Demo sigue verde + pruebas | Alto | PLANNED |
@@ -98,6 +98,16 @@ procesos y workflows, tarjeta «Procesos» en Actividad; 39/39 tests en
 verde (5 nuevos C3); smoke con servidor real (backfill de 3 corridas +
 intake nuevo con `processRunId`). Informe en `docs/C3-REPORTE.md`.
 Aprobado por Tomás el 26-oct-2026 («continuemos con lo siguiente»).
+Evidencia P-C4: tabla `agents` (5 agentes deterministas con sus pasos
+reales; QA y políticas sin paso propio), `agent_id` en tareas,
+`ensureAgentCatalog` en arranque (siembra, migración portable y
+backfill de tareas legado a Seguimiento), `GET /api/agents`,
+`GET /api/tasks` con `agent_name`, «Agente:» en la lista de tareas;
+44/44 tests en verde (5 nuevos C4); smoke con servidor real sobre
+copia pre-C4 (migración, backfill y intake nuevo con agente).
+Informe en `docs/C4-REPORTE.md`. Aprobado por Tomás el 26-oct-2026
+(«podemos continuar con lo siguiente», sobre el cierre de C3).
+Sin push ni merge todavía.
 Sin push ni merge todavía.
 
 ## Deuda y notas
