@@ -11,7 +11,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | G0-DOCS | Alta | Entregables de Gate 0 | G0-ENV | 11 documentos creados y coherentes | Bajo | PASS | `docs/` + `BACKLOG.md` en `workspace/superinteligent-system/` |
 | G0-D1 | Alta | Confirmar stack propuesto | G0-DOCS | Decisión humana registrada en DECISIONS | Medio | BLOCKED | Avance autorizado por Tomás el 25-oct-2026 («okey avancemos»); se construyó con el stack propuesto como supuesto reversible; la confirmación formal sigue pendiente |
 | G0-D2 | Alta | Aprobar experimento E1 | G0-DOCS | Guion y acceso a entrevistados | Medio | CANCELLED | Cancelado 25-oct-2026 por decisión de Tomás (D12: no habrá entrevistas) |
-| G0-D3 | Alta | Repo remoto + cuentas | G0-D1 | Repositorio remoto y proyecto Supabase creados | Medio | BLOCKED | Requiere autorización y credenciales |
+| G0-D3 | Alta | Repo remoto + cuentas | G0-D1 | Repositorio remoto y proyecto Neon creados | Medio | BLOCKED | Repo en GitHub (tomascaruso/SuperInteligent-System) y base en Neon verificada el 25-oct-2026; Supabase sustituido por Neon por decisión de Tomás (25-oct-2026). Pendiente solo el proveedor de IA (Fase 2; decisión Gemini tomada el 26-oct-2026, veredicto pendiente de la clave) |
 
 ## Validación (PLANNED)
 
