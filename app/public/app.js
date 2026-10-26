@@ -385,10 +385,21 @@ async function refresh() {
     $('audit').innerHTML = audit.slice(0, 20).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
     $('activity').innerHTML = audit.slice(0, 5).map(auditItems).join('') || '<li class="empty-state">Sin registros de actividad todavía.</li>';
     const { executions } = await api('/api/executions');
-    // Sin pasos en el backend: no se inventan. El detalle real es workflow,
-    // versión, identificador, inicio/fin, resultado (oportunidad creada) o
-    // error. El botón Reintentar solo aparece en fallidas, como exige el
-    // servidor, y abre el diálogo de confirmación (no actúa directo).
+    // C2 (alineación PENSIA): los pasos ya se persistían y ahora se exponen
+    // por /api/executions/:id/steps. El detalle real es workflow, versión,
+    // identificador, inicio/fin, resultado (oportunidad creada) o error, más
+    // los pasos reales bajo «Ver pasos». Nada se inventa: sin pasos, el
+    // texto lo dice. El botón Reintentar solo aparece en fallidas, como
+    // exige el servidor, y abre el diálogo de confirmación (no actúa
+    // directo).
+    const stepSummary = (s) => {
+      const out = parseJson(s.output_json);
+      if (out.category && out.priority) return ` · categoría ${esc(out.category)} · prioridad ${esc(priorityLabel(out.priority))}`;
+      if (typeof out.matched === 'boolean') return ` · duplicado: ${out.matched ? 'sí' : 'no'}`;
+      return '';
+    };
+    const stepItems = (s) => `<li><span class="badge ${executionStatusBadge(s.status)}">${esc(executionStatusLabel(s.status))}</span> ` +
+      `${esc(s.step)} · ${esc(formatDateTime(s.created_at))}${stepSummary(s)}${s.error ? ` — Error: ${esc(s.error)}` : ''}</li>`;
     $('executions').innerHTML = executions.slice(0, 20).map((e) => {
       const result = parseJson(e.result_json);
       const opp = result.opportunity;
@@ -400,11 +411,36 @@ async function refresh() {
       return `<li><span class="badge ${executionStatusBadge(e.status)}">${esc(executionStatusLabel(e.status))}</span> ` +
         `${esc(formatDateTime(e.created_at))} — ${esc(e.workflow)} v${esc(e.workflow_version)}` +
         ` <span class="text-muted" title="${esc(e.id)}">(${esc(e.id.slice(0, 8))})</span>${fin}${detail}` +
-        (e.status === 'failed' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button>` : '') + '</li>';
+        ` <button class="btn btn-secondary btn-sm" data-steps="${e.id}">Ver pasos</button>` +
+        (e.status === 'failed' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button>` : '') +
+        '<ul class="execution-steps hidden"></ul></li>';
     }).join('') || '<li class="empty-state">Sin ejecuciones todavía.</li>';
     const executionsById = new Map(executions.map((e) => [e.id, e]));
     document.querySelectorAll('[data-retry]').forEach((b) => {
       b.onclick = () => openDialog('retry', executionsById.get(b.dataset.retry), b);
+    });
+    // Pasos bajo demanda: se cargan una vez por ejecución y luego solo se
+    // muestran/ocultan. Un fallo de carga queda visible en la propia lista.
+    document.querySelectorAll('[data-steps]').forEach((b) => {
+      b.onclick = async () => {
+        const list = b.parentElement.querySelector('.execution-steps');
+        if (!list) return;
+        if (list.dataset.loaded === '1') {
+          list.classList.toggle('hidden');
+          b.textContent = list.classList.contains('hidden') ? 'Ver pasos' : 'Ocultar pasos';
+          return;
+        }
+        list.innerHTML = '<li class="text-muted">Cargando pasos…</li>';
+        list.classList.remove('hidden');
+        try {
+          const { steps } = await api(`/api/executions/${b.dataset.steps}/steps`);
+          list.innerHTML = steps.map(stepItems).join('') || '<li class="empty-state">Sin pasos registrados.</li>';
+          list.dataset.loaded = '1';
+          b.textContent = 'Ocultar pasos';
+        } catch (e2) {
+          list.innerHTML = '<li class="text-muted">No se pudieron cargar los pasos.</li>';
+        }
+      };
     });
     // Acciones prioritarias de Inicio, calculadas con los datos ya cargados.
     const now = new Date();

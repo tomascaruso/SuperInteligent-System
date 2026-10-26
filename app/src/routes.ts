@@ -83,6 +83,16 @@ interface ExecutionRow {
   updated_at: string;
 }
 
+interface ExecutionStepRow {
+  id: string;
+  execution_id: string;
+  step: string;
+  status: string;
+  output_json: string | null;
+  error: string | null;
+  created_at: string;
+}
+
 interface AuditRow {
   id: string;
   org_id: string;
@@ -523,6 +533,35 @@ export function registerRoutes(
         db,
         'SELECT * FROM executions WHERE org_id = ? ORDER BY created_at DESC LIMIT 100',
         user.orgId,
+      ),
+    };
+  });
+
+  // Pasos de una ejecución (C2, alineación PENSIA): los pasos ya se
+  // persistían en execution_steps pero no se exponían. Solo la org dueña
+  // de la ejecución puede verlos: una ejecución inexistente o de otra org
+  // da 404, igual que el resto de lecturas por id.
+  app.get('/api/executions/:id/steps', { preHandler: auth }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const execution = await queryOne<ExecutionRow>(
+      db,
+      'SELECT * FROM executions WHERE id = ? AND org_id = ?',
+      id,
+      user.orgId,
+    );
+    if (!execution) {
+      await reply.code(404).send({ error: 'not_found', message: 'Ejecución no encontrada' });
+      return;
+    }
+    // created_at tiene precisión de milisegundos (nowIso): los pasos de una
+    // ejecución se crean en secuencia y el orden temporal es el orden real.
+    return {
+      executionId: execution.id,
+      steps: await queryAll<ExecutionStepRow>(
+        db,
+        'SELECT * FROM execution_steps WHERE execution_id = ? ORDER BY created_at ASC',
+        id,
       ),
     };
   });

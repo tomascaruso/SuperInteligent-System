@@ -1,16 +1,33 @@
 # SuperInteligent System
 
-Empresa de software basada en inteligencia artificial, automatización empresarial y
-agentes especializados. Este repositorio contiene el núcleo reutilizable
+Servicio de automatización inteligente de **PENSIA** (empresa responsable de
+la estrategia, el desarrollo, la implementación y la operación). Jerarquía:
+**PENSIA → SuperInteligent System → sistema de agentes de cada empresa
+cliente.** Este repositorio contiene el núcleo reutilizable
 (**SuperInteligent Core**) y su primera aplicación comercial
 (**Business Operations Orchestrator**).
 
+SuperInteligent System NO es un CRM con funciones de IA agregadas: es un
+sistema de coordinación y ejecución de procesos empresariales mediante un
+orquestador y agentes especializados. Los módulos actuales (oportunidades,
+tareas, aprobaciones, ejecuciones, auditoría) son la primera demostración
+funcional, no la identidad del producto. Ver `docs/GLOSARIO-PENSIA.md` y
+`docs/DIAGNOSTICO-ALINEACION-PENSIA.md`.
+
 ## Estado
 
-- **Fase actual:** Gate 0 — descubrimiento y diseño (NO aprobado todavía).
-- **Código de producto:** no iniciado. Este Gate 0 entrega solo documentación y
-  decisiones verificables.
-- **Última actualización:** 2026-10-25 (Gate 0).
+- **Fase actual:** Fase 1 (MVP Core) completada el 25-oct-2026 + UI/UX
+  System OS v1.1 Fases 0–5 completadas y mergeadas a `main` el 26-oct-2026.
+- **Demo pública:** Render + Neon (plan gratis) en
+  https://superinteligent-system-demo-9e49.onrender.com/ — verificada en
+  vivo tras cada merge (login demo, indicadores, 5 vistas, sin problemas
+  visuales; solo lectura).
+- **Tests:** 31/31 en verde (26-oct-2026, Fase 5 de UI); build y typecheck
+  limpios. Persistencia dual SQLite/Postgres verificada contra Neon (D14).
+- **Pendientes:** confirmación formal del stack (G0-D1), decisión de modelo
+  por cliente (F1-TENANT: multi-tenant vs. instancia dedicada), CI básica
+  (F1-CI), y la adaptación PENSIA (C2–C8, ver diagnóstico).
+- **Última actualización:** 2026-10-26 (diagnóstico de alineación PENSIA, C1).
 
 ## Qué es
 
@@ -55,6 +72,8 @@ docs/
   DECISIONS.md      Decisiones arquitectónicas y alternativas
   VALIDATION_PLAN.md Experimentos comerciales, hipótesis y métricas
   BUYER_PERSONA.md  Cliente ideal inicial (hipótesis, no validado)
+  DIAGNOSTICO-ALINEACION-PENSIA.md  Fases A+B: estado real, brechas y plan
+  GLOSARIO-PENSIA.md  Términos oficiales (PENSIA, orquestador, agente, proceso)
 ```
 
 ## Cómo trabajar con este proyecto
@@ -80,7 +99,9 @@ docs/
 
 ## Próximo paso
 
-Revisión humana de este Gate 0 y decisión sobre: (1) stack propuesto y
-(2) cuenta/proyecto Supabase y proveedor de IA (sin claves todavía). El
-experimento E1 quedó cancelado (D12). Ver `docs/ROADMAP.md` (Fase 1) y
-`BACKLOG.md` (ítems G0-D1 y G0-D3).
+Adaptación PENSIA según `docs/DIAGNOSTICO-ALINEACION-PENSIA.md` (Fase C/D):
+C1 completado (este commit, solo documentación); C2 (trazabilidad expuesta)
+pendiente de aprobación para empezar. Ítems abiertos: G0-D1 (confirmación
+formal del stack), F1-TENANT (modelo por cliente) y F1-CI. El experimento E1
+quedó cancelado (D12) y Supabase fue sustituido por Neon (decisión de Tomás,
+25-oct-2026: Render + Neon). Ver `BACKLOG.md` (sección Alineación PENSIA).

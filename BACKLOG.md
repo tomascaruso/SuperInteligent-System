@@ -69,17 +69,40 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | F4-TEMPLATE | Alta | Empaquetar la plantilla reutilizable | F3-DEMO | Guía de configuración por cliente; segundo vertical de ejemplo sin tocar el núcleo | Alto | PLANNED |
 | F4-SERVICE | Media | Proceso de implementación por cliente | F4-TEMPLATE | Checklist de adaptación (workflows, agentes, herramientas, políticas, integraciones) | Medio | PLANNED |
 
+## Alineación PENSIA (Fase C/D — Directiva 26-oct-2026, D15)
+
+| ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
+|---|---|---|---|---|---|---|
+| P-C1 | Alta | Alineación nominal y documental, sin código | Diagnóstico A+B | README/docs dicen lo que el código hace; glosario PENSIA; docs desactualizados corregidos | Bajo | PASS |
+| P-C2 | Alta | Trazabilidad expuesta (pasos por ejecución en API + UI) | P-C1 | Ver los pasos reales de una ejecución en la demo | Medio | PASS |
+| P-C3 | Alta | Proceso como entidad + Workflow Registry mínimo | P-C2 | Una ejecución pertenece a un proceso versionado consultable; `runIntake` sin cambios internos | Medio | PLANNED |
+| P-C4 | Alta | Agentes como entidades (los 5 actuales, deterministas) | P-C3 | La tarea muestra qué agente la generó; `assigned_to` deja de ser texto fijo | Medio | PLANNED |
+| P-C5 | Alta | Aprobaciones con expiración (7 días) + invalidación si cambia el mensaje | P-C4 | Un borrador viejo o desincronizado no se puede aprobar | Medio | PLANNED |
+| P-C6 | Media | Policy/Tool Registry mínimo + reintento con tope y solo admin | P-C5 | Tests de permisos en verde | Medio | PLANNED |
+| P-C7 | Media | Worker asíncrono + endurecimiento (httpOnly, headers, rate limit, arranque sin secreto en prod) | P-C6 | Demo sigue verde + pruebas | Alto | PLANNED |
+| P-C8 | Alta | Decisión TENANT + alta operada por PENSIA | P-C7 | Alta por invitación; sin registro público para clientes | Medio | PLANNED |
+
+Evidencia P-C1: `docs/DIAGNOSTICO-ALINEACION-PENSIA.md`,
+`docs/GLOSARIO-PENSIA.md`, README actualizado, correcciones en
+`docs/ARCHITECTURE.md` y `docs/WORKFLOWS.md`, D15 en `docs/DECISIONS.md`.
+Aprobado por Tomás el 26-oct-2026. Sin push ni merge (requieren aprobación
+por separado).
+Evidencia P-C2: endpoint `GET /api/executions/:id/steps` + botón
+«Ver pasos» en Actividad; 34/34 tests en verde (3 nuevos C2); smoke con
+servidor real (6 pasos en orden, 401 sin token). Informe en
+`docs/C2-REPORTE.md`. Aprobado por Tomás el 26-oct-2026 («Seguí con C2»).
+Sin push ni merge todavía.
+
 ## Deuda y notas
 
 - Búsqueda profunda de trabajo previo en el workspace completada el
   2026-10-25 sin resultados: no existe trabajo previo de SuperInteligent
   System.
-- Sin claves de IA ni acceso verificado a Supabase: ambos son bloqueos
-  explícitos, no supuestos.
-- Persistencia local con SQLite (node:sqlite, D14) y adaptador
-  PostgreSQL implementado en la rama `d14-postgres` (DATABASE_URL elige
-  Postgres, con tests pg-mem en verde); falta la verificación contra un
-  Postgres real (Neon, G0-D3).
+- Sin claves de IA (bloqueo explícito, Fase 2). Supabase descartado:
+  Neon verificado el 25-oct-2026 y demo pública en Render + Neon.
+- Persistencia dual verificada (D14): SQLite local para desarrollo y
+  Postgres (Neon) en la demo pública; tests pg-mem en verde y verificación
+  real contra Neon completada el 25-oct-2026.
 - Worker asíncrono separado NO implementado: la ejecución es síncrona con
   pasos persistidos; el reintento existe y converge por dedup. Es
   endurecimiento posterior, no un hueco en los criterios demostrados.
