@@ -181,3 +181,19 @@ describe('trazabilidad (C2)', () => {
     await app.close();
   });
 });
+
+describe('procesos (C3)', () => {
+  it('GET / sirve la tarjeta de procesos y /app.js sirve su lista', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const html = await app.inject({ method: 'GET', url: '/' });
+    expect(html.statusCode).toBe(200);
+    expect(html.body).toContain('<h3>Procesos</h3>');
+    expect(html.body).toContain('Cargando procesos…');
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toContain('/api/processes');
+    expect(js.body).toContain('Sin procesos todavía.');
+    expect(js.body).toContain('En curso');
+    await app.close();
+  });
+});

@@ -137,6 +137,24 @@ const SCHEMA = `
       error TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS workflows (
+      workflow TEXT NOT NULL,
+      version TEXT NOT NULL,
+      name TEXT NOT NULL,
+      steps_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (workflow, version)
+    );
+    CREATE TABLE IF NOT EXISTS process_runs (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL REFERENCES organizations(id),
+      workflow TEXT NOT NULL,
+      workflow_version TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed')),
+      execution_id TEXT NOT NULL REFERENCES executions(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
       org_id TEXT NOT NULL REFERENCES organizations(id),
@@ -235,6 +253,73 @@ export async function initSchema(db: Db): Promise<void> {
   for (const stmt of SCHEMA.split(';')) {
     const sql = stmt.trim();
     if (sql) await db.exec(sql);
+  }
+  await ensureProcessCatalog(db);
+}
+
+// ---------- Catálogo de procesos (C3, alineación PENSIA) ----------
+//
+// Workflows conocidos: solo los que el código realmente ejecuta. Hoy uno:
+// opportunity.intake v1, con sus pasos reales en orden (ver engine.ts).
+// El backfill cubre ejecuciones anteriores a C3: cada una recibe su
+// corrida con sus mismos datos (una corrida por ejecución). Es idempotente:
+// solo se crean corridas para ejecuciones que todavía no tienen una.
+const KNOWN_WORKFLOWS = [
+  {
+    workflow: 'opportunity.intake',
+    version: '1',
+    name: 'Captación de oportunidad',
+    steps: ['normalize', 'dedup', 'classify', 'upsert', 'next_action', 'draft'],
+  },
+];
+
+export async function ensureProcessCatalog(db: Db): Promise<void> {
+  for (const w of KNOWN_WORKFLOWS) {
+    const existing = await queryOne<{ workflow: string }>(
+      db,
+      'SELECT workflow FROM workflows WHERE workflow = ? AND version = ?',
+      w.workflow,
+      w.version,
+    );
+    if (!existing) {
+      await exec(
+        db,
+        'INSERT INTO workflows (workflow, version, name, steps_json, created_at) VALUES (?, ?, ?, ?, ?)',
+        w.workflow,
+        w.version,
+        w.name,
+        JSON.stringify(w.steps),
+        nowIso(),
+      );
+    }
+  }
+  // LEFT JOIN + IS NULL en vez de NOT EXISTS correlacionado: equivalente y
+  // compatible con pg-mem (el emulador no resuelve la referencia externa).
+  const legacy = await queryAll<{
+    id: string;
+    org_id: string;
+    workflow: string;
+    workflow_version: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }>(
+    db,
+    'SELECT e.* FROM executions e LEFT JOIN process_runs pr ON pr.execution_id = e.id WHERE pr.id IS NULL',
+  );
+  for (const e of legacy) {
+    await exec(
+      db,
+      'INSERT INTO process_runs (id, org_id, workflow, workflow_version, status, execution_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      newId(),
+      e.org_id,
+      e.workflow,
+      e.workflow_version,
+      e.status,
+      e.id,
+      e.created_at,
+      e.updated_at,
+    );
   }
 }
 

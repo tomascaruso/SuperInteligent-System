@@ -4,7 +4,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { buildServer } from './server.js';
-import { exec, newId, nowIso } from './db.js';
+import { ensureProcessCatalog, exec, newId, nowIso } from './db.js';
 
 async function testServer(max = 100) {
   return await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: max });
@@ -278,5 +278,77 @@ describe('C2 — trazabilidad expuesta (alineación PENSIA)', () => {
     const anon = await app.inject({ method: 'GET', url: `/api/executions/${executionId}/steps` });
     expect(anon.statusCode).toBe(401);
     await app.close();
+  });
+});
+
+describe('C3 — proceso como entidad (alineación PENSIA)', () => {
+  it('un intake crea una corrida de proceso consultable', async () => {
+    const { app } = await testServer();
+    const { token } = await register(app);
+    const created = await app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    expect(created.statusCode).toBe(201);
+    const execs = await app.inject({ method: 'GET', url: '/api/executions', headers: auth(token) });
+    const executionId = execs.json().executions[0].id as string;
+    const runs = await app.inject({ method: 'GET', url: '/api/processes', headers: auth(token) });
+    expect(runs.statusCode).toBe(200);
+    expect(runs.json().processes).toHaveLength(1);
+    const run = runs.json().processes[0];
+    expect(run.workflow).toBe('opportunity.intake');
+    expect(run.workflow_version).toBe('1');
+    expect(run.status).toBe('done');
+    expect(run.execution.id).toBe(executionId);
+    const detail = await app.inject({ method: 'GET', url: `/api/processes/${run.id}`, headers: auth(token) });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().execution.id).toBe(executionId);
+    await app.close();
+  });
+
+  it('el registry expone opportunity.intake v1 con sus pasos reales', async () => {
+    const { app } = await testServer();
+    const { token } = await register(app);
+    const res = await app.inject({ method: 'GET', url: '/api/workflows', headers: auth(token) });
+    expect(res.statusCode).toBe(200);
+    const w = res.json().workflows.find((x: { workflow: string }) => x.workflow === 'opportunity.intake');
+    expect(w.version).toBe('1');
+    expect(w.steps).toEqual(['normalize', 'dedup', 'classify', 'upsert', 'next_action', 'draft']);
+    await app.close();
+  });
+
+  it('procesos de otra org, proceso inexistente y sin token se rechazan', async () => {
+    const { app } = await testServer();
+    const { token } = await register(app);
+    const created = await app.inject({ method: 'POST', url: '/api/opportunities', headers: auth(token), payload: OPP });
+    expect(created.statusCode).toBe(201);
+    const runs = await app.inject({ method: 'GET', url: '/api/processes', headers: auth(token) });
+    const runId = runs.json().processes[0].id as string;
+    const other = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Otra Agencia', name: 'Beto', email: 'beto@otra.com', password: 'Secreto123' },
+    });
+    expect(other.statusCode).toBe(201);
+    const cross = await app.inject({ method: 'GET', url: `/api/processes/${runId}`, headers: auth(other.json().token as string) });
+    expect(cross.statusCode).toBe(404);
+    const missing = await app.inject({ method: 'GET', url: '/api/processes/inexistente', headers: auth(token) });
+    expect(missing.statusCode).toBe(404);
+    const anon = await app.inject({ method: 'GET', url: '/api/processes' });
+    expect(anon.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('ejecuciones previas a C3 reciben corrida (backfill)', async () => {
+    const s = await testServer();
+    const { token, org } = await register(s.app);
+    const legacyId = newId();
+    await s.db.exec(
+      'INSERT INTO executions (id, org_id, workflow, workflow_version, input_json, idempotency_key, status, result_json, error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      legacyId, org.id, 'opportunity.intake', '1', '{}', null, 'done', null, null, nowIso(), nowIso(),
+    );
+    await ensureProcessCatalog(s.db);
+    const runs = await s.app.inject({ method: 'GET', url: '/api/processes', headers: auth(token) });
+    expect(runs.json().processes).toHaveLength(1);
+    expect(runs.json().processes[0].execution.id).toBe(legacyId);
+    expect(runs.json().processes[0].status).toBe('done');
+    await s.app.close();
   });
 });

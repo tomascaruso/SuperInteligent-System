@@ -93,6 +93,25 @@ interface ExecutionStepRow {
   created_at: string;
 }
 
+interface WorkflowRow {
+  workflow: string;
+  version: string;
+  name: string;
+  steps_json: string;
+  created_at: string;
+}
+
+interface ProcessRunRow {
+  id: string;
+  org_id: string;
+  workflow: string;
+  workflow_version: string;
+  status: string;
+  execution_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface AuditRow {
   id: string;
   org_id: string;
@@ -592,6 +611,73 @@ export function registerRoutes(
       newExecutionId: result.executionId,
     });
     await reply.send({ ...result, retriedFrom: id });
+  });
+
+  // ---------- Procesos y workflows (C3, alineación PENSIA) ----------
+  // El registry es global (definiciones, no datos de una org); las corridas
+  // son por org, como el resto de lecturas. Una corrida inexistente o de
+  // otra org da 404.
+  app.get('/api/workflows', { preHandler: auth }, async () => {
+    const rows = await queryAll<WorkflowRow>(
+      db,
+      'SELECT * FROM workflows ORDER BY workflow ASC, version ASC',
+    );
+    return {
+      workflows: rows.map((w) => ({
+        workflow: w.workflow,
+        version: w.version,
+        name: w.name,
+        steps: JSON.parse(w.steps_json) as string[],
+      })),
+    };
+  });
+
+  app.get('/api/processes', { preHandler: auth }, async (request) => {
+    const user = getUser(request);
+    // Columnas explícitas: pr.* duplicaría execution_id con el alias del JOIN.
+    const rows = await queryAll<ProcessRunRow & { execution_id: string | null; execution_status: string | null }>(
+      db,
+      `SELECT pr.id, pr.org_id, pr.workflow, pr.workflow_version, pr.status,
+              pr.created_at, pr.updated_at,
+              e.id AS execution_id, e.status AS execution_status
+       FROM process_runs pr LEFT JOIN executions e ON e.id = pr.execution_id
+       WHERE pr.org_id = ? ORDER BY pr.created_at DESC LIMIT 100`,
+      user.orgId,
+    );
+    return {
+      processes: rows.map((r) => ({
+        id: r.id,
+        org_id: r.org_id,
+        workflow: r.workflow,
+        workflow_version: r.workflow_version,
+        status: r.status,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        execution: r.execution_id ? { id: r.execution_id, status: r.execution_status } : null,
+      })),
+    };
+  });
+
+  app.get('/api/processes/:id', { preHandler: auth }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const run = await queryOne<ProcessRunRow>(
+      db,
+      'SELECT * FROM process_runs WHERE id = ? AND org_id = ?',
+      id,
+      user.orgId,
+    );
+    if (!run) {
+      await reply.code(404).send({ error: 'not_found', message: 'Proceso no encontrado' });
+      return;
+    }
+    const execution = await queryOne<ExecutionRow>(
+      db,
+      'SELECT * FROM executions WHERE id = ? AND org_id = ?',
+      run.execution_id,
+      user.orgId,
+    );
+    return { process: run, execution: execution ?? null };
   });
 
   // ---------- Estadísticas ----------
