@@ -160,6 +160,18 @@ export function registerRoutes(
   app.get('/app.js', async (_req, reply) => {
     void reply.type('application/javascript').send(readFileSync(new URL('app.js', publicDir)));
   });
+  // Hojas del sistema de diseño. Solo se sirven los archivos de la lista blanca;
+  // cualquier otro nombre (incluidos intentos de salir del directorio) da 404.
+  // No es un cambio de API: solo serving de archivos estáticos del frontend.
+  const STYLE_FILES = new Set(['tokens.css', 'base.css', 'components.css', 'layout.css']);
+  app.get('/styles/:file', async (request, reply) => {
+    const { file } = request.params as { file: string };
+    if (!STYLE_FILES.has(file)) {
+      void reply.code(404).send({ error: 'No encontrado' });
+      return;
+    }
+    void reply.type('text/css').send(readFileSync(new URL(`styles/${file}`, publicDir)));
+  });
 
   // ---------- Auth ----------
   app.post('/api/auth/register', async (request, reply) => {

@@ -1,0 +1,148 @@
+/* UI/UX System OS v1.1 — Layout y navegación (Fase 2).
+   Estructura: encabezado de vista + navegación lateral en escritorio,
+   navegación horizontal superior en tablet/móvil. Sin Configuración en la
+   navegación: todavía no existen opciones funcionales que mostrar. */
+
+/* ---------- Encabezado de vista ---------- */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.app-header h2 {
+  margin: 0;
+}
+
+.app-header p {
+  margin: var(--space-1) 0 0;
+}
+
+/* ---------- Layout principal ---------- */
+.layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.content {
+  min-width: 0;
+}
+
+/* Las tarjetas permiten scroll horizontal interno: las tablas no rompen el layout
+   en pantallas angostas (el responsive de tablas llega en la Fase 3). */
+.card {
+  overflow-x: auto;
+}
+
+.card h3:first-child {
+  margin-top: 0;
+}
+
+/* ---------- Navegación ---------- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: sticky;
+  top: var(--space-6);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--line-height-label);
+}
+
+.nav-link:hover {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-text-primary);
+}
+
+.nav-link.active,
+.nav-link[aria-current="page"] {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary);
+}
+
+.nav-count {
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-primary);
+  color: var(--color-surface);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+}
+
+/* ---------- Indicadores de Inicio ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.stat-card {
+  display: block;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  text-decoration: none;
+  color: inherit;
+}
+
+.stat-card:hover {
+  border-color: var(--color-primary);
+}
+
+.stat-value {
+  display: block;
+  font-size: var(--text-page-title-size);
+  font-weight: var(--text-page-title-weight);
+  line-height: var(--line-height-heading);
+}
+
+.stat-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label-size);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1023px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .nav-link {
+    white-space: nowrap;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+}

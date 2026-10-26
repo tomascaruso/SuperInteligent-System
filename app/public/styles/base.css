@@ -1,0 +1,95 @@
+/* UI/UX System OS v1.1 — Estilos globales (Fase 1: Foundations). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 1200px;
+  padding: var(--space-6) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  font-weight: var(--text-body-weight);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  background-color: var(--color-canvas);
+}
+
+h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-page-title-size);
+  font-weight: var(--text-page-title-weight);
+  line-height: var(--line-height-heading);
+}
+
+h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-section-title-size);
+  font-weight: var(--text-section-title-weight);
+  line-height: var(--line-height-heading);
+}
+
+h3 {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--text-card-title-size);
+  font-weight: var(--text-card-title-weight);
+  line-height: var(--line-height-heading);
+}
+
+p {
+  margin: 0 0 var(--space-3);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: var(--text-label-size);
+  background-color: var(--color-primary-subtle);
+  padding: 1px var(--space-1);
+  border-radius: var(--space-1);
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Foco visible — obligatorio para navegación por teclado. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Utilidades de estructura que ya usaba la interfaz (se mantienen). */
+.hidden {
+  display: none !important;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Responsive — móvil: menos de 640 px. */
+@media (max-width: 640px) {
+  body {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+}
+
+/* Respeto por prefers-reduced-motion (sin animaciones propias todavía). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

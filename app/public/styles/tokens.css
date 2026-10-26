@@ -1,0 +1,79 @@
+/* UI/UX System OS v1.1 — Design tokens (Fase 1: Foundations).
+   Fuente centralizada de tokens. Los valores son la referencia oficial de la
+   especificación; cualquier desviación debe documentarse en el informe de fase. */
+
+:root {
+  /* Colores — acciones y superficies */
+  --color-primary: #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-primary-subtle: #eef2ff;
+  --color-text-primary: #172033;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;
+  --color-surface: #ffffff;
+  --color-canvas: #f7f8fc;
+  --color-border: #e2e8f0;
+
+  /* Colores — estados semánticos (el color nunca es el único indicador) */
+  --color-success: #15803d;
+  --color-success-bg: #f0fdf4;
+  --color-warning: #b45309;
+  --color-warning-bg: #fffbeb;
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fef2f2;
+  --color-info: #1d4ed8;
+  --color-info-bg: #eff6ff;
+
+  /* Tipografía — Inter/Geist preferidos; sin pipeline de fuentes externas, se usa
+     el stack de sistema (opción prevista por la especificación). */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-display-size: 32px;
+  --text-display-weight: 600;
+  --text-page-title-size: 28px;
+  --text-page-title-weight: 600;
+  --text-section-title-size: 20px;
+  --text-section-title-weight: 600;
+  --text-card-title-size: 16px;
+  --text-card-title-weight: 600;
+  --text-body-size: 14px;
+  --text-body-weight: 400;
+  --text-body-lg-size: 16px;
+  --text-body-lg-weight: 400;
+  --text-label-size: 13px;
+  --text-label-weight: 500;
+  --text-caption-size: 12px;
+  --text-caption-weight: 400;
+
+  --line-height-heading: 1.25;
+  --line-height-body: 1.5;
+  --line-height-label: 1.4;
+
+  /* Espaciado — escala base de 4 px */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radios */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-dialog: 16px;
+  --radius-pill: 999px;
+
+  /* Sombras — suaves, solo para elementos que deban separarse del fondo */
+  --shadow-sm: 0 1px 2px rgb(23 32 51 / 0.06);
+  --shadow-md: 0 4px 12px rgb(23 32 51 / 0.08);
+  --shadow-lg: 0 12px 32px rgb(23 32 51 / 0.12);
+
+  /* Breakpoints de referencia (documentados; el CSS usa valores literales) */
+  --breakpoint-mobile: 640px;
+  --breakpoint-tablet: 1024px;
+  --breakpoint-desktop: 1440px;
+}
