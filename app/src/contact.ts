@@ -67,10 +67,18 @@ export function buildContactMail(input: ContactInput, from: string, to: string):
 }
 
 export function createContactTransporter(contact: ContactConfig): Transporter {
+  // Timeouts explícitos y cortos: sin ellos, una conexión SMTP trabada
+  // deja el envío colgado minutos (los defaults de nodemailer son
+  // largos) y el visitante ve el botón deshabilitado para siempre, sin
+  // confirmación ni error. Con estos límites, una traba se convierte en
+  // un 502 visible en segundos (ver routes.ts).
   return nodemailer.createTransport({
     host: contact.smtpHost,
     port: contact.smtpPort,
     secure: contact.smtpPort === 465,
     auth: { user: contact.smtpUser, pass: contact.smtpPass },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
 }

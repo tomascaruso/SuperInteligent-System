@@ -542,9 +542,16 @@ api('/api/contact/status').then((s) => {
 }).catch(() => {});
 
 $('btn-contact').onclick = () => withLoading($('btn-contact'), async () => {
+  // Red de seguridad: si el servidor tarda más de 30 s, se corta la
+  // espera y se muestra un error en vez de dejar el botón deshabilitado
+  // para siempre (eso pasó en la primera prueba de envío, cuando la
+  // conexión SMTP se trabó sin responder).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
   try {
     await api('/api/contact', {
       method: 'POST',
+      signal: controller.signal,
       body: JSON.stringify({
         name: $('contact-name').value,
         email: $('contact-email').value,
@@ -559,7 +566,9 @@ $('btn-contact').onclick = () => withLoading($('btn-contact'), async () => {
     $('contact-message').value = '';
     setFeedback('contact-feedback', 'success', 'Gracias, recibimos tu mensaje. PENSIA te va a contactar.');
   } catch (e) {
-    setFeedback('contact-feedback', 'error', e.message);
+    setFeedback('contact-feedback', 'error', e.name === 'AbortError' ? 'El envío tardó demasiado; probá de nuevo más tarde.' : e.message);
+  } finally {
+    clearTimeout(timer);
   }
 });
 
