@@ -226,6 +226,34 @@ subir y mergear):
   de Gmail y contraseña de aplicación creada en la cuenta de Google;
   nunca pegar secretos en el chat).
 
+## Prueba de envío 26-oct-2026: fallo y corrección
+
+La primera prueba de envío (mensaje «Prueba Loki» desde la demo) NO se
+completó: tras pulsar «Enviar mensaje», el botón quedó deshabilitado
+de forma permanente y la página no mostró ni confirmación ni error,
+incluso después de más de 60 segundos, en dos intentos. Diagnóstico: el
+botón solo queda así mientras la petición no se resuelve; el servidor
+estaba en pie (la página y el estado del contacto respondían) y el
+formulario era visible, así que la traba estaba en el envío SMTP, que
+con los timeouts por defecto de nodemailer puede colgarse minutos sin
+responder.
+
+Corrección (commit local pendiente de subir y mergear):
+
+- `createContactTransporter` fija timeouts explícitos y cortos
+  (conexión 10 s, saludo 10 s, socket 20 s): una traba se convierte en
+  un 502 visible en segundos, no en un botón trabado.
+- El frontend corta la espera a los 30 s (AbortController) y muestra
+  «El envío tardó demasiado; probá de nuevo más tarde.» como red de
+  seguridad.
+- Test nuevo: el transporter lleva esos timeouts.
+
+Si tras esta corrección el reintento sigue fallando con 502, la causa
+ya no será una traba sino un rechazo o bloqueo de la conexión SMTP
+(por ejemplo, egress de Render o credenciales), y el paso siguiente
+será revisar los logs de Render o cambiar de proveedor de envío. La
+entrega real sigue sin verificar.
+
 ## Próximo paso
 
 Que Tomás lea esta revisión, haga su propia pasada como cliente

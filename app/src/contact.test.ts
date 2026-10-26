@@ -55,6 +55,15 @@ describe('contacto: composición y configuración', () => {
     const mail = buildContactMail({ ...VALID, company: '' }, 'r@test.com', 'd@test.com');
     expect(mail.text).toContain('Empresa: —');
   });
+
+  it('createContactTransporter fija timeouts cortos (sin colgarse)', async () => {
+    const { createContactTransporter } = await import('./contact.js');
+    const transporter = createContactTransporter(FULL_CONTACT);
+    const options = transporter.options as unknown as Record<string, unknown>;
+    expect(options.connectionTimeout).toBe(10_000);
+    expect(options.greetingTimeout).toBe(10_000);
+    expect(options.socketTimeout).toBe(20_000);
+  });
 });
 
 describe('contacto: endpoints', () => {
