@@ -298,7 +298,21 @@ const VIEWS = {
   tareas: { title: 'Tareas y seguimientos', subtitle: 'Qué hay que hacer y qué está pendiente.' },
   aprobaciones: { title: 'Aprobaciones', subtitle: 'Revisá cada borrador antes de decidir. Aprobar actualiza el estado y audita; no envía mensajes.' },
   actividad: { title: 'Actividad y ejecuciones', subtitle: 'Trazabilidad de las operaciones del sistema.' },
+  agentes: { title: 'Agentes', subtitle: 'Qué hace cada agente y qué tareas abiertas tiene a cargo.' },
 };
+
+// Solo presentación: qué hace cada agente, en lenguaje de negocio. Los
+// roles son los reales del catálogo; si aparece un agente no mapeado, se
+// muestra su descripción guardada.
+function agentBusinessDescription(a) {
+  return {
+    intake: 'Recibe cada contacto que entra, lo ordena, revisa que no esté duplicado y lo registra como oportunidad.',
+    qualification: 'Lee el mensaje y lo clasifica por tema y urgencia con reglas fijas, para que lo importante se atienda primero.',
+    response_proposal: 'Redacta el borrador de respuesta con plantillas, para que una persona lo revise antes de decidir.',
+    follow_up: 'Crea la tarea de seguimiento con su vencimiento, para que ningún contacto quede sin atender.',
+    qa_policy: 'Revisa que todo cumpla las reglas antes de la aprobación. No aprueba solo: la decisión final siempre es de una persona.',
+  }[a.id] || a.description || '';
+}
 
 let currentRole = '';
 
@@ -374,6 +388,23 @@ async function refresh() {
         });
       };
     });
+    // F3-DEMO: sección de agentes con datos reales: el catálogo de
+    // /api/agents y las tareas abiertas ya cargadas, contadas por agente.
+    // Sin tareas, el conteo es cero, no se inventa trabajo.
+    const { agents } = await api('/api/agents');
+    const openByAgent = new Map();
+    tasks.forEach((t) => {
+      if (t.agent_id) openByAgent.set(t.agent_id, (openByAgent.get(t.agent_id) || 0) + 1);
+    });
+    $('agents').innerHTML = agents.map((a) => {
+      const open = openByAgent.get(a.id) || 0;
+      const steps = a.steps && a.steps.length
+        ? `<p><strong>Hace:</strong> ${a.steps.map((s) => esc(stepLabel(s))).join(' · ')}</p>`
+        : '<p><strong>Hace:</strong> Sin pasos propios en el proceso actual: revisa, no ejecuta.</p>';
+      return `<div class="card"><p><strong>${esc(a.name)}</strong></p>` +
+        `<p>${esc(agentBusinessDescription(a))}</p>${steps}` +
+        `<p>${plural(open, 'tarea abierta', 'tareas abiertas')} a cargo.</p></div>`;
+    }).join('') || '<p>Aún no hay agentes registrados.</p>';
     const { drafts } = await api('/api/drafts');
     const pending = drafts.filter((d) => d.status === 'pending_approval');
     const decided = drafts.filter((d) => d.status !== 'pending_approval');

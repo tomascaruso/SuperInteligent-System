@@ -296,6 +296,30 @@ Tercera corrección, la tanda «Después» de la lista priorizada
   «Actividad reciente» muestre más que inicios de sesión (es un
   problema de qué se audita, no de formato).
 
+## Corrección aplicada 26-oct-2026 (sección visible de agentes)
+
+Cuarta corrección, la primera de la tanda «Más adelante» (solo
+frontend, sin cambios de backend ni de base; commit local pendiente de
+subir y mergear):
+
+- Vista nueva «Agentes» en la navegación (sexta vista), con una
+  tarjeta por agente: qué hace en lenguaje de negocio, los pasos
+  reales que ejecuta traducidos con las mismas etiquetas de la
+  corrección anterior, y cuántas tareas abiertas tiene a cargo (dato
+  real de `/api/tasks`, contado por agente; sin tareas, cero, no se
+  inventa trabajo). QA y políticas muestra «Sin pasos propios en el
+  proceso actual: revisa, no ejecuta», tal como lo define el catálogo.
+- La sección aclara que el sistema no es una persona ni un chat, que
+  son agentes con reglas fijas y que ninguno envía mensajes solo.
+- El endpoint `/api/agents` ya existía desde C4 (nombre, descripción y
+  pasos reales); no hizo falta tocar el backend.
+- Pruebas: 88/88 en verde (1 nueva: la vista existe en la página
+  servida y su descripción en el app.js servido). Typecheck, build y
+  sintaxis de app.js limpios; smoke con servidor real: `/health`
+  exacto, la página trae `view-agentes` y el app.js trae la vista.
+- Pendiente: recorrido guiado, la revisión del propio Tomás (criterio
+  de aceptación), la categoría «general» y «Actividad reciente».
+
 ## Próximo paso
 
 Que Tomás lea esta revisión, haga su propia pasada como cliente

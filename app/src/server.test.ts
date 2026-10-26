@@ -257,6 +257,21 @@ describe('agentes (C4)', () => {
     expect(js.body).toContain('Agente:');
     await app.close();
   });
+
+  // F3-DEMO: sección visible de agentes (vista nueva, no solo etiqueta).
+  it('GET / sirve la vista Agentes y GET /app.js la describe en negocio', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const page = await app.inject({ method: 'GET', url: '/' });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('data-view="agentes"');
+    expect(page.body).toContain('id="view-agentes"');
+    expect(page.body).toContain('Ninguno envía mensajes solo');
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toContain('Qué hace cada agente');
+    expect(js.body).toContain('tareas abiertas');
+    await app.close();
+  });
 });
 
 describe('aprobaciones con expiración (C5)', () => {
