@@ -41,18 +41,30 @@ export function generateWebhookSecret(): string {
   return randomBytes(24).toString('hex');
 }
 
-/** Pre-handler: exige Authorization Bearer válido y usuario existente. */
+/** Lee el token de la cookie httpOnly (C7) o del header Bearer (clientes API). */
+export function readToken(request: FastifyRequest): string | null {
+  const header = request.headers.authorization ?? '';
+  const match = /^Bearer (.+)$/.exec(header);
+  if (match) return match[1];
+  const cookie = request.headers.cookie ?? '';
+  for (const part of cookie.split(';')) {
+    const [name, ...rest] = part.trim().split('=');
+    if (name === 'token') return decodeURIComponent(rest.join('='));
+  }
+  return null;
+}
+
+/** Pre-handler: exige token válido y usuario existente. */
 export function authenticate(db: Db, jwtSecret: string) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const header = request.headers.authorization ?? '';
-    const match = /^Bearer (.+)$/.exec(header);
-    if (!match) {
+    const token = readToken(request);
+    if (!token) {
       await reply.code(401).send({ error: 'unauthorized', message: 'Falta el token' });
       return;
     }
     let payload: { sub?: string; orgId?: string; role?: string };
     try {
-      payload = jwt.verify(match[1], jwtSecret) as typeof payload;
+      payload = jwt.verify(token, jwtSecret) as typeof payload;
     } catch {
       await reply.code(401).send({ error: 'unauthorized', message: 'Token inválido' });
       return;

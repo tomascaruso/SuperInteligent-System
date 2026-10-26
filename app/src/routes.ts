@@ -20,7 +20,16 @@ import {
   signToken,
   verifyPassword,
 } from './auth.js';
-import { LimitExceededError, runIntake, type OpportunityRow } from './engine.js';
+import { LimitExceededError, enqueueIntakeJob, runIntake, type JobRow, type OpportunityRow } from './engine.js';
+
+// C7: cookie de sesión httpOnly. Secure solo en producción: en local se
+// sirve por HTTP y con Secure el navegador no la guardaría. SameSite=Lax
+// alcanza porque la app es del mismo origen.
+function authCookie(token: string): string {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  return `token=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax${secure}`;
+}
+const CLEAR_AUTH_COOKIE = 'token=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0';
 
 export const SERVICE_VERSION = '0.1.0';
 
@@ -248,6 +257,9 @@ export function registerRoutes(
     );
     await audit(db, orgId, body.email.toLowerCase(), 'org.created', 'organization', orgId, {});
     const user = { id: userId, orgId, role: 'admin' as const, email: body.email.toLowerCase(), name: body.name };
+    // C7: la sesión también viaja en cookie httpOnly (la UI ya no usa
+    // localStorage); el token en el cuerpo se mantiene para clientes API.
+    reply.header('Set-Cookie', authCookie(signToken(opts.jwtSecret, user)));
     await reply.code(201).send({
       token: signToken(opts.jwtSecret, user),
       org: { id: orgId, name: body.orgName, webhook_secret: webhookSecret },
@@ -255,21 +267,50 @@ export function registerRoutes(
     });
   });
 
+  // C7: límite de intentos fallidos de login por IP (20 cada 15 min).
+  // Solo cuentan los fallidos: un usuario legítimo que entra bien no
+  // consume el cupo. El estado vive en memoria (se pierde al reiniciar,
+  // aceptable para un tope anti-fuerza-bruta, no para auditoría).
+  const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+  const LOGIN_MAX_ATTEMPTS = 20;
+  const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
   app.post('/api/auth/login', async (request, reply) => {
     const body = parse(loginSchema, request.body, reply);
     if (!body) return;
+    const ip = request.ip;
+    const now = Date.now();
+    const entry = loginAttempts.get(ip);
+    if (entry && now < entry.resetAt && entry.count >= LOGIN_MAX_ATTEMPTS) {
+      await reply.code(429).send({ error: 'rate_limited', message: 'Demasiados intentos de inicio de sesión; probá de nuevo más tarde' });
+      return;
+    }
     const row = await queryOne<UserRow>(db, 'SELECT * FROM users WHERE email = ?', body.email.toLowerCase());
     if (!row || !verifyPassword(body.password, row.password_hash)) {
+      loginAttempts.set(
+        ip,
+        entry && now < entry.resetAt
+          ? { count: entry.count + 1, resetAt: entry.resetAt }
+          : { count: 1, resetAt: now + LOGIN_WINDOW_MS },
+      );
       await reply.code(401).send({ error: 'unauthorized', message: 'Credenciales inválidas' });
       return;
     }
+    loginAttempts.delete(ip);
     const user = { id: row.id, orgId: row.org_id, role: row.role as 'admin' | 'member', email: row.email, name: row.name };
     await audit(db, row.org_id, row.email, 'user.login', 'user', row.id, {});
+    // C7: cookie httpOnly, igual que en el registro.
+    reply.header('Set-Cookie', authCookie(signToken(opts.jwtSecret, user)));
     await reply.send({
       token: signToken(opts.jwtSecret, user),
       org: { id: row.org_id },
       user: { id: row.id, name: row.name, email: row.email, role: row.role },
     });
+  });
+
+  // C7: cierra la sesión httpOnly (la UI llama acá al salir).
+  app.post('/api/auth/logout', { preHandler: auth }, async (_request, reply) => {
+    await reply.header('Set-Cookie', CLEAR_AUTH_COOKIE).send({ ok: true });
   });
 
   app.get('/api/me', { preHandler: auth }, async (request) => {
@@ -341,6 +382,28 @@ export function registerRoutes(
       }
       throw err;
     }
+  });
+
+  // Jobs del worker (C7): encolar una ingesta para proceso asíncrono y
+  // consultar su estado. El alta manual y el webhook siguen sincrónicos;
+  // este es el camino asíncrono adicional (ver engine.ts).
+  app.post('/api/jobs', { preHandler: auth }, async (request, reply) => {
+    const body = parse(opportunityInputSchema, request.body, reply);
+    if (!body) return;
+    const user = getUser(request);
+    const job = await enqueueIntakeJob(db, user.orgId, body);
+    await reply.code(202).send({ job });
+  });
+
+  app.get('/api/jobs/:id', { preHandler: auth }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const job = await queryOne<JobRow>(db, 'SELECT * FROM jobs WHERE id = ? AND org_id = ?', id, user.orgId);
+    if (!job) {
+      await reply.code(404).send({ error: 'not_found', message: 'Job no encontrado' });
+      return;
+    }
+    return { job };
   });
 
   app.get('/api/opportunities', { preHandler: auth }, async (request) => {

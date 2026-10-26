@@ -301,3 +301,81 @@ describe('políticas y herramientas (C6)', () => {
     await app.close();
   });
 });
+
+describe('endurecimiento (C7)', () => {
+  it('todas las respuestas traen cabeceras de seguridad', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(res.headers['content-security-policy']).toBe("default-src 'self'");
+    await app.close();
+  });
+
+  it('el login pone cookie httpOnly, la cookie autentica y el logout la borra', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia Test', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    expect(reg.statusCode).toBe(201);
+    const setCookie = [reg.headers['set-cookie']].flat().join('; ');
+    expect(setCookie).toContain('HttpOnly');
+    const cookie = setCookie.split(';')[0];
+    expect(cookie.startsWith('token=')).toBe(true);
+    const me = await app.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
+    expect(me.statusCode).toBe(200);
+    const logout = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { cookie } });
+    expect(logout.statusCode).toBe(200);
+    expect([logout.headers['set-cookie']].flat().join('; ')).toContain('Max-Age=0');
+    const anon = await app.inject({ method: 'GET', url: '/api/me' });
+    expect(anon.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('el login limita intentos fallidos por IP: 20 → 401 y el 21 → 429', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    for (let i = 0; i < 20; i++) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { email: 'nadie@test.com', password: 'incorrecta' },
+      });
+      expect(res.statusCode).toBe(401);
+    }
+    const blocked = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: 'nadie@test.com', password: 'incorrecta' },
+    });
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.json().error).toBe('rate_limited');
+    await app.close();
+  });
+
+  it('assertProductionSecret exige secreto real solo en producción', async () => {
+    const { assertProductionSecret } = await import('./config.js');
+    const base = {
+      host: '127.0.0.1',
+      port: 3000,
+      databasePath: ':memory:',
+      jwtSecret: 'dev-jwt-secret',
+      maxOpportunitiesPerDay: 100,
+    };
+    expect(() => assertProductionSecret({ ...base, jwtSecretIsDefault: true }, 'production')).toThrow('JWT_SECRET');
+    expect(() => assertProductionSecret({ ...base, jwtSecretIsDefault: true }, undefined)).not.toThrow();
+    expect(() => assertProductionSecret({ ...base, jwtSecretIsDefault: false, jwtSecret: 'real' }, 'production')).not.toThrow();
+  });
+
+  it('GET /app.js ya no usa localStorage y llama a logout', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).not.toContain('localStorage');
+    expect(js.body).toContain('/api/auth/logout');
+    await app.close();
+  });
+});

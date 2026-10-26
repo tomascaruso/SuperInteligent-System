@@ -534,3 +534,69 @@ describe('C6 — Policy/Tool Registry y reintento con tope (alineación PENSIA)'
     await s.app.close();
   });
 });
+
+describe('C7 — worker asíncrono y reconciliación (alineación PENSIA)', () => {
+  it('un job encolado por API se procesa y crea la oportunidad con su ejecución', async () => {
+    const { processPendingJobs } = await import('./engine.js');
+    const s = await testServer();
+    const { token, org } = await register(s.app);
+    const enqueued = await s.app.inject({ method: 'POST', url: '/api/jobs', headers: auth(token), payload: OPP });
+    expect(enqueued.statusCode).toBe(202);
+    const jobId = enqueued.json().job.id as string;
+    expect(enqueued.json().job.status).toBe('pending');
+    const result = await processPendingJobs(s.db, { actor: 'worker', maxOpportunitiesPerDay: 100 });
+    expect(result).toEqual({ processed: 1, done: 1, failed: 0 });
+    const job = await s.app.inject({ method: 'GET', url: `/api/jobs/${jobId}`, headers: auth(token) });
+    expect(job.json().job.status).toBe('done');
+    expect(job.json().job.execution_id).toBeTruthy();
+    const opps = await s.app.inject({ method: 'GET', url: '/api/opportunities', headers: auth(token) });
+    expect(opps.json().opportunities).toHaveLength(1);
+    const missing = await s.app.inject({ method: 'GET', url: '/api/jobs/no-existe', headers: auth(token) });
+    expect(missing.statusCode).toBe(404);
+    await s.app.close();
+  });
+
+  it('la reconciliación marca fallidas las ejecuciones viejas en running y sincroniza corridas', async () => {
+    const { reconcileOrphans } = await import('./engine.js');
+    const s = await testServer();
+    const { org } = await register(s.app);
+    const old = new Date(Date.now() - 2 * 3600_000).toISOString();
+    const now = nowIso();
+    await s.db.exec(
+      'INSERT INTO executions (id, org_id, workflow, workflow_version, input_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'exec-vieja-running',
+      org.id,
+      'opportunity.intake',
+      '1',
+      JSON.stringify(OPP),
+      'running',
+      old,
+      old,
+    );
+    await s.db.exec(
+      'INSERT INTO executions (id, org_id, workflow, workflow_version, input_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'exec-ya-done',
+      org.id,
+      'opportunity.intake',
+      '1',
+      JSON.stringify(OPP),
+      'done',
+      now,
+      now,
+    );
+    await s.db.exec(
+      'INSERT INTO process_runs (id, org_id, workflow, workflow_version, status, execution_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'run-huerfana',
+      org.id,
+      'opportunity.intake',
+      '1',
+      'running',
+      'exec-ya-done',
+      now,
+      now,
+    );
+    const result = await reconcileOrphans(s.db);
+    expect(result).toEqual({ executionsFailed: 1, runsSynced: 1 });
+    await s.app.close();
+  });
+});

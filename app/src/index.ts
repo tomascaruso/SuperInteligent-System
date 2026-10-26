@@ -1,8 +1,10 @@
 import { buildServer } from './server.js';
-import { loadConfig } from './config.js';
+import { assertProductionSecret, loadConfig } from './config.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  // C7: en producción, sin secreto real no se arranca.
+  assertProductionSecret(config, process.env.NODE_ENV);
   if (config.jwtSecretIsDefault) {
     console.warn(
       'ADVERTENCIA: usando JWT_SECRET de desarrollo. Definí JWT_SECRET antes de exponer este servidor.',

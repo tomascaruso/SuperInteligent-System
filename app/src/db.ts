@@ -125,6 +125,18 @@ const SCHEMA = `
       note TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL REFERENCES organizations(id),
+      kind TEXT NOT NULL,
+      input_json TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'done', 'failed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      execution_id TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS policies (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,

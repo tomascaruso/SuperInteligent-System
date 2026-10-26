@@ -101,7 +101,11 @@ El Core es la plantilla; cada cliente es una ADAPTACIÓN, no una bifurcación:
   pública corre en Render + Neon y SQLite local queda solo para desarrollo.
   Supabase fue sustituido por Neon por decisión de Tomás (25-oct-2026);
   G0-D3 queda pendiente solo del proveedor de IA (Fase 2).
-- Ejecución síncrona con pasos persistidos: no hay worker asíncrono
-  separado todavía; el reintento existe y converge por dedup. El worker
-  dedicado es endurecimiento posterior, no un hueco en los criterios
-  demostrados.
+- Ejecución síncrona con pasos persistidos y worker asíncrono (C7): el
+  alta manual y el webhook siguen sincrónicos (su contrato devuelve la
+  oportunidad creada); el worker (`app/src/worker.ts`, `npm run worker`,
+  `--once` para una pasada) procesa jobs de ingesta encolados vía
+  `POST /api/jobs` y reconcilia huérfanos de caídas en cada arranque.
+  Migrar el alta a este camino exige UI con espera/consulta y queda como
+  paso posterior, no se hizo en silencio. El despliegue del worker como
+  servicio separado en Render queda pendiente de decisión (plan gratis).

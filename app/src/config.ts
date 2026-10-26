@@ -18,6 +18,15 @@ function requiredInt(name: string, fallback: number): number {
   return n;
 }
 
+// C7: en producción, arrancar sin secreto real es un error, no una
+// advertencia (antes solo se avisaba por consola y se seguía con el secreto
+// de desarrollo, que cualquiera conoce). Testeable sin levantar el server.
+export function assertProductionSecret(config: AppConfig, nodeEnv: string | undefined): void {
+  if (nodeEnv === 'production' && config.jwtSecretIsDefault) {
+    throw new Error('JWT_SECRET es obligatorio en producción: definilo antes de arrancar el servidor.');
+  }
+}
+
 // Secretos: nunca se imprimen en logs ni se commitean. Los valores por
 // defecto son SOLO para desarrollo local y deben reemplazarse en cualquier
 // entorno compartido (ver SECURITY.md y OPERATIONS.md).

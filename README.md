@@ -27,7 +27,7 @@ funcional, no la identidad del producto. Ver `docs/GLOSARIO-PENSIA.md` y
 - **Pendientes:** confirmación formal del stack (G0-D1), decisión de modelo
   por cliente (F1-TENANT: multi-tenant vs. instancia dedicada), CI básica
   (F1-CI), y la adaptación PENSIA (C6–C8, ver diagnóstico).
-- **Última actualización:** 2026-10-26 (C6: Policy/Tool Registry + reintento con tope y solo admin).
+- **Última actualización:** 2026-10-26 (C7: worker asíncrono + endurecimiento).
 
 ## Qué es
 

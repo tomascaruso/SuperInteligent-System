@@ -19,6 +19,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24.22.1
+      # C7: en producción el arranque exige JWT_SECRET real (fail-fast) y
+      # la cookie de sesión sale con Secure. Sin esto, Render correría el
+      # servidor como desarrollo.
+      - key: NODE_ENV
+        value: production
       - key: HOST
         value: 0.0.0.0
       - key: JWT_SECRET
