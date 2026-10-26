@@ -16,8 +16,8 @@ Fase 6, criterios de la sección 11 y estrategia de la sección 12
   NOT_VERIFIED con su motivo (ver tabla): recorrido de teclado, matriz
   real de viewports y captura de consola. El 26-oct-2026, verificación
   en vivo posterior (ver sección al final): A11Y-001 y RWD-001 pasan a
-  PASS con evidencia; QA-003 sigue NOT_VERIFIED. No se afirma lo que
-  no se probó.
+  PASS con evidencia; QA-003 se cerró por decisión de Tomás el mismo
+  día (ver sección al final). No se afirma lo que no se probó.
 - Archivos modificados: `app/public/index.html`,
   `app/public/app.js`, `app/public/styles/tokens.css`,
   `app/src/server.test.ts`, `README.md`.
@@ -33,7 +33,7 @@ Fase 6, criterios de la sección 11 y estrategia de la sección 12
   JS con contrastes medidos.
 - Resultados reales: ver abajo.
 - Riesgos detectados: ninguno crítico. Ver limitaciones.
-- Limitaciones pendientes: QA-003 (NOT_VERIFIED; consola no leída directamente, solo ausencia de errores visibles).
+- Limitaciones pendientes: QA-003 sin lectura directa de consola (cerrado por decisión de Tomás el 26-oct-2026; no se afirma consola limpia).
 - Próximo paso recomendado: decidir si se sube la Fase 6 a la rama
   remota (sin mergear a `main`) o se mergea; la verificación visual en
   vivo post-merge puede cubrir el recorrido de teclado y la ausencia de
@@ -88,7 +88,6 @@ Fase 6, criterios de la sección 11 y estrategia de la sección 12
 
 ### Pendiente
 
-- Captura de consola en navegador real (QA-003): revisión manual pendiente (ver sección al final).
 - UI de operador para crear invitaciones (C8 la dejó solo por API).
 - Servicio worker en Render (pendiente desde C7, plan gratis por
   verificar).
@@ -102,10 +101,9 @@ NOT_VERIFIED en vez de afirmarse.
 
 ### No verificado
 
-- QA-003 (ver tabla y sección al final). A11Y-001 y RWD-001 se verificaron
-  en vivo el 26-oct-2026 (ver sección al final); la consola requiere
-  revisión manual dedicada porque las herramientas disponibles no leen
-  el registro de consola del navegador.
+- Ninguno. QA-003 se cerró por decisión de Tomás el 26-oct-2026 (ver
+  sección al final): no hubo lectura directa de consola, solo ausencia
+  de errores visibles durante el recorrido.
 
 ## Auditoría: hallazgos y qué se hizo con cada uno
 
@@ -148,7 +146,7 @@ NOT_VERIFIED en vez de afirmarse.
 | SEC-001 | PASS | 401/403/404 en suite; ocultar no autoriza. |
 | QA-001 | PASS | Suite 72/72 + smoke, sin regresiones conocidas. |
 | QA-002 | PASS | Solo estados reales; carga y vacío etiquetados. |
-| QA-003 | NOT_VERIFIED | Sin errores visibles en página durante el recorrido 26-oct-2026, pero el registro de consola no pudo leerse directamente (sin acceso a devtools); falta revisión manual. |
+| QA-003 | PASS | Cerrado por decisión de Tomás el 26-oct-2026 sin lectura directa de consola: sin errores visibles en página durante el recorrido 26-oct-2026. No se afirma consola limpia. |
 
 ## Bloqueos de lanzamiento (sección 11, revisión punto por punto)
 
@@ -199,7 +197,13 @@ ningún formulario enviado). Diálogo «Aprobar borrador» (Lucía): foco
 inicial en Aprobar, orden Aprobar → Cancelar, cierre con Escape y con
 Cancelar verificados, sin aprobar ni rechazar. Observación menor:
 tras varios Tab desde Cancelar, el contorno visible quedó fijo sin
-moverse; Shift+Tab volvía a Aprobar. Nada inalcanzable.
+moverse; Shift+Tab volvía a Aprobar. Nada inalcanzable. Causa raíz
+hallada después: la trampa de foco listaba también el textarea del
+motivo, oculto con display:none al aprobar; al envolver desde
+Cancelar, el foco caía en un elemento sin renderizar y quedaba fijo.
+Corrección posterior (mismo día, commit aparte): el filtro de la
+trampa excluye elementos no visibles (`offsetParent !== null`), con
+test marcador en la suite.
 
 ### RWD-001 → PASS
 
@@ -214,10 +218,12 @@ columnas), 1920 (todo completo, sin roturas). El panel del recorrido
 guiado nunca se inició: en todos los anchos es solo un botón y no tapa
 contenido.
 
-### QA-003 → sigue NOT_VERIFIED
+### QA-003 → PASS por decisión (26-oct-2026, noche)
 
 Durante el recorrido no apareció ningún error visible en la página y
 todas las vistas cargaron completas, pero el registro de consola no
 pudo leerse directamente con las herramientas disponibles (sin acceso
-a las herramientas de desarrollo del navegador). No se afirma consola
-limpia: falta una revisión manual de la consola.
+a las herramientas de desarrollo del navegador). Tomás decidió cerrar
+QA-003 como aprobado sin la revisión manual de consola. Queda
+registrado así: aprobado por decisión, no por lectura directa de
+consola. No se afirma consola limpia.

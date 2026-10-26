@@ -256,7 +256,11 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Tab') {
-    const focusables = [...document.querySelectorAll('#dialog-overlay button, #dialog-overlay textarea')].filter((el) => !el.disabled);
+    // Solo elementos visibles: el textarea del motivo está oculto
+    // (display:none) al aprobar, y si entraba en la lista el foco
+    // envolvía hacia un elemento sin renderizar y quedaba fijo
+    // en Cancelar. offsetParent es null para display:none.
+    const focusables = [...document.querySelectorAll('#dialog-overlay button, #dialog-overlay textarea')].filter((el) => !el.disabled && el.offsetParent !== null);
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];

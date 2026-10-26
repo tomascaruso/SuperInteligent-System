@@ -140,6 +140,17 @@ describe('centro de aprobaciones (Fase 4)', () => {
     await app.close();
   });
 
+  it('GET /app.js excluye los campos ocultos de la trampa de foco del diálogo', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    // La trampa listaba también el textarea oculto (motivo, solo visible
+    // al rechazar): al envolver desde Cancelar, el foco caía en un
+    // elemento sin renderizar y el contorno quedaba fijo en Cancelar.
+    // El filtro debe excluir elementos no visibles (offsetParent null).
+    expect(js.body).toContain('offsetParent');
+    await app.close();
+  });
+
   it('GET /styles/components.css sirve los estilos del diálogo', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
     const res = await app.inject({ method: 'GET', url: '/styles/components.css' });
