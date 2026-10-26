@@ -67,7 +67,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
 |---|---|---|---|---|---|---|
 | F4-TEMPLATE | Alta | Empaquetar la plantilla reutilizable | F3-DEMO | Guía de configuración por cliente; segundo vertical de ejemplo sin tocar el núcleo | Alto | IN_PROGRESS | Guía de configuración por cliente (docs/F4-TEMPLATE-GUIA-CONFIGURACION.md) y vertical Inmobiliaria trabajado (docs/F4-TEMPLATE-VERTICAL-INMOBILIARIA.md + docs/vertical-inmobiliaria-ejemplos.json) entregados 26-oct-2026; pendiente la aprobación de Tomás para PASS.
-| F4-SERVICE | Media | Proceso de implementación por cliente | F4-TEMPLATE | Checklist de adaptación (workflows, agentes, herramientas, políticas, integraciones) | Medio | IN_PROGRESS | Proceso completo (docs/F4-SERVICE-PROCESO-IMPLEMENTACION.md) entregado 26-oct-2026: relevamiento (9 preguntas), checklist por área (workflows, agentes, herramientas, políticas, integraciones), configuración, verificación y entrega; pendiente la aprobación de Tomás para PASS.
+| F4-SERVICE | Media | Proceso de implementación por cliente | F4-TEMPLATE | Checklist de adaptación (workflows, agentes, herramientas, políticas, integraciones) | Medio | PASS | Proceso completo (docs/F4-SERVICE-PROCESO-IMPLEMENTACION.md) entregado 26-oct-2026: relevamiento (9 preguntas), checklist por área (workflows, agentes, herramientas, políticas, integraciones), configuración, verificación y entrega; APROBADO por Tomás el 26-oct-2026.
 
 ## Alineación PENSIA (Fase C/D — Directiva 26-oct-2026, D15)
 
