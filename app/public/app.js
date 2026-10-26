@@ -163,7 +163,7 @@ function openDialog(kind, item, opener) {
     // puede depender del estado actual del sistema. El servidor solo permite
     // reintentar ejecuciones fallidas (409 en otro caso).
     $('dialog-title').textContent = 'Reintentar ejecución';
-    $('dialog-text').textContent = `Vas a repetir la ejecución «${item.workflow} v${item.workflow_version}» (fallida). El resultado puede depender del estado actual del sistema: se volverá a procesar la oportunidad original y quedará registrada una nueva ejecución.`;
+    $('dialog-text').textContent = `Vas a repetir la ejecución «${item.workflow} v${item.workflow_version}» (fallida). El resultado puede depender del estado actual del sistema: se volverá a procesar la oportunidad original y quedará registrada una nueva ejecución. Solo un admin puede reintentar, con un máximo por ejecución según las políticas.`;
     $('dialog-reason-wrap').classList.add('hidden');
     confirmBtn.className = 'btn btn-primary';
     confirmBtn.textContent = 'Reintentar';
@@ -434,7 +434,7 @@ async function refresh() {
         `${esc(formatDateTime(e.created_at))} — ${esc(e.workflow)} v${esc(e.workflow_version)}` +
         ` <span class="text-muted" title="${esc(e.id)}">(${esc(e.id.slice(0, 8))})</span>${fin}${detail}` +
         ` <button class="btn btn-secondary btn-sm" data-steps="${e.id}">Ver pasos</button>` +
-        (e.status === 'failed' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button>` : '') +
+        (e.status === 'failed' && currentRole === 'admin' ? ` <button class="btn btn-secondary btn-sm" data-retry="${e.id}">Reintentar</button>` : '') +
         '<ul class="execution-steps hidden"></ul></li>';
     }).join('') || '<li class="empty-state">Sin ejecuciones todavía.</li>';
     const executionsById = new Map(executions.map((e) => [e.id, e]));

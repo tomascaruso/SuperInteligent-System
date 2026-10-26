@@ -36,6 +36,19 @@ estados, supervisar resultados y aplicar políticas de ejecución, mediante
 interfaces y contratos explícitos. Estado actual: NO existe como entidad;
 hoy esa coordinación es la secuencia fija de `runIntake` en `engine.ts`.
 
+## Política
+
+Regla vigente del sistema guardada en la tabla `policies` (C6), no solo en
+código: el reintento y el vencimiento de borradores leen sus valores de
+ahí. Se consulta con `GET /api/policies`.
+
+## Herramienta
+
+Capacidad concreta que un agente puede usar. Hoy no hay herramientas
+externas (el sistema no llama a ningún servicio ni envía nada): las
+herramientas reales son los 6 pasos del pipeline, cada uno de un agente
+(C6). Se consultan con `GET /api/tools`, derivado del catálogo de agentes.
+
 ## Agente especializado
 
 Ejecuta tareas específicas dentro de los permisos y responsabilidades que se

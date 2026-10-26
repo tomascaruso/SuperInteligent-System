@@ -175,3 +175,45 @@ describe('Postgres (pg-mem) — mismo flujo que el MVP', () => {
     await db.close();
   });
 });
+
+describe('Postgres (pg-mem) — C6: políticas, herramientas y reintento con vínculo', () => {
+  it('políticas sembradas, herramientas completas y reintento guarda retry_of', async () => {
+    const { app, db } = await pgServer();
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { orgName: 'Agencia PG', name: 'Ana', email: 'ana@test.com', password: 'Secreto123' },
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.json().token as string;
+    const orgId = reg.json().org.id as string;
+    const auth = { authorization: `Bearer ${token}` };
+
+    const policies = await app.inject({ method: 'GET', url: '/api/policies', headers: auth });
+    expect(policies.statusCode).toBe(200);
+    expect(policies.json().policies).toHaveLength(4);
+    const tools = await app.inject({ method: 'GET', url: '/api/tools', headers: auth });
+    expect(tools.statusCode).toBe(200);
+    expect(tools.json().tools).toHaveLength(6);
+
+    const failedId = 'exec-failed-c6';
+    await db.exec(
+      'INSERT INTO executions (id, org_id, workflow, workflow_version, input_json, status, error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      failedId,
+      orgId,
+      'opportunity.intake',
+      '1',
+      JSON.stringify(OPP),
+      'failed',
+      'simulated',
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
+    const retry = await app.inject({ method: 'POST', url: `/api/executions/${failedId}/retry`, headers: auth, payload: {} });
+    expect(retry.statusCode).toBe(200);
+    const list = await app.inject({ method: 'GET', url: '/api/executions', headers: auth });
+    const linked = list.json().executions.filter((e: { retry_of: string | null }) => e.retry_of === failedId);
+    expect(linked).toHaveLength(1);
+    await app.close();
+  });
+});

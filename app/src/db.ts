@@ -125,6 +125,12 @@ const SCHEMA = `
       note TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS policies (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      description TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS executions (
       id TEXT PRIMARY KEY,
       org_id TEXT NOT NULL REFERENCES organizations(id),
@@ -132,6 +138,7 @@ const SCHEMA = `
       workflow_version TEXT NOT NULL,
       input_json TEXT NOT NULL,
       idempotency_key TEXT,
+      retry_of TEXT REFERENCES executions(id),
       status TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed')),
       result_json TEXT,
       error TEXT,
@@ -267,6 +274,7 @@ export async function initSchema(db: Db): Promise<void> {
   await ensureProcessCatalog(db);
   await ensureAgentCatalog(db);
   await ensureDraftSnapshots(db);
+  await ensurePolicyCatalog(db);
 }
 
 // ---------- Catálogo de procesos (C3, alineación PENSIA) ----------
@@ -351,8 +359,8 @@ const KNOWN_AGENTS = [
   {
     id: 'intake',
     name: 'Captación',
-    description: 'Normaliza y deduplica la oportunidad entrante.',
-    steps: ['normalize', 'dedup'],
+    description: 'Normaliza, deduplica y persiste la oportunidad entrante.',
+    steps: ['normalize', 'dedup', 'upsert'],
     sortOrder: 1,
   },
   {
@@ -401,6 +409,18 @@ export async function ensureAgentCatalog(db: Db): Promise<void> {
         nowIso(),
       );
     }
+    // C6: el catálogo es propiedad del código, así que se sincroniza en
+    // cada arranque. Sin esto, la corrección de pasos (upsert → Captación)
+    // no llegaría a bases creadas antes de C6.
+    await exec(
+      db,
+      'UPDATE agents SET name = ?, description = ?, steps_json = ?, sort_order = ? WHERE id = ?',
+      a.name,
+      a.description,
+      JSON.stringify(a.steps),
+      a.sortOrder,
+      a.id,
+    );
   }
   // Migración de bases pre-C4: la columna no existe en ellas. Probarla es
   // portable (SQLite, Postgres y pg-mem fallan igual si falta); el ALTER
@@ -450,6 +470,62 @@ export async function ensureDraftSnapshots(db: Db): Promise<void> {
   );
   for (const row of legacy) {
     await exec(db, 'UPDATE drafts SET source_message = ? WHERE id = ?', row.message, row.id);
+  }
+}
+
+// ---------- Registry de políticas (C6, alineación PENSIA) ----------
+//
+// Políticas globales del sistema, con su valor vigente en una tabla (no
+// solo en código): el reintento y el vencimiento de borradores leen de
+// acá, así cambiar una fila cambia el comportamiento. La regla de admin
+// para aprobar/rechazar sigue impuesta por el pre-handler requireAdmin
+// (anterior al registry); la fila la documenta en el mismo lugar.
+// La migración de executions.retry_of sigue el patrón C4/C5; no hay
+// backfill: los reintentos pre-C6 no se cuentan para el tope (el vínculo
+// solo vivía en la auditoría, y reconstruirlo desde JSON sería frágil).
+const KNOWN_POLICIES = [
+  {
+    key: 'retry.admin_only',
+    value: 'true',
+    description: 'Solo un admin puede reintentar ejecuciones.',
+  },
+  {
+    key: 'retry.max_attempts',
+    value: '3',
+    description: 'Máximo de reintentos por ejecución original.',
+  },
+  {
+    key: 'draft.approval.admin_only',
+    value: 'true',
+    description: 'Solo un admin aprueba o rechaza borradores.',
+  },
+  {
+    key: 'draft.expiry_days',
+    value: '7',
+    description: 'Días hasta que un borrador vence.',
+  },
+];
+
+export async function ensurePolicyCatalog(db: Db): Promise<void> {
+  for (const p of KNOWN_POLICIES) {
+    const existing = await queryOne<{ key: string }>(db, 'SELECT key FROM policies WHERE key = ?', p.key);
+    if (!existing) {
+      await exec(
+        db,
+        'INSERT INTO policies (key, value, description, created_at) VALUES (?, ?, ?, ?)',
+        p.key,
+        p.value,
+        p.description,
+        nowIso(),
+      );
+    }
+  }
+  const hasColumn = await queryOne<Record<string, unknown>>(db, 'SELECT retry_of FROM executions LIMIT 0').then(
+    () => true,
+    () => false,
+  );
+  if (!hasColumn) {
+    await exec(db, 'ALTER TABLE executions ADD COLUMN retry_of TEXT');
   }
 }
 

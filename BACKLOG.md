@@ -78,7 +78,7 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 | P-C3 | Alta | Proceso como entidad + Workflow Registry mínimo | P-C2 | Una ejecución pertenece a un proceso versionado consultable; `runIntake` sin cambios internos | Medio | PASS |
 | P-C4 | Alta | Agentes como entidades (los 5 actuales, deterministas) | P-C3 | La tarea muestra qué agente la generó; `assigned_to` deja de ser texto fijo | Medio | PASS |
 | P-C5 | Alta | Aprobaciones con expiración (7 días) + invalidación si cambia el mensaje | P-C4 | Un borrador viejo o desincronizado no se puede aprobar | Medio | PASS |
-| P-C6 | Media | Policy/Tool Registry mínimo + reintento con tope y solo admin | P-C5 | Tests de permisos en verde | Medio | PLANNED |
+| P-C6 | Media | Policy/Tool Registry mínimo + reintento con tope y solo admin | P-C5 | Tests de permisos en verde | Medio | PASS (26-oct-2026; informe docs/C6-REPORTE.md; 57/57 tests, 8 nuevos C6; smoke con servidor real OK) |
 | P-C7 | Media | Worker asíncrono + endurecimiento (httpOnly, headers, rate limit, arranque sin secreto en prod) | P-C6 | Demo sigue verde + pruebas | Alto | PLANNED |
 | P-C8 | Alta | Decisión TENANT + alta operada por PENSIA | P-C7 | Alta por invitación; sin registro público para clientes | Medio | PLANNED |
 
