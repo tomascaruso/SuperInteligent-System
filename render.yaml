@@ -1,0 +1,27 @@
+# Blueprint de Render para la demo pública (Render + Neon, plan gratis).
+# Requisitos previos (no están en este archivo, se crean a mano):
+#   1. Repositorio remoto en GitHub/GitLab/Bitbucket con esta rama.
+#   2. Proyecto Neon (plan gratis) y su DATABASE_URL.
+# Render inyecta PORT automáticamente; la app lo lee de entorno.
+# JWT_SECRET se genera en el dashboard de Render (no va en el repo).
+# DATABASE_URL se pega en el dashboard (sync: false = no vive en el repo).
+# Nota plan gratis: el servicio duerme a los 15 min sin tráfico y tarda
+# ~1 min en despertar; el disco es efímero, por eso los datos viven en
+# Neon (Postgres) y no en SQLite.
+services:
+  - type: web
+    name: superinteligent-system-demo
+    env: node
+    plan: free
+    buildCommand: cd app && npm install && npm run build
+    startCommand: cd app && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: HOST
+        value: 0.0.0.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
