@@ -2,9 +2,22 @@
 
 ## Estado general
 
-IN_PROGRESS. Workflow creado y verificado en local. Pasa a PASS cuando
-corra en verde en GitHub, lo que solo puede ocurrir después de subirlo y
-mergearlo (la primera corrida real es el propio PR o el push a main).
+PASS. Primera corrida en verde en GitHub tras el merge del PR #14.
+
+## Verificación en GitHub (26-oct-2026)
+
+- Corrida #4 del workflow CI: https://github.com/tomascaruso/SuperInteligent-System/actions/runs/40381795305
+- Disparo: push a `main` por el merge del PR #14 (commit 4abe88e).
+- Estado final: Success, duración total 24 s.
+- Trabajo «Tipos, build, tests y smoke»: succeeded (20 s), todos los
+  pasos en verde, incluidos Tests y Smoke /health con servidor real.
+- Trabajo «Build como en producción (sin devDependencies)»: succeeded
+  (15 s).
+- Anotaciones no bloqueantes (2 warnings y 2 notices): deprecación de
+  Node.js 20 en las acciones usadas y aviso de migración de la etiqueta
+  `ubuntu-latest` a Ubuntu 26. No impiden el verde; quedan como limpieza
+  futura (actualizar las acciones a sus versiones mayores nuevas cuando
+  corresponda), sin urgencia.
 
 ## Objetivo
 
@@ -79,11 +92,10 @@ de merge».
 
 ## Próximo paso
 
-Subir a `ui-fase1-foundations`, crear el PR y mergear a `main` (con
-autorización de Tomás), y confirmar la primera corrida en verde en la
-pestaña Actions del repositorio. Con eso, F1-CI pasa a PASS y la
-Fase 1 queda completa.
+Ninguno para F1-CI. La Fase 1 queda completa con este cierre. Queda
+pendiente subir y mergear este propio cambio de estado (BACKLOG a PASS
+y esta sección del informe), con autorización de Tomás.
 
 ## Autorización requerida
 
-Subir el workflow a la rama, crear el PR y mergear a `main`.
+Subir el cambio de estado a la rama, crear el PR y mergear a `main`.

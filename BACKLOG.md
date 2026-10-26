@@ -19,12 +19,12 @@ Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 |---|---|---|---|---|---|---|
 | VAL-E1 | Alta | 10–15 entrevistas a fundadores del segmento prioritario | G0-D2 | Guion ejecutado, pregunta central respondida, patrón de dolor en ≥ 60% o H1 revisada | Alto | CANCELLED | Cancelado 25-oct-2026 (D12: no habrá entrevistas) |
 
-## Fase 1 — MVP Core (completada 25-oct-2026, salvo CI; TENANT decidida en C8, D16)
+## Fase 1 — MVP Core (completada 26-oct-2026; TENANT decidida en C8, D16)
 
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado |
 |---|---|---|---|---|---|---|
 | F1-SCAFF | Alta | Scaffold TS + Fastify + estructura modular | G0-D1, G0-D3 | `npm run dev` y `npm test` funcionan en local | Bajo | PASS |
-| F1-CI | Media | CI básica (lint, tipos, tests) | F1-SCAFF, G0-D3 | PR en verde antes de merge | Bajo | IN_PROGRESS | Workflow creado y verificado en local (docs/F1-CI-REPORTE.md); PASS cuando corra en verde en GitHub tras el merge. Sin paso de lint: el proyecto no tiene linter configurado.
+| F1-CI | Media | CI básica (lint, tipos, tests) | F1-SCAFF, G0-D3 | PR en verde antes de merge | Bajo | PASS | Corrida #4 en verde el 26-oct-2026 tras el merge del PR #14 (docs/F1-CI-REPORTE.md). Sin paso de lint: el proyecto no tiene linter configurado.
 | F1-AUTH | Alta | Auth + orgs + roles + usuarios | F1-SCAFF | Tests de escape multiempresa en verde | Alto | PASS |
 | F1-INGEST | Alta | Alta manual + webhook firmado + idempotencia | F1-AUTH | Evento duplicado sin efectos duplicados | Alto | PASS |
 | F1-NORM | Alta | Normalización + dedup + upsert | F1-INGEST | Casos de prueba de normalización y dedup en verde | Medio | PASS |
