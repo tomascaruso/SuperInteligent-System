@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/styles/tokens.css" />
 <link rel="stylesheet" href="/styles/base.css" />
 <link rel="stylesheet" href="/styles/components.css" />
+<link rel="stylesheet" href="/styles/layout.css" />
 </head>
 <body>
 <h1>SuperInteligent System</h1>
@@ -40,52 +41,104 @@
   <p>Demo sembrada: <code>demo@agenciamartin.demo</code> / <code>Demo1234!</code> (tras <code>npm run seed</code>).</p>
 </section>
 
-<section id="app-section" class="card hidden">
-  <h2>Panel <span id="who"></span></h2>
-  <div class="row">
-    <button id="btn-logout" class="btn btn-ghost">Salir</button>
-    <button id="btn-refresh" class="btn btn-secondary">Actualizar</button>
+<section id="app-section" class="hidden">
+  <header class="app-header">
+    <div>
+      <h2 id="view-title">Centro de operaciones</h2>
+      <p id="view-subtitle" class="text-secondary"></p>
+    </div>
+    <div class="row">
+      <button id="btn-refresh" class="btn btn-secondary">Actualizar</button>
+      <button id="btn-logout" class="btn btn-ghost">Salir</button>
+    </div>
+  </header>
+  <p id="who" class="text-secondary"></p>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Navegación principal">
+      <a href="#inicio" data-view="inicio" class="nav-link">Inicio</a>
+      <a href="#oportunidades" data-view="oportunidades" class="nav-link">Oportunidades <span class="nav-count hidden" id="count-opps"></span></a>
+      <a href="#tareas" data-view="tareas" class="nav-link">Tareas y seguimientos <span class="nav-count hidden" id="count-tasks"></span></a>
+      <a href="#aprobaciones" data-view="aprobaciones" class="nav-link">Aprobaciones <span class="nav-count hidden" id="count-drafts"></span></a>
+      <a href="#actividad" data-view="actividad" class="nav-link">Actividad y ejecuciones</a>
+    </nav>
+
+    <main class="content">
+      <section id="view-inicio" class="view">
+        <div class="stat-grid">
+          <a class="stat-card" href="#oportunidades"><span class="stat-value" id="stat-opps">–</span><span class="stat-label">Oportunidades</span></a>
+          <a class="stat-card" href="#tareas"><span class="stat-value" id="stat-tasks">–</span><span class="stat-label">Tareas pendientes</span></a>
+          <a class="stat-card" href="#aprobaciones"><span class="stat-value" id="stat-drafts">–</span><span class="stat-label">Aprobaciones pendientes</span></a>
+          <a class="stat-card" href="#actividad"><span class="stat-value" id="stat-failed">–</span><span class="stat-label">Ejecuciones fallidas</span></a>
+        </div>
+        <div class="card">
+          <h3>Acciones prioritarias</h3>
+          <ul id="priority"></ul>
+        </div>
+        <div class="card">
+          <h3>Actividad reciente</h3>
+          <ul id="activity"></ul>
+        </div>
+      </section>
+
+      <section id="view-oportunidades" class="view hidden">
+        <div class="card">
+          <h3>Nueva oportunidad (alta manual)</h3>
+          <div class="row">
+            <div class="field-wrap">
+              <label class="field-label" for="opp-name">Nombre de contacto</label>
+              <input id="opp-name" class="field" />
+            </div>
+            <div class="field-wrap">
+              <label class="field-label" for="opp-email">Correo de contacto</label>
+              <input id="opp-email" class="field" />
+            </div>
+            <div class="field-wrap">
+              <label class="field-label" for="opp-company">Empresa (opcional)</label>
+              <input id="opp-company" class="field" />
+            </div>
+            <div class="field-wrap field-wrap--full">
+              <label class="field-label" for="opp-message">Mensaje de la oportunidad</label>
+              <textarea id="opp-message" class="field"></textarea>
+            </div>
+          </div>
+          <div class="row">
+            <button id="btn-create-opp" class="btn btn-primary">Crear oportunidad</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Oportunidades</h3>
+          <table class="data-table"><thead><tr><th>Contacto</th><th>Empresa</th><th>Categoría</th><th>Prioridad</th><th>Estado</th></tr></thead>
+          <tbody id="opps"></tbody></table>
+        </div>
+      </section>
+
+      <section id="view-tareas" class="view hidden">
+        <div class="card">
+          <h3>Tareas abiertas</h3>
+          <ul id="tasks"></ul>
+        </div>
+      </section>
+
+      <section id="view-aprobaciones" class="view hidden">
+        <div class="card">
+          <h3>Borradores pendientes de aprobación</h3>
+          <div id="drafts"></div>
+        </div>
+      </section>
+
+      <section id="view-actividad" class="view hidden">
+        <div class="card">
+          <h3>Auditoría reciente</h3>
+          <ul id="audit"></ul>
+        </div>
+        <div class="card">
+          <h3>Ejecuciones</h3>
+          <ul id="executions"></ul>
+        </div>
+      </section>
+    </main>
   </div>
-  <p id="stats" class="text-secondary"></p>
-
-  <h3>Nueva oportunidad (alta manual)</h3>
-  <div class="row">
-    <div class="field-wrap">
-      <label class="field-label" for="opp-name">Nombre de contacto</label>
-      <input id="opp-name" class="field" />
-    </div>
-    <div class="field-wrap">
-      <label class="field-label" for="opp-email">Correo de contacto</label>
-      <input id="opp-email" class="field" />
-    </div>
-    <div class="field-wrap">
-      <label class="field-label" for="opp-company">Empresa (opcional)</label>
-      <input id="opp-company" class="field" />
-    </div>
-    <div class="field-wrap field-wrap--full">
-      <label class="field-label" for="opp-message">Mensaje de la oportunidad</label>
-      <textarea id="opp-message" class="field"></textarea>
-    </div>
-  </div>
-  <div class="row">
-    <button id="btn-create-opp" class="btn btn-primary">Crear oportunidad</button>
-  </div>
-
-  <h3>Oportunidades</h3>
-  <table class="data-table"><thead><tr><th>Contacto</th><th>Empresa</th><th>Categoría</th><th>Prioridad</th><th>Estado</th></tr></thead>
-  <tbody id="opps"></tbody></table>
-
-  <h3>Tareas abiertas</h3>
-  <ul id="tasks"></ul>
-
-  <h3>Borradores pendientes de aprobación</h3>
-  <div id="drafts"></div>
-
-  <h3>Auditoría reciente</h3>
-  <ul id="audit"></ul>
-
-  <h3>Ejecuciones</h3>
-  <ul id="executions"></ul>
 </section>
 
 <script src="/app.js"></script>

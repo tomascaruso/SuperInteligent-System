@@ -48,3 +48,25 @@ describe('estilos del sistema (Fase 1)', () => {
     await app.close();
   });
 });
+
+describe('navegación (Fase 2)', () => {
+  it('GET / sirve la navegación y el enlace a layout.css', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('/styles/layout.css');
+    expect(res.body).toContain('Aprobaciones');
+    expect(res.body).toContain('Actividad y ejecuciones');
+    expect(res.body).not.toContain('Configuración');
+    await app.close();
+  });
+
+  it('GET /styles/layout.css sirve el layout', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/styles/layout.css' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/css/);
+    expect(res.body).toContain('.nav-link');
+    await app.close();
+  });
+});

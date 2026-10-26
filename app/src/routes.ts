@@ -163,7 +163,7 @@ export function registerRoutes(
   // Hojas del sistema de diseño. Solo se sirven los archivos de la lista blanca;
   // cualquier otro nombre (incluidos intentos de salir del directorio) da 404.
   // No es un cambio de API: solo serving de archivos estáticos del frontend.
-  const STYLE_FILES = new Set(['tokens.css', 'base.css', 'components.css']);
+  const STYLE_FILES = new Set(['tokens.css', 'base.css', 'components.css', 'layout.css']);
   app.get('/styles/:file', async (request, reply) => {
     const { file } = request.params as { file: string };
     if (!STYLE_FILES.has(file)) {
