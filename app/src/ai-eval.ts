@@ -30,6 +30,7 @@ export interface AiEvalRow {
   rules: { category: string; priority: string; score: number };
   ai: { category: string; priority: string } | null;
   aiFailed: boolean;
+  aiError: string | null;
   rulesMatch: boolean;
   aiMatch: boolean;
 }
@@ -62,14 +63,20 @@ export async function evaluateAiVsRules(
       rules.priority === c.expected.priority;
     let aiResult: { category: string; priority: string } | null = null;
     let aiFailed = false;
+    let aiError: string | null = null;
     if (ai) {
       try {
         aiResult = await ai.classify({
           message: c.message,
           company: c.company,
         });
-      } catch {
+      } catch (e) {
+        // El error se conserva: un fallo sin causa no permite distinguir
+        // "la IA clasificó mal" de "la llamada nunca llegó". El mensaje
+        // del adaptador trae solo códigos (gemini_http_<status> o
+        // gemini_invalid_*), nunca la clave.
         aiFailed = true;
+        aiError = e instanceof Error ? e.message : 'unknown';
       }
     }
     const aiMatch =
@@ -82,6 +89,7 @@ export async function evaluateAiVsRules(
       rules,
       ai: aiResult,
       aiFailed,
+      aiError,
       rulesMatch,
       aiMatch,
     });

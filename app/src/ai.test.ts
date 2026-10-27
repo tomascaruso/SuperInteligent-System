@@ -65,7 +65,7 @@ describe('F2-AI config (fail-closed)', () => {
     expect(def).toEqual({
       provider: 'gemini',
       apiKey: 'k',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.1-flash-lite',
     });
     const over = resolveAiConfig({
       AI_PROVIDER: 'gemini',
@@ -176,6 +176,7 @@ describe('F2-AI comparación (stub, sin red)', () => {
     const r1 = await evaluateAiVsRules(CASES, partial);
     expect(r1.verdict).toBe('DISCARD');
     expect(r1.rows[1].aiFailed).toBe(true);
+    expect(r1.rows[1].aiError).toBe('stub sin respuesta');
     const wrong = stubAi({
       servicios: { category: 'general', priority: 'low' },
       marketing: { category: 'automatización', priority: 'low' },
