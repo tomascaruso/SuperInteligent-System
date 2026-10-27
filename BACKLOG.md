@@ -3,15 +3,15 @@
 Estados: PLANNED · IN_PROGRESS · BLOCKED · PASS · FAIL · NOT_VERIFIED.
 Ningún ítem es PASS sin evidencia (test ejecutado, link, registro).
 
-## Gate 0 (en curso)
+## Gate 0 (aprobado 26-oct-2026)
 
 | ID | Prioridad | Objetivo | Dependencias | Criterio de aceptación | Riesgo | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|
 | G0-ENV | Alta | Inspección del entorno | — | Herramientas y trabajo previo documentados | Bajo | PASS | README (entorno verificado 2026-10-25); sin trabajo previo hallado |
 | G0-DOCS | Alta | Entregables de Gate 0 | G0-ENV | 11 documentos creados y coherentes | Bajo | PASS | `docs/` + `BACKLOG.md` en `workspace/superinteligent-system/` |
-| G0-D1 | Alta | Confirmar stack propuesto | G0-DOCS | Decisión humana registrada en DECISIONS | Medio | BLOCKED | Avance autorizado por Tomás el 25-oct-2026 («okey avancemos»); se construyó con el stack propuesto como supuesto reversible; la confirmación formal sigue pendiente |
+| G0-D1 | Alta | Confirmar stack propuesto | G0-DOCS | Decisión humana registrada en DECISIONS | Medio | PASS | Avance autorizado por Tomás el 25-oct-2026 («okey avancemos»); confirmación formal por Tomás el 26-oct-2026 (cierre de Gate 0): stack ratificado (D1–D4, D6–D7, Render + Neon), el mismo con el que se construyó |
 | G0-D2 | Alta | Aprobar experimento E1 | G0-DOCS | Guion y acceso a entrevistados | Medio | CANCELLED | Cancelado 25-oct-2026 por decisión de Tomás (D12: no habrá entrevistas) |
-| G0-D3 | Alta | Repo remoto + cuentas | G0-D1 | Repositorio remoto y proyecto Neon creados | Medio | BLOCKED | Repo en GitHub (tomascaruso/SuperInteligent-System) y base en Neon verificada el 25-oct-2026; Supabase sustituido por Neon por decisión de Tomás (25-oct-2026). Pendiente solo el proveedor de IA (Fase 2; decisión Gemini tomada el 26-oct-2026, veredicto pendiente de la clave) |
+| G0-D3 | Alta | Repo remoto + cuentas | G0-D1 | Repositorio remoto y proyecto Neon creados | Medio | PASS | Repo en GitHub (tomascaruso/SuperInteligent-System) y base en Neon verificada el 25-oct-2026; Supabase sustituido por Neon por decisión de Tomás (25-oct-2026). Punto IA cerrado con el veredicto F2-AI DISCARD del 26-oct-2026 (Gemini probada, no adoptada; diseño agnóstico). Gate 0 cerrado 26-oct-2026 |
 
 ## Validación (PLANNED)
 

@@ -6,8 +6,9 @@
   OPERATIONS, ROADMAP, DECISIONS, VALIDATION_PLAN, BUYER_PERSONA, BACKLOG.
 - **Criterio de salida:** revisión humana + decisiones G0-D1 (stack) y
   G0-D3 (repo remoto y cuentas). G0-D2 quedó CANCELADA el 25-oct-2026 (no
-  habrá entrevistas; ver D12). Sin G0-D1 y G0-D3, Gate 0 NO está aprobado,
-  aunque la documentación exista.
+  habrá entrevistas; ver D12). Actualización 26-oct-2026: G0-D1
+  confirmado por Tomás y G0-D3 cerrado (veredicto F2-AI DISCARD);
+  Gate 0 APROBADO.
 
 ## Fase 1 — MVP Core (sin IA real)
 

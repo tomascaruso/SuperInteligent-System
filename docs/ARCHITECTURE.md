@@ -101,7 +101,8 @@ El Core es la plantilla; cada cliente es una ADAPTACIÓN, no una bifurcación:
   adaptador Postgres está implementado y verificado contra Neon; la demo
   pública corre en Render + Neon y SQLite local queda solo para desarrollo.
   Supabase fue sustituido por Neon por decisión de Tomás (25-oct-2026);
-  G0-D3 queda pendiente solo del proveedor de IA (Fase 2).
+  G0-D3 quedó cerrado 26-oct-2026 con el veredicto F2-AI DISCARD
+  (proveedor de IA probado y no adoptado).
 - Ejecución síncrona con pasos persistidos y worker asíncrono (C7): el
   alta manual y el webhook siguen sincrónicos (su contrato devuelve la
   oportunidad creada); el worker (`app/src/worker.ts`, `npm run worker`,
