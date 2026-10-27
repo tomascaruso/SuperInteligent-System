@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
+import { CheckCircle2, ClipboardList, Clock } from 'lucide-react';
 import { Alert } from '../../components/ui/alert';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -259,16 +260,37 @@ export function TasksView() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <button type="button" className={cardClass} onClick={() => { setStatusFilter('pending'); setPage(0); }}>
-          <span className={statValue}>{counts.pending}</span>
-          <span className={statLabel}>Pendientes</span>
+          <span className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-amber-100 text-amber-800" aria-hidden="true">
+              <ClipboardList size={20} />
+            </span>
+            <span>
+              <span className={statValue}>{counts.pending}</span>
+              <span className={statLabel}>Pendientes</span>
+            </span>
+          </span>
         </button>
         <button type="button" className={cardClass} onClick={() => { setStatusFilter('overdue'); setPage(0); }}>
-          <span className={statValue}>{counts.overdue}</span>
-          <span className={statLabel}>Vencidas</span>
+          <span className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-red-100 text-red-700" aria-hidden="true">
+              <Clock size={20} />
+            </span>
+            <span>
+              <span className={statValue}>{counts.overdue}</span>
+              <span className={statLabel}>Vencidas</span>
+            </span>
+          </span>
         </button>
         <button type="button" className={cardClass} onClick={() => { setStatusFilter('done'); setPage(0); }}>
-          <span className={statValue}>{counts.done}</span>
-          <span className={statLabel}>Completadas</span>
+          <span className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-emerald-100 text-emerald-700" aria-hidden="true">
+              <CheckCircle2 size={20} />
+            </span>
+            <span>
+              <span className={statValue}>{counts.done}</span>
+              <span className={statLabel}>Completadas</span>
+            </span>
+          </span>
         </button>
       </div>
 
