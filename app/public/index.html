@@ -99,10 +99,16 @@
       <h2 id="view-title">Centro de operaciones</h2>
       <p id="view-subtitle" class="text-secondary"></p>
     </div>
-    <div class="row">
-      <button id="btn-tour" class="btn btn-secondary">Recorrido guiado</button>
-      <button id="btn-refresh" class="btn btn-secondary">Actualizar</button>
-      <button id="btn-logout" class="btn btn-ghost">Salir</button>
+    <div class="header-actions">
+      <div class="header-meta">
+        <span id="system-status" class="status-pill" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="system-status-text">Conectando…</span></span>
+        <span id="user-chip" class="user-chip"></span>
+      </div>
+      <div class="row">
+        <button id="btn-tour" class="btn btn-secondary">Recorrido guiado</button>
+        <button id="btn-refresh" class="btn btn-secondary">Actualizar</button>
+        <button id="btn-logout" class="btn btn-ghost">Salir</button>
+      </div>
     </div>
   </header>
   <p id="who" class="text-secondary"></p>
