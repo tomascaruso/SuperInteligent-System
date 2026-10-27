@@ -6,13 +6,21 @@ export function Tabs({
   tabs,
   active,
   onChange,
+  scrollable = true,
 }: {
   tabs: { id: string; label: string }[];
   active: string;
   onChange: (id: string) => void;
+  // R1c: con scrollable={false} las pestañas envuelven en vez
+  // de generar una barra horizontal interna (Oportunidades).
+  scrollable?: boolean;
 }) {
   return (
-    <div role="tablist" aria-label="Secciones del detalle" className="flex gap-1 border-b border-border overflow-x-auto">
+    <div
+      role="tablist"
+      aria-label="Secciones del detalle"
+      className={`flex gap-1 border-b border-border ${scrollable ? 'overflow-x-auto' : 'flex-wrap'}`}
+    >
       {tabs.map((t) => (
         <button
           key={t.id}

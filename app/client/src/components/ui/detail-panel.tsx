@@ -12,6 +12,9 @@ import { Button } from './button';
 // grilla de la vista (sin overlay, sin fondo, sin Cerrar y sin
 // Escape), para el panel derecho fijo de Oportunidades. La
 // variante overlay NO cambia: sigue siendo la de arriba.
+// R1c: la variante inline ya NO tiene sticky ni scroll propio
+// (nada de max-height con overflow interno): acompaña a la
+// página y la única barra posible es la de la página misma.
 export function DetailPanel({
   title,
   subtitle,
@@ -40,14 +43,14 @@ export function DetailPanel({
     return (
       <aside
         aria-label={title}
-        className="bg-surface border border-border rounded-card p-6 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto"
+        className="bg-surface border border-border rounded-card shadow-sm p-5"
       >
         <div>
           <h2 className="text-base font-semibold">{title}</h2>
           {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
         </div>
         <div className="mt-4 space-y-4">{children}</div>
-        {footer && <div className="mt-6 flex flex-wrap gap-2">{footer}</div>}
+        {footer && <div className="mt-5 pt-4 border-t border-border flex flex-wrap gap-2">{footer}</div>}
       </aside>
     );
   }
