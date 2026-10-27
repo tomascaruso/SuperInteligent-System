@@ -47,6 +47,13 @@
 // El subtítulo declara el objetivo de la sección: conectar las
 // herramientas de una organización con SIS para ayudar a cumplir
 // sus objetivos.
+//
+// R5c (pedido del usuario): el panel de filtro (campo «Buscar» +
+// pestañas «Categoría») se quitó y se reemplazó por un icono de
+// búsqueda en el encabezado que despliega el campo (foco
+// automático; Escape o X lo cierran y limpian la búsqueda). La
+// navegación por categoría sigue siendo el índice por
+// funcionalidad (scroll a la sección); las pestañas ya no existen.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
@@ -55,17 +62,18 @@ import {
   Layers,
   Mail,
   MessageSquare,
+  Search,
   Target,
   Users,
   Video,
   Webhook,
+  X,
 } from 'lucide-react';
 import { Alert } from '../../components/ui/alert';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Card } from '../../components/ui/card';
 import { DetailPanel } from '../../components/ui/detail-panel';
-import { FilterBar } from '../../components/ui/filter-bar';
+import { Input } from '../../components/ui/input';
 import type { HomeOutletContext } from '../inicio/HomeView';
 import {
   ApiError,
@@ -105,40 +113,6 @@ const CATEGORY_IDS: Record<Category, string> = {
   'Automatización': 'cat-automatizacion',
   'API & Webhooks': 'cat-api-webhooks',
 };
-
-// Pestañas de filtro por categoría (mismo patrón que R3).
-function Segmented({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <span className="block text-xs font-medium text-secondary mb-1">{label}</span>
-      <div role="group" aria-label={label} className="inline-flex flex-wrap border border-border rounded-control overflow-hidden bg-surface">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={value === o.value}
-            onClick={() => onChange(o.value)}
-            className={`px-3 py-1.5 text-sm whitespace-nowrap ${
-              value === o.value ? 'bg-primary text-white' : 'text-secondary hover:bg-primary-subtle hover:text-ink'
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // Una entrada del catálogo. `capabilities` son REALES solo cuando
 // status es 'available'; cuando es 'coming_soon' son PREVISTAS y
@@ -283,7 +257,7 @@ export function IntegrationsView() {
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string>('webhook');
 
   useEffect(() => {
@@ -331,11 +305,10 @@ export function IntegrationsView() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return INTEGRATIONS.filter((i) => {
-      if (categoryFilter !== 'all' && i.category !== categoryFilter) return false;
       if (q && !`${i.name} ${i.category} ${i.summary}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [search, categoryFilter]);
+  }, [search]);
 
   const selected = INTEGRATIONS.find((i) => i.id === selectedId) ?? INTEGRATIONS[0];
 
@@ -346,31 +319,21 @@ export function IntegrationsView() {
   // con su mensaje honesto y también aparecen en el índice.
   const indexCategories = CATEGORIES.filter((c) => {
     if (filtered.some((i) => i.category === c)) return true;
-    if (search.trim() === '' && (categoryFilter === 'all' || categoryFilter === c)) return true;
+    if (search.trim() === '') return true;
     return false;
   });
 
-  const clearFilters = useCallback(() => {
+  // Cerrar la búsqueda limpia el texto y vuelve a mostrar todo.
+  const closeSearch = useCallback(() => {
     setSearch('');
-    setCategoryFilter('all');
+    setSearchOpen(false);
   }, []);
 
   // Índice por funcionalidad: desplaza a la sección (no usa ancla
-  // #: HashRouter la interpretaría como ruta). Si hay un filtro
-  // activo, primero se vuelve a «Todas» para que la sección exista.
-  const scrollToCategory = useCallback(
-    (category: Category) => {
-      const go = () =>
-        document.getElementById(CATEGORY_IDS[category])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (categoryFilter !== 'all') {
-        setCategoryFilter('all');
-        setTimeout(go, 50);
-      } else {
-        go();
-      }
-    },
-    [categoryFilter],
-  );
+  // #: HashRouter la interpretaría como ruta).
+  const scrollToCategory = useCallback((category: Category) => {
+    document.getElementById(CATEGORY_IDS[category])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   if (state === 'loading') {
     return <p className="text-ink">Cargando…</p>;
@@ -392,45 +355,54 @@ export function IntegrationsView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">Integraciones</h1>
-        <p className="text-sm text-secondary">
-          Conecta las herramientas de tu organización con SIS para ayudar a cumplir sus objetivos
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">Integraciones</h1>
+          <p className="text-sm text-secondary">
+            Conecta las herramientas de tu organización con SIS para ayudar a cumplir sus objetivos
+          </p>
+        </div>
+        {!searchOpen && (
+          <button
+            type="button"
+            aria-label="Buscar integraciones"
+            title="Buscar integraciones"
+            onClick={() => setSearchOpen(true)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control border border-border bg-surface text-secondary hover:border-primary hover:text-ink"
+          >
+            <Search size={20} aria-hidden="true" />
+          </button>
+        )}
       </div>
+      {searchOpen && (
+        <div className="flex items-center gap-2">
+          <Input
+            autoFocus
+            type="search"
+            aria-label="Buscar integraciones"
+            placeholder="Buscar integración…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') closeSearch();
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Cerrar búsqueda"
+            title="Cerrar búsqueda"
+            onClick={closeSearch}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control border border-border bg-surface text-secondary hover:border-primary hover:text-ink"
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+      )}
       <p className="text-xs text-muted">
         La única integración en funcionamiento hoy es el webhook de ingesta. El resto del catálogo
         está marcado como disponible próximamente: las conexiones reales llegarán proveedor por
         proveedor, sin estados ni sincronizaciones de ejemplo.
       </p>
-
-      <Card compact pad="p-3">
-        <FilterBar
-          layout="single"
-          searchValue={search}
-          onSearchChange={(v) => setSearch(v)}
-          searchPlaceholder="Buscar integración…"
-          selects={[]}
-        />
-        <div className="mt-3">
-          <Segmented
-            label="Categoría"
-            value={categoryFilter}
-            onChange={(v) => setCategoryFilter(v)}
-            options={[
-              { value: 'all', label: 'Todas' },
-              ...CATEGORIES.map((c) => ({ value: c, label: c })),
-            ]}
-          />
-        </div>
-        {(search || categoryFilter !== 'all') && (
-          <div className="mt-2 flex justify-end">
-            <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
-              Limpiar
-            </Button>
-          </div>
-        )}
-      </Card>
 
       <nav aria-label="Índice por funcionalidad" className="flex flex-wrap gap-2">
         {indexCategories.map((c) => (
@@ -450,7 +422,6 @@ export function IntegrationsView() {
           {CATEGORIES.map((category) => {
             const cards = filtered.filter((i) => i.category === category);
             if (cards.length === 0) {
-              if (categoryFilter !== 'all' && categoryFilter !== category) return null;
               // Con búsqueda activa, la sección se oculta: decir
               // «Aún no hay» sería falso (las integraciones
               // existen, solo no coinciden con la búsqueda).
@@ -524,7 +495,7 @@ export function IntegrationsView() {
             );
           })}
           {filtered.length === 0 && (
-            <p className="text-sm text-secondary">Sin resultados para los filtros actuales.</p>
+            <p className="text-sm text-secondary">Sin resultados para la búsqueda actual.</p>
           )}
         </div>
 
