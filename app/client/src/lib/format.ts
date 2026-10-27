@@ -45,6 +45,20 @@ export function priorityLabel(p: string): string {
   return { high: 'Alta', medium: 'Media', low: 'Baja' }[p] ?? p;
 }
 
+// Etiquetas copiadas del vanilla (app/public/app.js): estado de
+// oportunidad, canal de entrada y estado de borrador.
+export function statusLabel(s: string): string {
+  return { proposal_draft: 'Borrador de propuesta', in_follow_up: 'En seguimiento', new: 'Nueva' }[s] ?? s;
+}
+
+export function channelLabel(s: string): string {
+  return { manual: 'Alta manual', webhook: 'Entrada externa' }[s] ?? 'No disponible';
+}
+
+export function draftStatusLabel(s: string): string {
+  return { pending_approval: 'Pendiente de aprobación', approved: 'Aprobada', rejected: 'Rechazada' }[s] ?? s;
+}
+
 export function auditActionLabel(a: string): string {
   return (
     {

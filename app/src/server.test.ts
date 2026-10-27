@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildServer } from './server.js';
 
@@ -770,6 +770,49 @@ describe('cliente react /v2/ (fase 4: inicio)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<div id="root"');
     expect(res.body).toContain('/v2/assets/');
+    await app.close();
+  });
+});
+
+describe('cliente react /v2/ (r1: oportunidades + logo)', () => {
+  function clientJs(): string {
+    // Igual que el bloque de la Fase 4: el build del cliente lo
+    // genera el pretest; se lee el JS construido para no
+    // hardcodear hashes.
+    const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
+    const match = html.match(/\/v2\/assets\/[^"']+\.js/);
+    if (!match) throw new Error('sin asset JS en el build del cliente');
+    return readFileSync(new URL(`../client/dist/${match[0].replace('/v2/', '')}`, import.meta.url), 'utf8');
+  }
+
+  it('el JS del cliente referencia los assets del logo', () => {
+    const js = clientJs();
+    for (const part of ['sis-logo-', 'sis-mark-', '.png']) {
+      expect(js).toContain(part);
+    }
+  });
+
+  it('el JS del cliente contiene los textos reales de la vista Oportunidades', () => {
+    const js = clientJs();
+    for (const text of [
+      'Oportunidades comerciales y alta manual',
+      'Nueva oportunidad (alta manual)',
+      'Crear oportunidad',
+      'Próximo paso',
+      'Aún no hay oportunidades',
+      'Mostrando',
+    ]) {
+      expect(js).toContain(text);
+    }
+  });
+
+  it('GET /v2/assets sirve el PNG del logo', async () => {
+    const assets = readdirSync(new URL('../client/dist/assets', import.meta.url));
+    const logo = assets.find((f) => f.startsWith('sis-logo-') && f.endsWith('.png'));
+    if (!logo) throw new Error('sin asset sis-logo en el build del cliente');
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: `/v2/assets/${logo}` });
+    expect(res.statusCode).toBe(200);
     await app.close();
   });
 });

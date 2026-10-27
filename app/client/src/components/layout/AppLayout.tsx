@@ -4,6 +4,7 @@ import { NavLink } from 'react-router';
 import { Alert } from '../ui/alert';
 import { Button } from '../ui/button';
 import { logout, type MeResponse } from '../../lib/api';
+import sisMark from '../../assets/sis-mark.png';
 
 // Layout principal del cliente React (Fase 3): barra lateral con
 // las 6 secciones REALES de la app vanilla, en el mismo orden y
@@ -69,7 +70,8 @@ export function AppLayout({
     <div className="min-h-screen">
       <header className="bg-surface border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
-          <p className="m-0">
+          <p className="m-0 flex items-center gap-2">
+            <img src={sisMark} alt="" aria-hidden="true" width={25} height={32} className="h-8 w-auto" />
             <span className="text-xl font-semibold text-primary">SIS</span>{' '}
             <span className="text-sm font-semibold">SuperInteligent System</span>{' '}
             <span className="text-xs text-muted">by PENSIA</span>
