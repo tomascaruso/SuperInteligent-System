@@ -117,3 +117,39 @@ con la cuenta demo.
 ## Autorización requerida
 
 Merge a `main` (despliega la demo pública).
+
+## Verificación en vivo L4 (26-oct-2026 ~22:38 ART)
+
+- Mergeado PR #40, `main` `55c3ad66`. Al primer ingreso la
+  demo todavía servía la versión anterior (caché); con una
+  navegación fresca cargó la nueva.
+- Pasó: panel derecho completo («Bienvenido», correo,
+  contraseña, «Iniciar sesión», cuenta demo visible, «Tengo
+  una invitación», «Contactanos»); toggle mostrar/ocultar
+  funciona en ambos sentidos; invitación despliega el
+  formulario (sin enviar); contacto revela el formulario (sin
+  enviar); login con la cuenta demo entra bien (chip «Martín
+  Demo · admin», píldora «Sistema operativo» tras pasar por
+  «Conectando…»); indicadores 3/0/0/0; las 6 vistas sin
+  errores; sin leyenda «Vista ilustrativa» en ningún lado.
+- Hallazgo: en la vista verificada NO se vieron los 4
+  beneficios ni el mini-dashboard del panel izquierdo. Causa
+  verificada en `main` (no un faltante del despliegue): el
+  código desplegado SÍ los contiene (`login-benefits`,
+  `login-preview` presentes en `index.html` de `main`), pero
+  la regla responsive los oculta por debajo de 1024 px
+  (`display: none` en `layout.css`), que es el comportamiento
+  diseñado para móvil según el brief (marca compacta,
+  formulario primero). La verificación corrió en una vista
+  angosta, por eso no se vieron.
+- Pendiente: confirmación en ancho de escritorio (≥1024 px) de
+  que beneficios y mini-dashboard se muestran.
+- Verificación de Tomás en tablet 26-oct-2026 ~22:46
+  (captura): por debajo de 1024 px primero se ve el
+  formulario y debajo el panel de marca compacto (titular y
+  descripción, sin beneficios ni mini-dashboard), que es el
+  comportamiento diseñado para tablet/móvil.
+- Sesión final: iniciada (no se cerró al terminar). No se
+  crearon organizaciones, no se envió el contacto, no se
+  aprobaron/rechazaron borradores ni se tocaron tareas u
+  oportunidades.

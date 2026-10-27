@@ -300,6 +300,43 @@ export function registerRoutes(
     void reply.type('text/css').send(readFileSync(new URL(`styles/${file}`, publicDir)));
   });
 
+  // Fase 2 — Cliente React en /v2/ (convivencia): el vanilla sigue
+  // en /. El build de Vite vive en client/dist (gitignorado); si
+  // no está construido, /v2/ responde 404 en vez de servir algo
+  // a medias. Solo assets con extensión permitida; cualquier
+  // otro nombre (incluidos intentos de salir del directorio) da
+  // 404. No es un cambio de API: solo serving aditivo.
+  const clientDir = new URL('../client/dist/', import.meta.url);
+  const CLIENT_EXTS = new Set(['js', 'css', 'svg', 'png', 'ico']);
+  const CLIENT_TYPES: Record<string, string> = {
+    js: 'application/javascript',
+    css: 'text/css',
+    svg: 'image/svg+xml',
+    png: 'image/png',
+    ico: 'image/x-icon',
+  };
+  app.get('/v2/', async (_req, reply) => {
+    try {
+      void reply.type('text/html').send(readFileSync(new URL('index.html', clientDir)));
+    } catch {
+      void reply.code(404).send({ error: 'No encontrado' });
+    }
+  });
+  app.get('/v2/*', async (request, reply) => {
+    const rest = (request.params as { '*': string })['*'] ?? '';
+    const file = rest.split('/').filter(Boolean).pop() ?? '';
+    const ext = file.includes('.') ? file.split('.').pop()! : '';
+    if (!CLIENT_EXTS.has(ext) || rest.includes('..')) {
+      void reply.code(404).send({ error: 'No encontrado' });
+      return;
+    }
+    try {
+      void reply.type(CLIENT_TYPES[ext]).send(readFileSync(new URL(rest, clientDir)));
+    } catch {
+      void reply.code(404).send({ error: 'No encontrado' });
+    }
+  });
+
   // ---------- Auth ----------
 
   // C8: alta operada por PENSIA (D16). Ya NO hay registro público: el
