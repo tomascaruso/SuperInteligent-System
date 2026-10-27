@@ -36,7 +36,18 @@ import sisMark from '../../assets/sis-mark.png';
 // derecho desplaza internamente solo si se expanden los
 // formularios secundarios); en móvil (<1024 px) el panel izquierdo
 // se oculta por diseño (form-first) y solo se muestra el acceso.
-// Sin botón Google. Tras un login o una invitación exitosa, se
+// Ajustes LOGIN-V2-AJUSTES (feedback de Tomás con captura en
+// incógnito; solo panel izquierdo, el derecho no se toca):
+// logo con su proporción natural 560×266 y más chico (la versión
+// anterior le imponía 1137/1040 y lo estiraba en vertical),
+// 4 rubros en una sola fila, y la ilustración ocupando el espacio
+// liberado. Contacto (corrección 27-oct ~20:04, el bug NO era en
+// invitación): un solo condicional, un solo montaje y alternancia
+// ya verificados; se agregó aria-expanded al disparador de ayuda
+// y un botón «Cerrar» explícito dentro del formulario, para que
+// el segundo toque nunca pueda percibirse como otro formulario.
+// La invitación se verificó igual (un solo condicional y
+// alternancia) y NO se tocó. Sin botón Google. Tras un login o una invitación exitosa, se
 // avisa al padre con onAuthenticated (la App se queda en /v2/,
 // ruta /#/inicio); sin ese callback, se mantiene el puente
 // original a / (la app vanilla).
@@ -238,33 +249,35 @@ export function LoginScreen({
         aria-label="Presentación de SuperInteligent System"
         className="hidden min-h-0 flex-1 flex-col overflow-hidden bg-canvas px-10 py-6 lg:flex xl:px-14"
       >
+        {/* Logo con su proporción natural 560×266 (ancho solo,
+            alto automático): fijar alto o una proporción distinta
+            lo estira en vertical, como pasó en LOGIN-V2. */}
         <img
           src={sisLogo}
           alt="SIS — SuperIntelligent System by PENSIA"
-          width={280}
-          height={256}
-          className="h-auto w-[210px] max-w-full shrink-0"
-          style={{ aspectRatio: '1137 / 1040' }}
+          width={560}
+          height={266}
+          className="h-auto w-[220px] max-w-full shrink-0"
         />
-        <h1 className="mt-5 shrink-0 text-[clamp(1.75rem,2.4vw,2.5rem)] font-semibold leading-tight">
+        <h1 className="mt-4 shrink-0 text-[clamp(1.75rem,2.4vw,2.5rem)] font-semibold leading-tight">
           Inteligencia artificial que trabaja para tu negocio
         </h1>
         <p className="mt-2 shrink-0 text-secondary">
           Coordina procesos, supervisa agentes especializados y transforma tareas operativas en flujos de trabajo
           inteligentes.
         </p>
-        <ul className="mt-6 grid shrink-0 grid-cols-2 gap-x-6 gap-y-4 list-none p-0">
+        <ul className="mt-5 grid shrink-0 grid-cols-4 gap-x-4 list-none p-0">
           {BENEFITS.map(({ icon: Icon, title, text }) => (
-            <li key={title} className="flex gap-3">
-              <Icon size={26} className="shrink-0 text-primary" aria-hidden="true" />
+            <li key={title} className="flex min-w-0 flex-col gap-1.5">
+              <Icon size={24} className="shrink-0 text-primary" aria-hidden="true" />
               <span>
-                <strong className="block text-[15px]">{title}</strong>
-                <span className="block text-[13px] text-secondary">{text}</span>
+                <strong className="block text-[14px] leading-snug">{title}</strong>
+                <span className="block text-xs leading-snug text-secondary">{text}</span>
               </span>
             </li>
           ))}
         </ul>
-        <div className="mt-4 min-h-0 flex-1">
+        <div className="mt-5 flex min-h-0 flex-1 items-center">
           <AbstractIllustration />
         </div>
         <p className="mt-3 shrink-0 text-secondary">Tecnología sofisticada explicada con simplicidad empresarial.</p>
@@ -334,7 +347,13 @@ export function LoginScreen({
             <p className="mt-4 text-center text-[13px] text-secondary">
               ¿Necesitas ayuda para acceder?{' '}
               {contactEnabled ? (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowContact((v) => !v)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-expanded={showContact}
+                  onClick={() => setShowContact((v) => !v)}
+                >
                   Contacta con el administrador de tu organización.
                 </Button>
               ) : (
@@ -442,9 +461,16 @@ export function LoginScreen({
                     onChange={(e) => setContactWebsite(e.target.value)}
                   />
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button type="submit" disabled={contactLoading}>
                     {contactLoading ? 'Enviando…' : 'Enviar mensaje'}
+                  </Button>
+                  {/* Cierre explícito del formulario de contacto: el
+                      disparador de ayuda alterna, pero el formulario
+                      quedaba lejos abajo sin forma visible de
+                      cerrarlo, lo que invitaba al re-toque confuso. */}
+                  <Button type="button" variant="secondary" onClick={() => setShowContact(false)}>
+                    Cerrar
                   </Button>
                 </div>
                 {contactFeedback && (
