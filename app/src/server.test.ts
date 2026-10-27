@@ -795,12 +795,18 @@ describe('cliente react /v2/ (r1: oportunidades + logo)', () => {
   it('el JS del cliente contiene los textos reales de la vista Oportunidades', () => {
     const js = clientJs();
     for (const text of [
-      'Oportunidades comerciales y alta manual',
+      // R1b: el subtítulo cambió al de la referencia («Centraliza,
+      // clasifica y supervisa las oportunidades comerciales») y se
+      // agregan los textos nuevos de R1b («Más filtros» y
+      // «Atención humana requerida»); el resto no cambia.
+      'Centraliza, clasifica y supervisa las oportunidades comerciales',
       'Nueva oportunidad (alta manual)',
       'Crear oportunidad',
       'Próximo paso',
       'Aún no hay oportunidades',
       'Mostrando',
+      'Más filtros',
+      'Atención humana requerida',
     ]) {
       expect(js).toContain(text);
     }

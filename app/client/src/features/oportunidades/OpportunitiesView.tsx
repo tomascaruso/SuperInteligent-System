@@ -37,17 +37,34 @@ import {
   statusLabel,
 } from '../../lib/format';
 
-// Vista Oportunidades real (R1): tabla + panel de detalle
-// lateral con la composición de la referencia, pero SOLO con
-// datos reales. Columnas reales del vanilla (contacto, empresa,
-// categoría, prioridad, estado) + canal y próximo paso derivable
-// (título de la tarea abierta más próxima: /api/tasks ya viene
-// ordenado por vencimiento). OMITIDAS por criterio aprobado: sin
-// «Agente IA Asignado», sin valor estimado/probabilidad/cierre,
-// sin «Atención humana» como columna, sin desglose IA. El
-// borrador se llama «Borrador», nunca «Borrador IA» (F2-AI
-// DISCARD). Paginación en cliente (el servidor devuelve hasta
-// 100 filas sin paginar); filtros en cliente.
+// Vista Oportunidades real (R1) + ajuste visual R1b: encabezado
+// y panel derecho fijo como la referencia de Oportunidades, pero
+// SOLO con datos reales. Columnas en el orden de la referencia:
+// Oportunidad, Estado, Prioridad, Fuente, Agente, Atención
+// humana, Próximo paso. Dos derivaciones honestas, calculadas
+// solo con las listas ya cargadas (sin endpoints nuevos):
+// - Agente: agent_name o assigned_to de la tarea abierta más
+//   próxima de la oportunidad (las tareas vienen ordenadas por
+//   vencimiento ascendente); «—» si no hay tarea abierta. No
+//   es «Agente IA Asignado»: los agentes son los deterministas
+//   reales (Captación, Calificación, Respuesta y propuesta,
+//   Seguimiento, QA y políticas).
+// - Atención humana: el borrador vigente (el primero por
+//   creación DESC) está en pending_approval → «Atención humana
+//   requerida»; si no, «Sin pendiente». Un borrador vencido o
+//   desactualizado sigue en pending_approval hasta que se
+//   decida, así que también marca atención requerida.
+// La categoría no se pierde: va en la tercera línea de la
+// celda Oportunidad y como filtro real tras «Más filtros».
+// OMITIDO de la referencia por falta de fuente real: «Agente
+// IA Asignado» (Agente X-1/X-2/X-3), valor estimado,
+// probabilidad, fecha de cierre, «Borrador IA», desglose IA con
+// gráfico, Interaction Log con correos/notas inventadas, y la
+// navegación Dashboard/Contactos/Empresas/Proyectos/Reportes/
+// Ajustes (se mantienen las 6 secciones reales). El borrador se
+// llama «Borrador», nunca «Borrador IA» (F2-AI DISCARD).
+// Paginación en cliente (el servidor devuelve hasta 100 filas
+// sin paginar); filtros en cliente.
 
 const PAGE_SIZE = 20;
 
@@ -95,9 +112,12 @@ export function OpportunitiesView() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [page, setPage] = useState(0);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [tab, setTab] = useState('resumen');
   const [auditById, setAuditById] = useState<Record<string, AuditEntry[]>>({});
   const [auditLoading, setAuditLoading] = useState(false);
@@ -137,17 +157,39 @@ export function OpportunitiesView() {
     void load();
   }, [load, reloadKey]);
 
+  // Lista filtrada y selección efectiva (R1b): se calculan
+  // antes de los retornos de carga/error para que el efecto de
+  // actividad pueda usar la selección efectiva. Si la selección
+  // explícita ya no está en la lista filtrada (o no hay ninguna),
+  // la selección efectiva es la primera fila de la lista
+  // filtrada, como en la referencia; si la lista está vacía,
+  // no hay selección.
+  const q = search.trim().toLowerCase();
+  const filtered = (data?.opportunities ?? []).filter((o) => {
+    if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+    if (priorityFilter !== 'all' && o.priority !== priorityFilter) return false;
+    if (sourceFilter !== 'all' && o.source !== sourceFilter) return false;
+    if (categoryFilter !== 'all' && o.category !== categoryFilter) return false;
+    if (q) {
+      const hay = `${o.contact_name} ${o.company} ${o.message}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const effectiveSelectedId =
+    selectedId && filtered.some((o) => o.id === selectedId) ? selectedId : (filtered[0]?.id ?? null);
+
   // Actividad de la oportunidad seleccionada: se carga al abrir
   // el panel (una sola vez por oportunidad) desde
   // /api/audit?opportunityId=, que ya devuelve los eventos
   // directos y los relacionados.
   useEffect(() => {
-    if (!selectedId || auditById[selectedId]) return;
+    if (!effectiveSelectedId || auditById[effectiveSelectedId]) return;
     setAuditLoading(true);
     setAuditError('');
-    getOpportunityAudit(selectedId)
+    getOpportunityAudit(effectiveSelectedId)
       .then(({ audit }) => {
-        setAuditById((prev) => ({ ...prev, [selectedId]: audit }));
+        setAuditById((prev) => ({ ...prev, [effectiveSelectedId]: audit }));
       })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 401) {
@@ -157,15 +199,10 @@ export function OpportunitiesView() {
         setAuditError(e instanceof ApiError ? e.message : 'No se pudo cargar la actividad.');
       })
       .finally(() => setAuditLoading(false));
-  }, [selectedId, auditById, onSessionExpired]);
+  }, [effectiveSelectedId, auditById, onSessionExpired]);
 
   function openDetail(id: string) {
     setSelectedId(id);
-    setTab('resumen');
-  }
-
-  function closeDetail() {
-    setSelectedId(null);
     setTab('resumen');
   }
 
@@ -216,18 +253,6 @@ export function OpportunitiesView() {
     );
   }
 
-  const q = search.trim().toLowerCase();
-  const filtered = data.opportunities.filter((o) => {
-    if (statusFilter !== 'all' && o.status !== statusFilter) return false;
-    if (priorityFilter !== 'all' && o.priority !== priorityFilter) return false;
-    if (sourceFilter !== 'all' && o.source !== sourceFilter) return false;
-    if (q) {
-      const hay = `${o.contact_name} ${o.company} ${o.message}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
   const pageItems = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
@@ -235,7 +260,8 @@ export function OpportunitiesView() {
   const to = Math.min(filtered.length, safePage * PAGE_SIZE + PAGE_SIZE);
 
   // Próximo paso: la tarea abierta más próxima (el servidor ya
-  // ordena /api/tasks por vencimiento ascendente).
+  // ordena /api/tasks por vencimiento ascendente). De esa misma
+  // tarea sale la columna «Agente» (R1b).
   const nextStepByOpp = new Map<string, TaskFull>();
   for (const t of data.tasks) {
     if (t.status === 'open' && !nextStepByOpp.has(t.opportunity_id)) {
@@ -243,12 +269,21 @@ export function OpportunitiesView() {
     }
   }
 
-  const sources = Array.from(new Set(data.opportunities.map((o) => o.source)));
+  // Borrador vigente por oportunidad (R1b, columna «Atención
+  // humana»): los borradores vienen ordenados por creación
+  // DESC, así que el primero de cada oportunidad es el vigente.
+  const draftByOpp = new Map<string, DraftFull>();
+  for (const d of data.drafts) {
+    if (!draftByOpp.has(d.opportunity_id)) {
+      draftByOpp.set(d.opportunity_id, d);
+    }
+  }
 
-  const selected = selectedId ? data.opportunities.find((o) => o.id === selectedId) ?? null : null;
-  // Los borradores vienen ordenados por creación DESC: el primero
-  // de la oportunidad es el vigente.
-  const selectedDraft = selected ? data.drafts.find((d) => d.opportunity_id === selected.id) ?? null : null;
+  const sources = Array.from(new Set(data.opportunities.map((o) => o.source)));
+  const categories = Array.from(new Set(data.opportunities.map((o) => o.category)));
+
+  const selected = effectiveSelectedId ? data.opportunities.find((o) => o.id === effectiveSelectedId) ?? null : null;
+  const selectedDraft = selected ? draftByOpp.get(selected.id) ?? null : null;
   const selectedTasks = selected ? data.tasks.filter((t) => t.opportunity_id === selected.id) : [];
   const selectedAudit = selected ? (auditById[selected.id] ?? null) : null;
 
@@ -267,11 +302,17 @@ export function OpportunitiesView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Oportunidades</h1>
-        <p className="text-secondary">Oportunidades comerciales y alta manual.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Oportunidades</h1>
+          <p className="text-secondary">Centraliza, clasifica y supervisa las oportunidades comerciales</p>
+        </div>
+        <Button type="button" onClick={() => setShowCreate((v) => !v)} aria-expanded={showCreate}>
+          Nueva oportunidad
+        </Button>
       </div>
 
+      {showCreate && (
       <Card>
         <h2 className="text-base font-semibold">Nueva oportunidad (alta manual)</h2>
         {createFeedback && (
@@ -311,16 +352,31 @@ export function OpportunitiesView() {
               />
             </div>
           </div>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             <Button type="submit" disabled={creating}>
               {creating ? 'Creando…' : 'Crear oportunidad'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setShowCreate(false);
+                setCreateName('');
+                setCreateEmail('');
+                setCreateCompany('');
+                setCreateMessage('');
+                setCreateFeedback(null);
+              }}
+            >
+              Cancelar
             </Button>
           </div>
         </form>
       </Card>
+      )}
 
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_370px] items-start">
       <Card>
-        <h2 className="text-base font-semibold">Oportunidades</h2>
         <div className="mt-3">
           <FilterBar
             searchValue={search}
@@ -379,13 +435,42 @@ export function OpportunitiesView() {
               setStatusFilter('all');
               setPriorityFilter('all');
               setSourceFilter('all');
+              setCategoryFilter('all');
               setPage(0);
             }}
+            extra={
+              <Button type="button" variant="secondary" onClick={() => setShowMoreFilters((v) => !v)} aria-expanded={showMoreFilters}>
+                Más filtros
+              </Button>
+            }
           />
         </div>
+        {showMoreFilters && (
+          <div className="mt-3 flex flex-wrap gap-3 items-end">
+            <div>
+              <Label htmlFor="filter-category">Categoría</Label>
+              <select
+                id="filter-category"
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setPage(0);
+                }}
+                className="w-full px-3 py-2 text-sm bg-surface text-ink border border-border rounded-control"
+              >
+                <option value="all">Todas</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {categoryLabel(c)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
         <div className="mt-4">
           <Table
-            headers={['Contacto', 'Empresa', 'Categoría', 'Prioridad', 'Estado', 'Canal', 'Próximo paso']}
+            headers={['Oportunidad', 'Estado', 'Prioridad', 'Fuente', 'Agente', 'Atención humana', 'Próximo paso']}
             empty={pageItems.length === 0}
             emptyText={
               filtered.length === 0 && data.opportunities.length === 0
@@ -395,7 +480,9 @@ export function OpportunitiesView() {
           >
             {pageItems.map((o) => {
               const next = nextStepByOpp.get(o.id);
-              const isSelected = o.id === selectedId;
+              const draft = draftByOpp.get(o.id);
+              const needsAttention = draft?.status === 'pending_approval';
+              const isSelected = o.id === effectiveSelectedId;
               return (
                 <tr
                   key={o.id}
@@ -409,16 +496,26 @@ export function OpportunitiesView() {
                   }}
                   className={`cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary-subtle' : ''}`}
                 >
-                  <td className="px-3 py-2">{o.contact_name}</td>
-                  <td className="px-3 py-2">{o.company || '—'}</td>
-                  <td className="px-3 py-2">{categoryLabel(o.category)}</td>
                   <td className="px-3 py-2">
-                    <Badge variant={priorityVariant(o.priority)}>{priorityLabel(o.priority)}</Badge>
+                    <div className="font-semibold">{o.contact_name}</div>
+                    <div className="text-secondary">{o.company || '—'}</div>
+                    <div className="text-xs text-secondary">{categoryLabel(o.category)}</div>
                   </td>
                   <td className="px-3 py-2">
                     <Badge variant={statusVariant(o.status)}>{statusLabel(o.status)}</Badge>
                   </td>
+                  <td className="px-3 py-2">
+                    <Badge variant={priorityVariant(o.priority)}>{priorityLabel(o.priority)}</Badge>
+                  </td>
                   <td className="px-3 py-2">{channelLabel(o.source)}</td>
+                  <td className="px-3 py-2">{next ? next.agent_name || next.assigned_to : '—'}</td>
+                  <td className="px-3 py-2">
+                    {needsAttention ? (
+                      <Badge variant="warning">Atención humana requerida</Badge>
+                    ) : (
+                      <span className="text-secondary">Sin pendiente</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{next ? next.title : '—'}</td>
                 </tr>
               );
@@ -430,17 +527,40 @@ export function OpportunitiesView() {
         </div>
       </Card>
 
-      {selected && (
+      {selected ? (
         <DetailPanel
-          title={`${selected.contact_name}${selected.company ? ` (${selected.company})` : ''}`}
-          subtitle={`Categoría ${categoryLabel(selected.category)} · Prioridad ${priorityLabel(selected.priority)}`}
-          onClose={closeDetail}
+          variant="inline"
+          title={selected.contact_name}
+          subtitle={selected.company || '—'}
           footer={
             selectedDraft && selectedDraft.status === 'pending_approval' ? (
               <Link to="/aprobaciones">Revisar borrador en Aprobaciones</Link>
             ) : undefined
           }
         >
+          <div className="space-y-2 text-sm">
+            <p>
+              <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
+            </p>
+            <dl className="grid grid-cols-2 gap-2">
+              <div>
+                <dt className="text-secondary">Categoría</dt>
+                <dd>{categoryLabel(selected.category)}</dd>
+              </div>
+              <div>
+                <dt className="text-secondary">Prioridad</dt>
+                <dd>{priorityLabel(selected.priority)}</dd>
+              </div>
+              <div>
+                <dt className="text-secondary">Canal</dt>
+                <dd>{channelLabel(selected.source)}</dd>
+              </div>
+              <div>
+                <dt className="text-secondary">Puntaje</dt>
+                <dd>{selected.score}</dd>
+              </div>
+            </dl>
+          </div>
           <Tabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />
 
           {tab === 'resumen' && (
@@ -575,7 +695,12 @@ export function OpportunitiesView() {
             </div>
           )}
         </DetailPanel>
+      ) : (
+        <aside className="bg-surface border border-border rounded-card p-6">
+          <p className="text-secondary">Seleccioná una oportunidad para ver su detalle.</p>
+        </aside>
       )}
+      </div>
     </div>
   );
 }
