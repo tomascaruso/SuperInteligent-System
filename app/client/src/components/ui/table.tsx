@@ -28,8 +28,8 @@ export function Table({
             {headers.map((h) => (
               <th
                 key={h}
-                className={`text-left px-3 py-2 border-b border-border text-secondary font-medium ${
-                  scrollable ? '' : 'break-words'
+                className={`text-left py-2 border-b border-border text-secondary font-medium ${
+                  scrollable ? 'px-3' : 'px-2 break-words'
                 }`}
               >
                 {h}

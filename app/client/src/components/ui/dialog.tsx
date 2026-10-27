@@ -15,6 +15,11 @@ import { Button } from './button';
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Campos de formulario: el foco inicial al abrir va a uno de
+// estos, nunca al botón X de cierre (que está primero en el DOM).
+const FORM_FIELD =
+  'input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
+
 function isVisible(el: HTMLElement): boolean {
   if (el.offsetParent !== null) return true;
   return el.getClientRects().length > 0;
@@ -35,6 +40,16 @@ export function Dialog({
   const containerRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<Element | null>(null);
 
+  // R1f: onClose se guarda en un ref para que el efecto de abajo
+  // dependa SOLO de `open`. Antes dependía de [open, onClose] y
+  // onClose era una función nueva en cada render de la vista:
+  // cada letra tipeada en un campo controlado re-corria el
+  // efecto, su cleanup devolvía el foco al elemento previo y su
+  // temporizador reenfocaba el primer enfocable del contenedor,
+  // que es el botón X de cierre. Por eso tipear saltaba a la X.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
     previouslyFocusedRef.current = document.activeElement;
@@ -42,9 +57,15 @@ export function Dialog({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    // Foco inicial en el primer campo visible del diálogo.
+    // Foco inicial: primer campo de formulario visible; solo si
+    // no hay ninguno, el primer enfocable (nunca la X a priori).
     const timer = window.setTimeout(() => {
       if (!container) return;
+      const firstField = Array.from(container.querySelectorAll<HTMLElement>(FORM_FIELD)).find(isVisible);
+      if (firstField) {
+        firstField.focus();
+        return;
+      }
       const first = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).find(isVisible);
       if (first) first.focus();
     }, 0);
@@ -53,7 +74,7 @@ export function Dialog({
       if (!container) return;
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -85,7 +106,9 @@ export function Dialog({
         previous.focus();
       }
     };
-  }, [open, onClose]);
+    // Solo `open`: el cleanup (restaurar foco, quitar listener)
+    // corre al cerrar de verdad o desmontar, no en cada pulsación.
+  }, [open]);
 
   if (!open) return null;
 
