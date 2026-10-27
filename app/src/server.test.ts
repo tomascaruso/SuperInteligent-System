@@ -750,16 +750,31 @@ describe('cliente react /v2/ (fase 4: inicio)', () => {
     return readFileSync(new URL(`../client/dist/${match[0].replace('/v2/', '')}`, import.meta.url), 'utf8');
   }
 
+  // H1: la vista Inicio ya no usa /api/tasks, /api/drafts ni
+  // /api/executions (la sección "Acciones prioritarias" se eliminó
+  // por pedido del usuario: la vista pedida es la de la referencia
+  // y las tareas viven en la vista Tareas). Los marcadores se
+  // reemplazan por las APIs y los textos reales de H1, no se
+  // borran: el comportamiento nuevo está cubierto por h1.test.ts
+  // (API) y stages.test.ts (derivación de etapas).
   it('el JS del cliente referencia las APIs que alimenta la vista Inicio', async () => {
     const js = clientJs();
-    for (const path of ['/api/stats', '/api/tasks?status=open', '/api/drafts', '/api/executions', '/api/opportunities', '/api/audit']) {
+    for (const path of ['/api/stats', '/api/processes', '/api/agents', '/api/opportunities', '/api/audit', '/api/me']) {
       expect(js).toContain(path);
     }
   });
 
   it('el JS del cliente contiene los textos reales de la vista Inicio', async () => {
     const js = clientJs();
-    for (const text of ['Centro de operaciones', 'Acciones prioritarias', 'Actividad reciente', 'Sin acciones urgentes', 'Sin actividad comercial todavía']) {
+    for (const text of [
+      'Centro de operaciones',
+      'Supervisa los procesos y agentes de tu organización',
+      'Procesos en ejecución',
+      'Actividad reciente',
+      'Estado de los agentes',
+      'Orquestador',
+      'Sin actividad comercial todavía',
+    ]) {
       expect(js).toContain(text);
     }
   });

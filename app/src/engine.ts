@@ -27,6 +27,24 @@ export class LimitExceededError extends Error {
   }
 }
 
+// H1: un agente en pausa bloquea el ingreso. El error nombra al agente
+// y las rutas lo traducen a 409 con código `agent_paused` (no a 500).
+export class AgentPausedError extends Error {
+  agentId: string;
+  agentName: string;
+  constructor(agentId: string, agentName: string) {
+    super(`El agente ${agentName} está en pausa; el ingreso quedó bloqueado hasta que se reanude.`);
+    this.name = 'AgentPausedError';
+    this.agentId = agentId;
+    this.agentName = agentName;
+  }
+}
+
+// Roster del workflow opportunity.intake v1: los 5 agentes del catálogo.
+// Pausar cualquiera de ellos bloquea el ingreso completo (el pipeline
+// es una secuencia: ningún paso puede saltarse sin romper la corrida).
+const INTAKE_ROSTER = ['intake', 'qualification', 'response_proposal', 'follow_up', 'qa_policy'];
+
 export interface OpportunityRow {
   id: string;
   org_id: string;
@@ -247,7 +265,37 @@ export async function runIntake(
       nowIso(),
       executionId,
     );
+    // H1: la corrida exitosa guarda su oportunidad para la columna
+    // Cliente de Inicio (y para el backfill de corridas viejas, que
+    // la deriva de result_json). En fallo no hay oportunidad nueva.
+    const oppId = (result as { opportunity?: { id?: unknown } } | undefined)?.opportunity?.id;
+    if (status === 'done' && typeof oppId === 'string') {
+      await exec(db, 'UPDATE process_runs SET opportunity_id = ? WHERE execution_id = ?', oppId, executionId);
+    }
   };
+
+  // H1 — Pre-chequeo de pausa: ANTES de escribir cualquier dato de
+  // negocio (oportunidad, tarea, borrador, evento, auditoría). Solo se
+  // escriben la ejecución y la corrida fallidas (creadas arriba) más un
+  // paso 'intake' fallido, para que el intento bloqueado quede visible
+  // en Actividad y en Procesos. El error guarda el código
+  // `agent_paused:<id>` junto al texto legible para que la derivación
+  // de etapas (stages.ts) marque Recepción como pausada. Al reanudar,
+  // el flujo vuelve a funcionar sin más cambios. El worker pasa por
+  // acá también (usa runIntake), así que un job con un agente en pausa
+  // queda fallido con el mismo error, sin crear nada.
+  const pausedAgents = await queryAll<{ id: string; name: string }>(
+    db,
+    'SELECT id, name FROM agents WHERE paused = 1',
+  );
+  const blocked = pausedAgents.find((a) => INTAKE_ROSTER.includes(a.id));
+  if (blocked) {
+    const pausedError = new AgentPausedError(blocked.id, blocked.name);
+    const storedError = `${pausedError.message} (agent_paused:${blocked.id})`;
+    await step(db, executionId, 'intake', 'failed', undefined, storedError);
+    await finish('failed', undefined, storedError);
+    throw pausedError;
+  }
 
   try {
     const normalized = normalizeOpportunity(input);
