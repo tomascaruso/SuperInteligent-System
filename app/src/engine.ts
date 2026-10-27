@@ -56,6 +56,7 @@ export interface OpportunityRow {
   status: string;
   category: string;
   priority: string;
+  score: number | null;
   dedup_key: string;
   created_at: string;
   updated_at: string;
@@ -341,6 +342,12 @@ export async function runIntake(
         message: opp.message,
         source: opp.source,
       });
+      // A1, P1-1: el mensaje cambió y con él el puntaje. Se persiste
+      // junto a la clasificación ya calculada. Categoría y prioridad
+      // no se tocan en este camino, como antes. El objeto en memoria
+      // se actualiza también: es el que devuelve este camino.
+      await exec(db, 'UPDATE opportunities SET score = ? WHERE id = ?', classification.score, opp.id);
+      opp.score = classification.score;
       await step(db, executionId, 'classify', 'done', classification);
       const { task, draft } = await ensureTaskAndDraft(db, orgId, opp, classification, normalized, opts.actor);
       await step(db, executionId, 'next_action', 'done', { taskId: task.id });
@@ -366,7 +373,7 @@ export async function runIntake(
     const oppId = newId();
     await exec(
       db,
-      'INSERT INTO opportunities (id, org_id, contact_name, contact_email, company, message, source, status, category, priority, dedup_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO opportunities (id, org_id, contact_name, contact_email, company, message, source, status, category, priority, score, dedup_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       oppId,
       orgId,
       normalized.contactName,
@@ -377,6 +384,7 @@ export async function runIntake(
       'new',
       classification.category,
       classification.priority,
+      classification.score,
       key,
       now,
       now,

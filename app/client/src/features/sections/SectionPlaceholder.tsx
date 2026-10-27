@@ -10,7 +10,8 @@ import { Card } from '../../components/ui/card';
 export function SectionPlaceholder({ title, about }: { title: string; about: string }) {
   return (
     <div>
-      <h2 className="text-xl font-semibold mt-0">{title}</h2>
+      {/* A1, P3-4: la vista usaba h2 sin h1. */}
+      <h1 className="text-xl font-semibold mt-0">{title}</h1>
       <Card>
         <p className="text-secondary mt-0">{about}</p>
         <p className="text-secondary">

@@ -213,7 +213,9 @@ export function HomeView() {
   }, [load, reloadKey]);
 
   if (state === 'loading') {
-    return <p className="text-secondary">Cargando…</p>;
+    // A1, P3-2: este texto va directo sobre el fondo de página
+    // (#F7F8FC), donde el secundario da 4,48:1; usa tinta.
+    return <p className="text-ink">Cargando…</p>;
   }
 
   if (state === 'error' || !data) {

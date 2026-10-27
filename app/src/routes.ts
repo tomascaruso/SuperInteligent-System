@@ -603,13 +603,15 @@ export function registerRoutes(
 
   app.get('/api/opportunities', { preHandler: auth }, async (request) => {
     const user = getUser(request);
-    return {
-      opportunities: await queryAll<OpportunityRow>(
-        db,
-        'SELECT * FROM opportunities WHERE org_id = ? ORDER BY created_at DESC LIMIT 100',
-        user.orgId,
-      ),
-    };
+    const rows = await queryAll<OpportunityRow>(
+      db,
+      'SELECT * FROM opportunities WHERE org_id = ? ORDER BY created_at DESC LIMIT 100',
+      user.orgId,
+    );
+    // A1, P1-1: el backfill de arranque calcula el puntaje de las filas
+    // viejas, así que score no debería ser NULL; el ?? 0 es solo defensa
+    // (0 es además el piso legítimo del clasificador).
+    return { opportunities: rows.map((o) => ({ ...o, score: o.score ?? 0 })) };
   });
 
   app.get('/api/opportunities/:id', { preHandler: auth }, async (request, reply) => {
@@ -625,7 +627,7 @@ export function registerRoutes(
       await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
       return;
     }
-    return { opportunity: opp };
+    return { opportunity: { ...opp, score: opp.score ?? 0 } };
   });
 
   // ---------- Ingesta por webhook (firma HMAC + idempotencia) ----------

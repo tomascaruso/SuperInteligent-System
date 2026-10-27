@@ -131,7 +131,11 @@ export function Dialog({
           <h2 id={titleId} className="text-base font-semibold">
             {title}
           </h2>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Cerrar diálogo" className="px-2">
+          {/* A1, P3-3: área de toque 44×44 (recomendación táctil;
+              el mínimo WCAG 24 px ya se cumplía). min-h/min-w
+              dominan al padding del tamaño sm sin romper el
+              encabezado: el botón solo crece, no empuja el título. */}
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Cerrar diálogo" className="px-2 min-h-11 min-w-11">
             <X size={18} aria-hidden="true" />
           </Button>
         </div>

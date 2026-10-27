@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
+import { classifyOpportunity } from './domain.js';
 
 // ---------- Interfaz de base de datos (asíncrona, agnóstica del motor) ----------
 //
@@ -79,6 +80,7 @@ const SCHEMA = `
       status TEXT NOT NULL,
       category TEXT NOT NULL,
       priority TEXT NOT NULL,
+      score INTEGER,
       dedup_key TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -298,6 +300,7 @@ export async function initSchema(db: Db): Promise<void> {
   await ensureProcessOpportunityBackfill(db);
   await ensureAgentCatalog(db);
   await ensureAgentPauseColumn(db);
+  await ensureOpportunityScoreColumn(db);
   await ensureDraftSnapshots(db);
   await ensurePolicyCatalog(db);
 }
@@ -450,6 +453,52 @@ export async function ensureAgentPauseColumn(db: Db): Promise<void> {
   );
   if (!hasColumn) {
     await exec(db, 'ALTER TABLE agents ADD COLUMN paused INTEGER DEFAULT 0');
+  }
+}
+
+// ---------- Puntaje de oportunidad (A1, corrección P1-1) ----------
+//
+// El clasificador siempre calculó el puntaje (ver domain.ts) y de él
+// derivaba la prioridad, pero no se persistía ni lo devolvía la API:
+// el panel de Oportunidades mostraba el campo vacío. Migración con el
+// patrón C4/C5: probar la columna y ALTER solo si falta. La columna es
+// nullable a propósito: es el marcador de "fila vieja sin puntaje".
+// El backfill recalcula con las mismas reglas deterministas sobre los
+// campos guardados (mensaje, empresa, correo); no inventa nada: una
+// fila vieja recibe exactamente el puntaje que su alta habría calculado.
+// En bases nuevas la columna ya viene del DDL y el backfill no toca
+// nada (ninguna fila con score NULL).
+export async function ensureOpportunityScoreColumn(db: Db): Promise<void> {
+  const hasColumn = await queryOne<Record<string, unknown>>(
+    db,
+    'SELECT score FROM opportunities LIMIT 0',
+  ).then(
+    () => true,
+    () => false,
+  );
+  if (!hasColumn) {
+    await exec(db, 'ALTER TABLE opportunities ADD COLUMN score INTEGER');
+  }
+  const rows = await queryAll<{
+    id: string;
+    contact_name: string;
+    contact_email: string;
+    company: string;
+    message: string;
+    source: string;
+  }>(
+    db,
+    'SELECT id, contact_name, contact_email, company, message, source FROM opportunities WHERE score IS NULL',
+  );
+  for (const row of rows) {
+    const { score } = classifyOpportunity({
+      contactName: row.contact_name,
+      contactEmail: row.contact_email,
+      company: row.company,
+      message: row.message,
+      source: row.source,
+    });
+    await exec(db, 'UPDATE opportunities SET score = ? WHERE id = ?', score, row.id);
   }
 }
 
