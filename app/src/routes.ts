@@ -315,6 +315,10 @@ export function registerRoutes(
     png: 'image/png',
     ico: 'image/x-icon',
   };
+  // Fase 3 — /v2 sin barra final redirige a /v2/ (antes daba 404).
+  app.get('/v2', async (_req, reply) => {
+    void reply.redirect('/v2/', 302);
+  });
   app.get('/v2/', async (_req, reply) => {
     try {
       void reply.type('text/html').send(readFileSync(new URL('index.html', clientDir)));

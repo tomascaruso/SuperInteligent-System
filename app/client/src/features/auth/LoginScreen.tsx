@@ -13,14 +13,15 @@ import {
   sendContact,
 } from '../../lib/api';
 
-// Pantalla de acceso en React (Fase 2): misma composición y mismos
-// flujos que la pantalla vanilla actual (dos paneles, marca SIS
-// tipográfica, beneficios, mini-dashboard estático de venta,
-// login, invitación, contacto, cuenta demo visible). Sin botón
-// Google, sin recuperación y sin «Recordarme»: no existen en el
-// backend. Tras un login o una invitación exitosa, se redirige a
-// / (la app vanilla, misma sesión por cookie): la shell completa
-// es la Fase 3.
+// Pantalla de acceso en React (Fase 2, puente actualizado en la
+// Fase 3): misma composición y mismos flujos que la pantalla
+// vanilla actual (dos paneles, marca SIS tipográfica, beneficios,
+// mini-dashboard estático de venta, login, invitación, contacto,
+// cuenta demo visible). Sin botón Google, sin recuperación y sin
+// «Recordarme»: no existen en el backend. Tras un login o una
+// invitación exitosa, se avisa al padre con onAuthenticated (la
+// App se queda en /v2/, ruta /#/inicio); sin ese callback, se
+// mantiene el puente original a / (la app vanilla).
 
 const BENEFITS = [
   { icon: Users, title: 'Agentes especializados', text: 'Cada tarea, el agente ideal.' },
@@ -87,7 +88,7 @@ function messageOf(e: unknown): string {
   return e instanceof ApiError ? e.message : 'No se pudo completar la acción. Probá de nuevo más tarde.';
 }
 
-export function LoginScreen() {
+export function LoginScreen({ onAuthenticated }: { onAuthenticated?: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -134,9 +135,9 @@ export function LoginScreen() {
     setLoginLoading(true);
     try {
       await login(email, password);
-      // Puente Fase 2: la app completa sigue siendo la vanilla en /,
-      // con la misma sesión por cookie.
-      window.location.href = '/';
+      // Fase 3: quedarse en /v2/ (el padre navega a /#/inicio).
+      if (onAuthenticated) onAuthenticated();
+      else window.location.href = '/';
     } catch (err) {
       setLoginError(messageOf(err));
     } finally {
@@ -150,7 +151,8 @@ export function LoginScreen() {
     setInvLoading(true);
     try {
       await acceptInvitation(invToken, invName, invPassword);
-      window.location.href = '/';
+      if (onAuthenticated) onAuthenticated();
+      else window.location.href = '/';
     } catch (err) {
       setInvError(messageOf(err));
     } finally {
