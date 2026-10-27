@@ -386,3 +386,140 @@ textarea.field {
 .status-down .status-dot {
   background-color: var(--color-danger);
 }
+
+/* ---------- Acceso (diagnóstico login): marca, beneficios y vista
+   previa ilustrativa. Solo tokens existentes; la vista previa es
+   una composición estática de venta, no datos reales. ---------- */
+.login-brandmark {
+  margin: 0;
+  font-size: var(--text-display-size);
+  font-weight: var(--text-display-weight);
+  color: var(--color-primary);
+}
+
+.login-brandname {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-card-title-size);
+  font-weight: var(--text-card-title-weight);
+}
+
+.login-brandby {
+  margin: 0;
+  font-size: var(--text-label-size);
+  color: var(--color-text-muted);
+}
+
+.login-tagline {
+  color: var(--color-text-secondary);
+}
+
+.login-benefits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+  margin: var(--space-4) 0;
+}
+
+.login-benefits li span {
+  display: block;
+  font-size: var(--text-label-size);
+  color: var(--color-text-secondary);
+}
+
+.login-preview {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  background-color: var(--color-canvas);
+}
+
+.login-preview-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-label-size);
+}
+
+.login-preview-brand {
+  font-weight: var(--text-label-weight);
+  color: var(--color-primary);
+}
+
+.login-preview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+
+.login-preview-stats > div {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-2);
+  text-align: center;
+}
+
+.login-preview-stats strong {
+  display: block;
+  font-size: var(--text-card-title-size);
+}
+
+.login-preview-stats span {
+  font-size: var(--text-caption-size);
+  color: var(--color-text-muted);
+}
+
+.login-preview-charts {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.login-preview-charts svg:first-child {
+  flex: 1;
+  min-width: 0;
+  height: 80px;
+}
+
+.login-preview-charts svg:last-child {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.login-preview-table {
+  margin-top: var(--space-3);
+  font-size: var(--text-caption-size);
+}
+
+.login-preview-table > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.login-closing {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-secondary);
+}
+
+.login-closing-strong {
+  margin: var(--space-1) 0 0;
+  font-weight: var(--text-label-weight);
+  color: var(--color-primary);
+}
+
+.password-wrap {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.password-wrap .field {
+  flex: 1;
+  min-width: 0;
+}

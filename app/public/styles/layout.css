@@ -38,6 +38,32 @@
   justify-content: flex-end;
 }
 
+/* ---------- Acceso (diagnóstico login): dos paneles en escritorio,
+   formulario primero y marca compacta en tablet/móvil. ---------- */
+.login-layout {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 1023px) {
+  .login-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .login-form {
+    order: -1;
+  }
+
+  .login-benefits,
+  .login-preview,
+  .login-closing,
+  .login-closing-strong {
+    display: none;
+  }
+}
+
 /* ---------- Layout principal ---------- */
 .layout {
   display: grid;

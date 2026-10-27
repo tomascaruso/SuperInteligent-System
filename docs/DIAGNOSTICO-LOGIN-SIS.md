@@ -142,9 +142,10 @@ depender solo del color.
   con datos falsos). Cada uno está marcado NO VA arriba.
 - La vista previa es ilustrativa de venta: el riesgo es que se
   confunda con datos reales. Mitigación: composición estática,
-  no interactiva, identificada como ilustrativa, sin conexión a
-  APIs ni enlaces a vistas; nunca presenta sus números como
-  datos del visitante ni de la demo.
+  no interactiva, sin conexión a APIs ni enlaces a vistas;
+  nunca presenta sus números como datos del visitante ni de la
+  demo. Sin leyenda visible «Vista ilustrativa», por decisión
+  de Tomás (26-oct-2026).
 
 ## Plan de implementación (para después, sin ejecutar)
 

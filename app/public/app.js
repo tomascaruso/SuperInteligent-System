@@ -696,13 +696,32 @@ $('btn-login').onclick = () => withLoading($('btn-login'), async () => {
   }
 });
 
-// Contacto (F3-DEMO): el formulario solo se muestra si el servidor tiene
-// el envío configurado. El correo de destino vive solo en el servidor
-// (variables de entorno) y nunca aparece en esta página. Sin configuración,
-// la sección queda oculta y no se ofrece un formulario que no puede enviar.
+// Login (diagnóstico): mostrar/ocultar contraseña. Solo cambia el tipo
+// del campo; el mecanismo de autenticación no se toca.
+$('btn-toggle-password').onclick = () => {
+  const field = $('password');
+  const show = field.type === 'password';
+  field.type = show ? 'text' : 'password';
+  const btn = $('btn-toggle-password');
+  btn.textContent = show ? 'Ocultar' : 'Mostrar';
+  btn.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+  btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+};
+
+// Contacto (F3-DEMO + diagnóstico login): el formulario solo se ofrece
+// si el servidor tiene el envío configurado. El correo de destino vive
+// solo en el servidor (variables de entorno) y nunca aparece en esta
+// página. Sin configuración, no se muestra ni el enlace ni el formulario.
+// Con configuración, el enlace revela el formulario (antes se mostraba
+// directo); el envío sigue siendo el mismo.
 api('/api/contact/status').then((s) => {
-  if (s.enabled) $('contact-section').classList.remove('hidden');
+  if (s.enabled) $('contact-link-wrap').classList.remove('hidden');
 }).catch(() => {});
+
+$('btn-show-contact').onclick = () => {
+  $('contact-section').classList.remove('hidden');
+  $('contact-name').focus();
+};
 
 $('btn-contact').onclick = () => withLoading($('btn-contact'), async () => {
   // Red de seguridad: si el servidor tarda más de 30 s, se corta la

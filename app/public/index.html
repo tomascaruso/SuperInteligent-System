@@ -14,30 +14,64 @@
 <p>Orquestador de operaciones comerciales — demo con datos ficticios.</p>
 <p id="error" class="alert alert-error" role="alert"></p>
 
-<section id="auth-section" class="card">
-  <h2>Qué hace</h2>
-  <p>Los contactos que llegan a una agencia se pierden y los seguimientos quedan sin hacer. SuperInteligent System coordina ese trabajo para que ningún contacto quede sin respuesta.</p>
-  <p>Para agencias y consultoras B2B. Un servicio de PENSIA.</p>
-  <ol>
-    <li>Entra un contacto.</li>
-    <li>El sistema lo clasifica, crea la tarea con su vencimiento y redacta el borrador de respuesta.</li>
-    <li>Una persona aprueba antes de que pase nada: el sistema no envía mensajes solo.</li>
-  </ol>
-  <h2>Acceso</h2>
-  <div class="row">
+<section id="auth-section" class="login-layout">
+  <div class="card login-brand">
+    <p class="login-brandmark">SIS</p>
+    <p class="login-brandname">SuperInteligent System</p>
+    <p class="login-brandby">by PENSIA</p>
+    <h2>Inteligencia artificial que trabaja para tu negocio</h2>
+    <p class="login-tagline">Orquesta agentes, automatiza procesos y toma el control de tus operaciones con una plataforma diseñada para empresas que quieren avanzar.</p>
+    <ul class="login-benefits">
+      <li><strong>Agentes especializados</strong><span>Cada tarea, el agente ideal.</span></li>
+      <li><strong>Procesos automatizados</strong><span>Menos tareas manuales, más resultados.</span></li>
+      <li><strong>Control y trazabilidad</strong><span>Visibilidad total en cada paso.</span></li>
+      <li><strong>Adaptable a tu negocio</strong><span>Configura, integra y escala.</span></li>
+    </ul>
+    <div class="login-preview">
+      <div class="login-preview-inner" aria-hidden="true">
+        <div class="login-preview-top"><span class="login-preview-brand">SIS</span><span>Bienvenido, Juan</span></div>
+        <div class="login-preview-stats">
+          <div><strong>24</strong><span>Oportunidades activas</span></div>
+          <div><strong>18</strong><span>Tareas en curso</span></div>
+          <div><strong>6</strong><span>Aprobaciones pendientes</span></div>
+          <div><strong>12</strong><span>Procesos completados hoy</span></div>
+        </div>
+        <div class="login-preview-charts">
+          <svg viewBox="0 0 200 80" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,60 40,45 80,50 120,30 160,35 200,15" fill="none" stroke="#4f46e5" stroke-width="2" /><polyline points="0,68 40,58 80,62 120,48 160,52 200,38" fill="none" stroke="#a5b4fc" stroke-width="2" /></svg>
+          <svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="26" fill="none" stroke="#e2e8f0" stroke-width="10" /><circle cx="40" cy="40" r="26" fill="none" stroke="#4f46e5" stroke-width="10" stroke-dasharray="60 103" transform="rotate(-90 40 40)" /><circle cx="40" cy="40" r="26" fill="none" stroke="#22c55e" stroke-width="10" stroke-dasharray="35 128" stroke-dashoffset="-60" transform="rotate(-90 40 40)" /></svg>
+        </div>
+        <div class="login-preview-table">
+          <div><span>Proceso / Cliente</span><span>Estado</span></div>
+          <div><span>Oportunidad comercial · TechSolutions</span><span>En proceso</span></div>
+          <div><span>Seguimiento de cliente · Global Services</span><span>En proceso</span></div>
+          <div><span>Consulta de soporte · Industrias del Sur</span><span>En proceso</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="login-closing">Tecnología sofisticada explicada con simplicidad empresarial.</p>
+    <p class="login-closing-strong">Menos tareas. Más sistema.</p>
+  </div>
+  <div class="card login-form">
+    <p class="login-brandmark">SIS</p>
+    <p class="login-brandname">SuperInteligent System</p>
+    <p class="login-brandby">by PENSIA</p>
+    <h2>Bienvenido</h2>
+    <p class="text-secondary">Iniciá sesión para acceder a tu sistema de agentes inteligentes.</p>
     <div class="field-wrap">
-      <label class="field-label" for="email">Correo</label>
+      <label class="field-label" for="email">Correo electrónico</label>
       <input id="email" class="field" />
     </div>
     <div class="field-wrap">
-      <label class="field-label" for="password">Contraseña (mín. 8 caracteres)</label>
-      <input id="password" class="field" type="password" />
+      <label class="field-label" for="password">Contraseña</label>
+      <div class="password-wrap">
+        <input id="password" class="field" type="password" />
+        <button id="btn-toggle-password" class="btn btn-secondary" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <button id="btn-login" class="btn btn-primary">Entrar</button>
-    <button id="btn-show-invitation" class="btn btn-secondary">Tengo una invitación</button>
-  </div>
+    <div class="row">
+      <button id="btn-login" class="btn btn-primary">Iniciar sesión</button>
+      <button id="btn-show-invitation" class="btn btn-secondary">Tengo una invitación</button>
+    </div>
   <div id="invitation-section" class="hidden">
     <p class="text-muted">PENSIA da de alta a cada empresa con una invitación: sin invitación no se puede crear una organización. Pegá el código que recibiste para crear la tuya.</p>
     <div class="row">
@@ -59,6 +93,7 @@
     </div>
   </div>
   <p>Cuenta de demostración: <code>demo@agenciamartin.demo</code> / <code>Demo1234!</code>.</p>
+  <p id="contact-link-wrap" class="text-muted hidden">¿No tenés una cuenta? <button id="btn-show-contact" class="btn btn-ghost" type="button">Contactanos</button></p>
   <div id="contact-section" class="hidden">
     <h2>Quiero una demo para mi empresa</h2>
     <p class="text-muted">Contanos quién sos y qué necesitás; PENSIA te responde.</p>
@@ -90,6 +125,7 @@
       <button id="btn-contact" class="btn btn-primary">Enviar mensaje</button>
     </div>
     <p id="contact-feedback" class="alert" aria-live="polite"></p>
+  </div>
   </div>
 </section>
 
