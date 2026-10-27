@@ -50,7 +50,7 @@ console.log(`F2-AI (${set.version}) con proveedor: ${ai.provider}`);
 console.log('id | esperado | reglas | IA | acierto IA');
 for (const row of result.rows) {
   const aiText = row.aiFailed
-    ? 'FALLO (sin respuesta)'
+    ? `FALLO (${row.aiError ?? 'sin detalle'})`
     : `${row.ai!.category}/${row.ai!.priority}`;
   console.log(
     `${row.id} | ${row.expected.category}/${row.expected.priority} | ${row.rules.category}/${row.rules.priority} | ${aiText} | ${row.aiMatch ? 'sí' : 'no'}`,

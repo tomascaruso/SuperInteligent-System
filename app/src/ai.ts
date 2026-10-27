@@ -52,8 +52,8 @@ export function resolveAiConfig(
   if (provider === 'gemini') {
     const apiKey = (env.GEMINI_API_KEY ?? '').trim();
     if (!apiKey) return null;
-    const model = (env.GEMINI_MODEL ?? 'gemini-2.0-flash').trim();
-    return { provider, apiKey, model: model || 'gemini-2.0-flash' };
+    const model = (env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite').trim();
+    return { provider, apiKey, model: model || 'gemini-3.1-flash-lite' };
   }
   // Proveedor desconocido: fail-closed, no se inventa un adaptador.
   return null;
