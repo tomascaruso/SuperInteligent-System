@@ -67,6 +67,9 @@ export interface StatsResponse {
   openTasks: number;
   pendingDrafts: number;
   failedExecutions: number;
+  // H1: conteos de procesos para las tarjetas de Inicio.
+  runningProcesses: number;
+  doneProcesses: number;
   createdToday?: number;
 }
 
@@ -180,6 +183,94 @@ export function getExecutions(): Promise<{ executions: ExecutionSummary[] }> {
 
 export function getAudit(): Promise<{ audit: AuditEntry[] }> {
   return request<{ audit: AuditEntry[] }>('/api/audit');
+}
+
+// H1 — Inicio: agentes con estado derivado, procesos y detalle con
+// etapas. Los shapes copian los contratos reales de routes.ts.
+export type AgentStatusValue = 'paused' | 'busy' | 'available';
+
+export interface AgentStatus {
+  id: string;
+  name: string;
+  description: string;
+  steps: string[];
+  paused: boolean;
+  openTasks: number;
+  status: AgentStatusValue;
+}
+
+export function getAgents(): Promise<{ agents: AgentStatus[] }> {
+  return request<{ agents: AgentStatus[] }>('/api/agents');
+}
+
+export function setAgentPaused(id: string, paused: boolean): Promise<{ agent: AgentStatus }> {
+  return request<{ agent: AgentStatus }>(`/api/agents/${encodeURIComponent(id)}/paused`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paused }),
+  });
+}
+
+export interface ProcessSummary {
+  id: string;
+  org_id: string;
+  workflow: string;
+  workflow_version: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  execution: { id: string; status: string | null } | null;
+  opportunity: { contact_name: string | null; company: string | null } | null;
+}
+
+export function getProcesses(): Promise<{ processes: ProcessSummary[] }> {
+  return request<{ processes: ProcessSummary[] }>('/api/processes');
+}
+
+export type StageStatus = 'pending' | 'done' | 'failed' | 'rejected' | 'paused';
+export type StageId = 'recepcion' | 'analisis' | 'validacion' | 'aprobacion' | 'resultado';
+
+export interface StageStep {
+  step: string;
+  label: string;
+  status: 'done' | 'failed' | 'pending';
+}
+
+export interface StageCheck {
+  id: string;
+  label: string;
+  pass: boolean;
+  detail: string;
+}
+
+export interface Stage {
+  id: StageId;
+  name: string;
+  status: StageStatus;
+  agent: { id: string; name: string } | null;
+  agentLabel: string;
+  detail: string;
+  steps: StageStep[];
+  checks: StageCheck[];
+}
+
+export interface ProcessDetail {
+  process: ProcessSummary & { opportunity_id?: string | null };
+  execution: {
+    id: string;
+    workflow: string;
+    workflow_version: string;
+    status: string;
+    error: string | null;
+    created_at: string;
+    updated_at: string;
+  } | null;
+  stages: Stage[];
+  currentStageId: StageId;
+  opportunity: { id: string; contact_name: string; company: string; status: string } | null;
+}
+
+export function getProcessDetail(id: string): Promise<ProcessDetail> {
+  return request<ProcessDetail>(`/api/processes/${encodeURIComponent(id)}`);
 }
 
 // Detalle completo de oportunidad, tarea y borrador (R1): los

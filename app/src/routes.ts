@@ -27,7 +27,8 @@ import {
   sendContactViaRelay,
   type ContactConfig,
 } from './contact.js';
-import { LimitExceededError, enqueueIntakeJob, runIntake, type JobRow, type OpportunityRow } from './engine.js';
+import { AgentPausedError, LimitExceededError, enqueueIntakeJob, runIntake, type JobRow, type OpportunityRow } from './engine.js';
+import { deriveStages, type Stage } from './stages.js';
 
 // C7: cookie de sesión httpOnly. Secure solo en producción: en local se
 // sirve por HTTP y con Secure el navegador no la guardaría. SameSite=Lax
@@ -100,7 +101,18 @@ interface AgentRow {
   description: string;
   steps_json: string;
   sort_order: number;
+  paused: number | null;
   created_at: string;
+}
+
+// H1: estado derivado de un agente. Pausado manda sobre todo (flag
+// manual del admin); si no, ocupado si tiene tareas abiertas (la
+// señal real disponible: los agentes no son trabajadores de fondo,
+// así que no hay "en curso" persistente); si no, disponible.
+function agentStatus(paused: boolean, openTasks: number): 'paused' | 'busy' | 'available' {
+  if (paused) return 'paused';
+  if (openTasks > 0) return 'busy';
+  return 'available';
 }
 
 interface DraftRow {
@@ -156,6 +168,7 @@ interface ProcessRunRow {
   workflow_version: string;
   status: string;
   execution_id: string;
+  opportunity_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -555,6 +568,13 @@ export function registerRoutes(
         await reply.code(429).send({ error: 'limit_exceeded', message: 'Límite diario de oportunidades alcanzado' });
         return;
       }
+      // H1: un agente en pausa bloquea el ingreso con 409 (conflicto
+      // de estado), no con 500. No se creó oportunidad, tarea ni
+      // borrador; la ejecución y la corrida fallidas quedan visibles.
+      if (err instanceof AgentPausedError) {
+        await reply.code(409).send({ error: 'agent_paused', message: err.message });
+        return;
+      }
       throw err;
     }
   });
@@ -656,6 +676,13 @@ export function registerRoutes(
     } catch (err) {
       if (err instanceof LimitExceededError) {
         await reply.code(429).send({ error: 'limit_exceeded', message: 'Límite diario de oportunidades alcanzado' });
+        return;
+      }
+      // H1: igual que el alta manual. No se guarda clave de
+      // idempotencia del intento bloqueado: al reanudar, el mismo
+      // webhook vuelve a ingresar sin quedar marcado como duplicado.
+      if (err instanceof AgentPausedError) {
+        await reply.code(409).send({ error: 'agent_paused', message: err.message });
         return;
       }
       throw err;
@@ -942,11 +969,22 @@ export function registerRoutes(
       return;
     }
     const input = JSON.parse(execution.input_json) as OpportunityInput;
-    const result = await runIntake(db, user.orgId, input, {
-      actor: user.email,
-      maxOpportunitiesPerDay: opts.maxOpportunitiesPerDay,
-      retryOf: rootId,
-    });
+    let result;
+    try {
+      result = await runIntake(db, user.orgId, input, {
+        actor: user.email,
+        maxOpportunitiesPerDay: opts.maxOpportunitiesPerDay,
+        retryOf: rootId,
+      });
+    } catch (err) {
+      // H1: reintentar con un agente en pausa también se bloquea
+      // con 409, igual que el ingreso nuevo.
+      if (err instanceof AgentPausedError) {
+        await reply.code(409).send({ error: 'agent_paused', message: err.message });
+        return;
+      }
+      throw err;
+    }
     await audit(db, user.orgId, user.email, 'execution.retried', 'execution', id, {
       newExecutionId: result.executionId,
     });
@@ -973,16 +1011,74 @@ export function registerRoutes(
   });
 
   // Registry de agentes (C4): global, como el de workflows; con auth.
+  // H1: suma el estado derivado (paused/busy/available), el flag de
+  // pausa y las tareas abiertas por agente. Los campos de C4 no
+  // cambian: esto es aditivo.
   app.get('/api/agents', { preHandler: auth }, async () => {
+    // Conteos en consulta agrupada separada, no en subconsulta
+    // correlacionada: pg-mem (tests de Postgres) no resuelve la
+    // referencia externa, igual que pasó en C3 con NOT EXISTS.
     const rows = await queryAll<AgentRow>(db, 'SELECT * FROM agents ORDER BY sort_order ASC');
+    const counts = await queryAll<{ agent_id: string; c: number }>(
+      db,
+      "SELECT agent_id, COUNT(*) AS c FROM tasks WHERE status = 'open' GROUP BY agent_id",
+    );
+    const openByAgent = new Map(counts.map((c) => [c.agent_id, Number(c.c ?? 0)]));
     return {
-      agents: rows.map((a) => ({
-        id: a.id,
-        name: a.name,
-        description: a.description,
-        steps: JSON.parse(a.steps_json) as string[],
-      })),
+      agents: rows.map((a) => {
+        const paused = Number(a.paused ?? 0) === 1;
+        const openTasks = openByAgent.get(a.id) ?? 0;
+        return {
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          steps: JSON.parse(a.steps_json) as string[],
+          paused,
+          openTasks,
+          status: agentStatus(paused, openTasks),
+        };
+      }),
     };
+  });
+
+  // H1: pausar/reanudar un agente (solo admin, como aprobar y
+  // reintentar). La pausa es global (el catálogo es global): vale
+  // para todas las organizaciones. El cambio queda en auditoría con
+  // el agente y el valor. Errores: 400 body inválido, 403 member,
+  // 404 agente inexistente.
+  app.patch('/api/agents/:id/paused', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
+    const body = parse(z.object({ paused: z.boolean() }), request.body, reply);
+    if (!body) return;
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const row = await queryOne<AgentRow>(db, 'SELECT * FROM agents WHERE id = ?', id);
+    if (!row) {
+      await reply.code(404).send({ error: 'not_found', message: 'Agente no encontrado' });
+      return;
+    }
+    await exec(db, 'UPDATE agents SET paused = ? WHERE id = ?', body.paused ? 1 : 0, id);
+    await audit(db, user.orgId, user.email, body.paused ? 'agent.paused' : 'agent.resumed', 'agent', id, {
+      paused: body.paused,
+    });
+    const updated = (await queryOne<AgentRow>(db, 'SELECT * FROM agents WHERE id = ?', id))!;
+    const openRow = await queryOne<{ c: number }>(
+      db,
+      "SELECT COUNT(*) AS c FROM tasks WHERE agent_id = ? AND status = 'open'",
+      id,
+    );
+    const paused = Number(updated.paused ?? 0) === 1;
+    const openTasks = Number(openRow?.c ?? 0);
+    await reply.send({
+      agent: {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        steps: JSON.parse(updated.steps_json) as string[],
+        paused,
+        openTasks,
+        status: agentStatus(paused, openTasks),
+      },
+    });
   });
 
   // Registry de políticas (C6): global, con auth. Los valores vigentes
@@ -1017,12 +1113,21 @@ export function registerRoutes(
   app.get('/api/processes', { preHandler: auth }, async (request) => {
     const user = getUser(request);
     // Columnas explícitas: pr.* duplicaría execution_id con el alias del JOIN.
-    const rows = await queryAll<ProcessRunRow & { execution_id: string | null; execution_status: string | null }>(
+    // H1: la oportunidad vinculada (por el JOIN barato y portable) da la
+    // columna Cliente real de Inicio; sin vínculo, opportunity es null
+    // y la UI muestra "—". La etapa actual no va en la lista: se deriva
+    // en el detalle (con pasos, borrador y tarea), y la vista Inicio
+    // carga el detalle solo de las filas que muestra (máx. 8).
+    const rows = await queryAll<
+      ProcessRunRow & { execution_id: string | null; execution_status: string | null; opp_contact: string | null; opp_company: string | null }
+    >(
       db,
       `SELECT pr.id, pr.org_id, pr.workflow, pr.workflow_version, pr.status,
               pr.created_at, pr.updated_at,
-              e.id AS execution_id, e.status AS execution_status
+              e.id AS execution_id, e.status AS execution_status,
+              o.contact_name AS opp_contact, o.company AS opp_company
        FROM process_runs pr LEFT JOIN executions e ON e.id = pr.execution_id
+       LEFT JOIN opportunities o ON o.id = pr.opportunity_id
        WHERE pr.org_id = ? ORDER BY pr.created_at DESC LIMIT 100`,
       user.orgId,
     );
@@ -1036,6 +1141,10 @@ export function registerRoutes(
         created_at: r.created_at,
         updated_at: r.updated_at,
         execution: r.execution_id ? { id: r.execution_id, status: r.execution_status } : null,
+        opportunity:
+          r.opp_contact !== null || r.opp_company !== null
+            ? { contact_name: r.opp_contact, company: r.opp_company }
+            : null,
       })),
     };
   });
@@ -1059,7 +1168,82 @@ export function registerRoutes(
       run.execution_id,
       user.orgId,
     );
-    return { process: run, execution: execution ?? null };
+    // H1: etapas derivadas (campo aditivo `stages`; el contrato
+    // anterior { process, execution } no cambia). La oportunidad se
+    // resuelve por opportunity_id y, si la corrida es anterior a H1
+    // y el backfill no la cubrió, parseando result_json en código.
+    let opportunityId: string | null = run.opportunity_id ?? null;
+    if (!opportunityId && execution?.result_json) {
+      try {
+        const parsed = JSON.parse(execution.result_json) as { opportunity?: { id?: unknown } };
+        if (typeof parsed.opportunity?.id === 'string') opportunityId = parsed.opportunity.id;
+      } catch {
+        opportunityId = null;
+      }
+    }
+    const opportunity = opportunityId
+      ? await queryOne<OpportunityRow>(db, 'SELECT * FROM opportunities WHERE id = ? AND org_id = ?', opportunityId, user.orgId)
+      : undefined;
+    const steps = execution
+      ? await queryAll<{ step: string; status: string }>(
+          db,
+          'SELECT step, status FROM execution_steps WHERE execution_id = ? ORDER BY created_at ASC',
+          execution.id,
+        )
+      : [];
+    const draft = opportunity
+      ? await queryOne<{ status: string; source_message: string | null; created_at: string }>(
+          db,
+          'SELECT status, source_message, created_at FROM drafts WHERE org_id = ? AND opportunity_id = ? ORDER BY created_at DESC LIMIT 1',
+          user.orgId,
+          opportunity.id,
+        )
+      : undefined;
+    const openTask = opportunity
+      ? await queryOne<{ title: string }>(
+          db,
+          "SELECT title FROM tasks WHERE org_id = ? AND opportunity_id = ? AND status = 'open' ORDER BY created_at ASC LIMIT 1",
+          user.orgId,
+          opportunity.id,
+        )
+      : undefined;
+    const policies = await loadPolicies();
+    const agentRows = await queryAll<{ id: string; name: string }>(db, 'SELECT id, name FROM agents');
+    const agentNames = Object.fromEntries(agentRows.map((a) => [a.id, a.name]));
+    const derivation = deriveStages({
+      steps,
+      runStatus: run.status,
+      executionError: execution?.error ?? null,
+      opportunity: opportunity
+        ? {
+            status: opportunity.status,
+            contact_name: opportunity.contact_name,
+            contact_email: opportunity.contact_email,
+            company: opportunity.company,
+            message: opportunity.message,
+            category: opportunity.category,
+            priority: opportunity.priority,
+          }
+        : null,
+      draft: draft ?? null,
+      openTaskTitle: openTask?.title ?? null,
+      expiryMs: draftExpiryMs(policies),
+      agentNames,
+    });
+    return {
+      process: run,
+      execution: execution ?? null,
+      stages: derivation.stages as Stage[],
+      currentStageId: derivation.currentStageId,
+      opportunity: opportunity
+        ? {
+            id: opportunity.id,
+            contact_name: opportunity.contact_name,
+            company: opportunity.company,
+            status: opportunity.status,
+          }
+        : null,
+    };
   });
 
   // ---------- Estadísticas ----------
@@ -1082,6 +1266,16 @@ export function registerRoutes(
       ),
       failedExecutions: await one(
         "SELECT COUNT(*) AS c FROM executions WHERE org_id = ? AND status = 'failed'",
+        user.orgId,
+      ),
+      // H1: conteos de procesos para las tarjetas de Inicio. Los
+      // campos anteriores no cambian.
+      runningProcesses: await one(
+        "SELECT COUNT(*) AS c FROM process_runs WHERE org_id = ? AND status = 'running'",
+        user.orgId,
+      ),
+      doneProcesses: await one(
+        "SELECT COUNT(*) AS c FROM process_runs WHERE org_id = ? AND status = 'done'",
         user.orgId,
       ),
       createdToday,

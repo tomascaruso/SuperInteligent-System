@@ -73,6 +73,9 @@ export function auditActionLabel(a: string): string {
       'draft.approved': 'Borrador aprobado',
       'draft.rejected': 'Borrador rechazado',
       'execution.retried': 'Ejecución reintentada',
+      // H1: pausa de agentes.
+      'agent.paused': 'Agente pausado',
+      'agent.resumed': 'Agente reanudado',
     }[a] ?? a
   );
 }
@@ -87,6 +90,39 @@ export function auditEntityLabel(e: string): string {
       task: 'tarea',
       draft: 'borrador',
       execution: 'ejecución',
+      agent: 'agente',
     }[e] ?? e
   );
+}
+
+// H1: etiquetas de Inicio (procesos, etapas, agentes). Solo
+// presentación: los valores que guarda el servidor no cambian.
+export function processStatusLabel(s: string): string {
+  return { running: 'En curso', done: 'Completada', failed: 'Fallida' }[s] ?? s;
+}
+
+export function stageStatusLabel(s: string): string {
+  return (
+    { pending: 'Pendiente', done: 'Hecha', failed: 'Fallida', rejected: 'Rechazada', paused: 'Pausada' }[s] ?? s
+  );
+}
+
+export function agentStatusLabel(s: string): string {
+  return { paused: 'En pausa', busy: 'Ocupado', available: 'Disponible' }[s] ?? s;
+}
+
+// H1: tiempo relativo para "Última actualización" de Procesos.
+// Si la fecha es inválida, devuelve la fecha absoluta recortada.
+export function formatRelative(s: string): string {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s.slice(0, 10);
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return formatDateTime(s);
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Hace un momento';
+  if (mins < 60) return `Hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Hace ${hours} h`;
+  if (hours < 48) return 'Ayer';
+  return formatDate(s);
 }

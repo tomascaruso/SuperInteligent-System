@@ -90,6 +90,7 @@ const SCHEMA = `
       description TEXT NOT NULL,
       steps_json TEXT NOT NULL,
       sort_order INTEGER NOT NULL,
+      paused INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS tasks (
@@ -190,6 +191,7 @@ const SCHEMA = `
       workflow_version TEXT NOT NULL,
       status TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed')),
       execution_id TEXT NOT NULL REFERENCES executions(id),
+      opportunity_id TEXT REFERENCES opportunities(id),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -293,7 +295,9 @@ export async function initSchema(db: Db): Promise<void> {
     if (sql) await db.exec(sql);
   }
   await ensureProcessCatalog(db);
+  await ensureProcessOpportunityBackfill(db);
   await ensureAgentCatalog(db);
+  await ensureAgentPauseColumn(db);
   await ensureDraftSnapshots(db);
   await ensurePolicyCatalog(db);
 }
@@ -361,6 +365,91 @@ export async function ensureProcessCatalog(db: Db): Promise<void> {
       e.created_at,
       e.updated_at,
     );
+  }
+}
+
+// ---------- Vínculo corrida–oportunidad (H1) ----------
+//
+// process_runs no guardaba a qué oportunidad dio lugar la corrida: la
+// columna Cliente de Inicio se derivaba parseando result_json en cada
+// lectura. H1 la persiste: runIntake la escribe al terminar con éxito
+// (ver engine.ts) y este backfill la completa en arranque para corridas
+// viejas, parseando result_json en código (sin SQL JSON, que difiere
+// entre SQLite y Postgres) y, si no hay resultado, el evento de intake
+// de esa ejecución. Migración con el patrón C4/C5: probar la columna y
+// ALTER solo si falta. Corridas sin vínculo (fallidas antes de crear la
+// oportunidad) quedan en NULL y la UI muestra "—", nunca un cliente
+// inventado.
+export async function ensureProcessOpportunityBackfill(db: Db): Promise<void> {
+  const hasColumn = await queryOne<Record<string, unknown>>(
+    db,
+    'SELECT opportunity_id FROM process_runs LIMIT 0',
+  ).then(
+    () => true,
+    () => false,
+  );
+  if (!hasColumn) {
+    await exec(db, 'ALTER TABLE process_runs ADD COLUMN opportunity_id TEXT');
+  }
+  const runs = await queryAll<{ id: string; execution_id: string }>(
+    db,
+    'SELECT id, execution_id FROM process_runs WHERE opportunity_id IS NULL',
+  );
+  for (const run of runs) {
+    let oppId: string | null = null;
+    const execution = await queryOne<{ result_json: string | null }>(
+      db,
+      'SELECT result_json FROM executions WHERE id = ?',
+      run.execution_id,
+    );
+    if (execution?.result_json) {
+      try {
+        const parsed = JSON.parse(execution.result_json) as {
+          opportunity?: { id?: unknown };
+        };
+        if (parsed && typeof parsed.opportunity?.id === 'string') oppId = parsed.opportunity.id;
+      } catch {
+        oppId = null;
+      }
+    }
+    if (!oppId) {
+      const event = await queryOne<{ payload_json: string }>(
+        db,
+        'SELECT payload_json FROM events WHERE execution_id = ? ORDER BY created_at ASC LIMIT 1',
+        run.execution_id,
+      );
+      if (event?.payload_json) {
+        try {
+          const parsed = JSON.parse(event.payload_json) as { opportunityId?: unknown };
+          if (typeof parsed.opportunityId === 'string') oppId = parsed.opportunityId;
+        } catch {
+          oppId = null;
+        }
+      }
+    }
+    if (oppId) {
+      await exec(db, 'UPDATE process_runs SET opportunity_id = ? WHERE id = ?', oppId, run.id);
+    }
+  }
+}
+
+// ---------- Pausa de agentes (H1) ----------
+//
+// Migración con el patrón C4/C5: probar la columna y ALTER solo si
+// falta. En bases nuevas la columna ya viene del DDL (DEFAULT 0). El
+// flag es global (el catálogo de agentes es global, como en C4): pausar
+// un agente lo pausa para todas las organizaciones, no solo para la
+// del admin que lo pausó. Se documenta en el informe H1.
+export async function ensureAgentPauseColumn(db: Db): Promise<void> {
+  const hasColumn = await queryOne<Record<string, unknown>>(
+    db,
+    'SELECT paused FROM agents LIMIT 0',
+  ).then(
+    () => true,
+    () => false,
+  );
+  if (!hasColumn) {
+    await exec(db, 'ALTER TABLE agents ADD COLUMN paused INTEGER DEFAULT 0');
   }
 }
 
