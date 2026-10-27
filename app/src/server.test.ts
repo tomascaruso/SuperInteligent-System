@@ -596,3 +596,34 @@ describe('Fase 6 — QA y cierre', () => {
     await app.close();
   });
 });
+
+describe('paso 1 composición (referencia visual)', () => {
+  it('GET / sirve el chip de usuario y el indicador de sistema', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('id="user-chip"');
+    expect(res.body).toContain('id="system-status"');
+    // Estado inicial honesto: todavía no se comprobó la API.
+    expect(res.body).toContain('Conectando…');
+    await app.close();
+  });
+
+  it('GET /app.js refleja el estado real de la última actualización', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.body).toContain('Sistema operativo');
+    expect(js.body).toContain('Sin conexión');
+    expect(js.body).toContain('Hola, ');
+    await app.close();
+  });
+
+  it('GET /styles/components.css sirve el chip y la píldora de estado', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/styles/components.css' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('.user-chip');
+    expect(res.body).toContain('.status-pill');
+    await app.close();
+  });
+});

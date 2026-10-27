@@ -21,6 +21,23 @@
   margin: var(--space-1) 0 0;
 }
 
+/* Paso 1 (referencia visual): usuario real e indicador de sistema en
+   el encabezado, sin tocar la navegación ni las vistas. */
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 /* ---------- Layout principal ---------- */
 .layout {
   display: grid;
@@ -110,8 +127,8 @@
 
 .stat-value {
   display: block;
-  font-size: var(--text-page-title-size);
-  font-weight: var(--text-page-title-weight);
+  font-size: var(--text-display-size);
+  font-weight: var(--text-display-weight);
   line-height: var(--line-height-heading);
 }
 

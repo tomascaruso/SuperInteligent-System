@@ -406,8 +406,23 @@ function showApp(user, org) {
   $('auth-section').classList.add('hidden');
   $('app-section').classList.remove('hidden');
   currentRole = user.role || '';
-  $('who').textContent = `— ${esc(user.name)} (${esc(org.name || '')}, ${esc(user.role)})`;
+  // Paso 1 (referencia visual): bienvenida y chip de usuario con los
+  // datos reales de /api/me. textContent no necesita escape: el
+  // navegador no interpreta el texto como HTML.
+  $('who').textContent = `Hola, ${user.name}${org.name ? ` — ${org.name}` : ''} (${user.role})`;
+  $('user-chip').textContent = `${user.name} · ${user.role}`;
   showView(location.hash.replace('#', '') || 'inicio');
+}
+
+// Paso 1 (referencia visual): el indicador refleja la última
+// actualización: solo dice "Sistema operativo" si la carga de la API
+// tuvo éxito; si falló, dice "Sin conexión". Nunca se afirma un estado
+// que no se acaba de comprobar.
+function setSystemStatus(ok) {
+  const pill = $('system-status');
+  $('system-status-text').textContent = ok ? 'Sistema operativo' : 'Sin conexión';
+  pill.classList.toggle('status-ok', ok);
+  pill.classList.toggle('status-down', !ok);
 }
 
 async function refresh() {
@@ -623,7 +638,9 @@ async function refresh() {
     const failed = executions.filter((e) => e.status === 'failed');
     if (failed.length) items.push(`<li>${plural(failed.length, 'ejecución fallida', 'ejecuciones fallidas')} — <a href="#actividad">Ver actividad</a></li>`);
     $('priority').innerHTML = items.join('') || '<li>Sin acciones urgentes.</li>';
+    setSystemStatus(true);
   } catch (e) {
+    setSystemStatus(false);
     // Fase 6 — recuperación: una sesión expirada vuelve a la pantalla de
     // acceso en vez de dejar la app visible con datos viejos; un fallo de
     // red se explica en español en vez de mostrar el mensaje del navegador.
