@@ -8,7 +8,7 @@ import { OpportunitiesView } from './features/oportunidades/OpportunitiesView';
 import { TasksView } from './features/tareas/TasksView';
 import { ApprovalsView } from './features/aprobaciones/ApprovalsView';
 import { ActivityView } from './features/actividad/ActivityView';
-import { SectionPlaceholder } from './features/sections/SectionPlaceholder';
+import { AgentsView } from './features/agentes/AgentsView';
 import { ApiError, getMe, type MeResponse } from './lib/api';
 
 // Fase 3: HashRouter (sin cambios en el servidor: toda la ruta
@@ -104,7 +104,7 @@ export function App() {
           <Route path="tareas" element={<TasksView />} />
           <Route path="aprobaciones" element={<ApprovalsView />} />
           <Route path="actividad" element={<ActivityView />} />
-          <Route path="agentes" element={<SectionPlaceholder title="Agentes" about="Los cinco agentes, su función y su trabajo." />} />
+          <Route path="agentes" element={<AgentsView />} />
           <Route index element={<Navigate to="inicio" replace />} />
           <Route path="*" element={<Navigate to="inicio" replace />} />
         </Route>
