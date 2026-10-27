@@ -799,13 +799,18 @@ describe('cliente react /v2/ (r1: oportunidades + logo)', () => {
       // clasifica y supervisa las oportunidades comerciales») y se
       // agregan los textos nuevos de R1b («Más filtros» y
       // «Atención humana requerida»); el resto no cambia.
+      // R1d: «Más filtros» se ELIMINA (la Categoría pasa a ser
+      // un select siempre visible en la fila única de filtros), así
+      // que ese marcador se reemplaza por la etiqueta «Categoría»
+      // del select, presente en el JS construido. Ningún otro
+      // test cambia.
       'Centraliza, clasifica y supervisa las oportunidades comerciales',
       'Nueva oportunidad (alta manual)',
       'Crear oportunidad',
       'Próximo paso',
       'Aún no hay oportunidades',
       'Mostrando',
-      'Más filtros',
+      'Categoría',
       'Atención humana requerida',
     ]) {
       expect(js).toContain(text);

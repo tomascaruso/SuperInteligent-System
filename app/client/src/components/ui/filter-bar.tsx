@@ -28,6 +28,7 @@ export function FilterBar({
   onClear,
   extra,
   compact = false,
+  layout = 'row',
 }: {
   searchValue: string;
   onSearchChange: (value: string) => void;
@@ -35,15 +36,28 @@ export function FilterBar({
   selects: FilterSelect[];
   onClear: () => void;
   // Acción extra en la misma fila (R1b: «Más filtros» de
-  // Oportunidades). Opcional; sin ella la barra es la de R1.
+  // Oportunidades, eliminado en R1d). Opcional; sin ella la
+  // barra es la de R1. Se mantiene para otras vistas futuras.
   extra?: ReactNode;
   // R1c: con compact=true los campos son más bajos (h-9) y la
   // fila más densa; sin ella la barra es la de R1/R1b.
   compact?: boolean;
+  // R1d: layout="single" pone todos los campos en UNA sola
+  // fila horizontal sin quiebre en lg (en angosto envuelve
+  // como fallback responsive): el buscador crece (flex-1) y
+  // los selects y el botón no se achican (shrink-0). Por
+  // defecto sigue la fila con quiebre de R1, para no romper
+  // otras vistas futuras.
+  layout?: 'row' | 'single';
 }) {
+  const single = layout === 'single';
   return (
-    <div className={`flex flex-wrap items-end ${compact ? 'gap-2' : 'gap-3'}`}>
-      <div>
+    <div
+      className={
+        single ? 'flex flex-wrap lg:flex-nowrap items-end gap-2' : `flex flex-wrap items-end ${compact ? 'gap-2' : 'gap-3'}`
+      }
+    >
+      <div className={single ? 'flex-1 min-w-0' : undefined}>
         <Label htmlFor="filter-search">Buscar</Label>
         <Input
           id="filter-search"
@@ -54,13 +68,13 @@ export function FilterBar({
         />
       </div>
       {selects.map((s) => (
-        <div key={s.id}>
+        <div key={s.id} className={single ? 'shrink-0' : undefined}>
           <Label htmlFor={s.id}>{s.label}</Label>
           <select
             id={s.id}
             value={s.value}
             onChange={(e) => s.onChange(e.target.value)}
-            className={`w-full px-3 text-sm bg-surface text-ink border border-border rounded-control ${
+            className={`${single ? 'w-auto' : 'w-full'} px-3 text-sm bg-surface text-ink border border-border rounded-control ${
               compact ? 'h-9 py-0' : 'py-2'
             }`}
           >
@@ -73,7 +87,7 @@ export function FilterBar({
         </div>
       ))}
       {extra}
-      <Button type="button" variant="secondary" onClick={onClear}>
+      <Button type="button" variant="secondary" onClick={onClear} className={single ? 'shrink-0' : undefined}>
         Limpiar
       </Button>
     </div>
