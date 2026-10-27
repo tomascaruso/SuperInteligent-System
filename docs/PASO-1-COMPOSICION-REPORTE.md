@@ -88,3 +88,21 @@ la cuenta demo, indicadores 3/3/1/0) y después el paso 2 del plan
 ## Autorización requerida
 
 Merge a `main` (despliega la demo pública).
+
+## Verificación en vivo (26-oct-2026 ~22:04 ART, solo lectura)
+
+- Mergeado PR #38, `main` `4ee9ff60`. Al primer ingreso la demo
+  todavía servía la versión anterior; tras ~3 minutos y recargar
+  cargó la nueva (demora esperada de Render).
+- Encabezado verificado en las 6 vistas: chip «Martín Demo ·
+  admin», píldora «Sistema operativo» con punto verde, bienvenida
+  «Hola, Martín Demo — Agencia Martín (demo) (admin)».
+- Indicadores antes y después, sin cambios durante la
+  verificación: **3/0/0/0** (3 oportunidades, 0 tareas pendientes,
+  0 aprobaciones pendientes, 0 ejecuciones fallidas).
+- Diferencia respecto del estado anterior conocido (3/3/1/0): la
+  verificación fue solo lectura y el antes ya era 3/0/0/0, así que
+  el cambio es anterior a ella (los 3 borradores figuran
+  decididos y no hay tareas abiertas). Sin errores visibles ni
+  elementos faltantes.
+- PASO 1 VERIFICADO EN VIVO.
