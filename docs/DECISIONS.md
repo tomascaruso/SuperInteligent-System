@@ -175,9 +175,11 @@ organización (token de un solo uso, 7 días, solo su hash en base). El
 registro público anterior se eliminó; la UI ofrece login + canje de
 invitación. El seed y las organizaciones existentes no se ven afectados.
 
-## Decisiones pendientes de humanos (bloquean el cierre de Gate 0)
+## Decisiones de humanos — Gate 0 (cerrado 26-oct-2026)
 
 - **G0-D1:** confirmar o cambiar el stack (D1–D4, D6–D7).
+  Cerrado 26-oct-2026: stack confirmado por Tomás (el mismo con el
+  que se construyó: D1–D4, D6–D7, Render + Neon).
 - **G0-D2:** CANCELADA el 25-oct-2026 (no habrá entrevistas ni pilotos
   con agencias reales; ver D12).
 - **G0-D3:** decidir dónde vive el repositorio remoto y crear
@@ -185,4 +187,5 @@ invitación. El seed y las organizaciones existentes no se ven afectados.
   Actualización 26-oct-2026 (C1): repositorio remoto creado en GitHub y
   base verificada en Neon (25-oct-2026); Supabase quedó sustituido por
   Neon por decisión de Tomás (Render + Neon, 25-oct-2026). Pendiente solo
-  el proveedor de IA (Fase 2).
+  el proveedor de IA (Fase 2). Cerrado 26-oct-2026: punto IA resuelto
+  con el veredicto F2-AI DISCARD (Gemini probada, no adoptada).
