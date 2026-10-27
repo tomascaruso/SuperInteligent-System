@@ -3,31 +3,54 @@ import { Button } from './button';
 
 // Panel lateral de detalle compartido (R1): la composición que
 // aportan las referencias (título, subtítulo, secciones apiladas,
-// acciones al pie) sobre datos reales. Es un overlay a la derecha
-// con fondo que cierra al hacer clic y tecla Escape; el foco
-// inicial va al botón Cerrar. La trampa de foco completa llega
-// con el Dialog de R3; esto es un panel de lectura, no un
-// diálogo de decisión.
+// acciones al pie) sobre datos reales. La variante por defecto
+// es un overlay a la derecha con fondo que cierra al hacer clic
+// y tecla Escape; el foco inicial va al botón Cerrar. La trampa
+// de foco completa llega con el Dialog de R3; esto es un panel
+// de lectura, no un diálogo de decisión.
+// R1b agrega la variante «inline»: una tarjeta estática en la
+// grilla de la vista (sin overlay, sin fondo, sin Cerrar y sin
+// Escape), para el panel derecho fijo de Oportunidades. La
+// variante overlay NO cambia: sigue siendo la de arriba.
 export function DetailPanel({
   title,
   subtitle,
   onClose,
   children,
   footer,
+  variant = 'overlay',
 }: {
   title: string;
   subtitle?: string;
-  onClose: () => void;
+  onClose?: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  variant?: 'overlay' | 'inline';
 }) {
   useEffect(() => {
+    if (variant !== 'overlay' || !onClose) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, variant]);
+
+  if (variant === 'inline') {
+    return (
+      <aside
+        aria-label={title}
+        className="bg-surface border border-border rounded-card p-6 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto"
+      >
+        <div>
+          <h2 className="text-base font-semibold">{title}</h2>
+          {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+        </div>
+        <div className="mt-4 space-y-4">{children}</div>
+        {footer && <div className="mt-6 flex flex-wrap gap-2">{footer}</div>}
+      </aside>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>

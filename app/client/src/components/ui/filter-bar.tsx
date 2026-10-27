@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button } from './button';
 import { Input } from './input';
 import { Label } from './label';
@@ -25,12 +26,16 @@ export function FilterBar({
   searchPlaceholder,
   selects,
   onClear,
+  extra,
 }: {
   searchValue: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder: string;
   selects: FilterSelect[];
   onClear: () => void;
+  // Acción extra en la misma fila (R1b: «Más filtros» de
+  // Oportunidades). Opcional; sin ella la barra es la de R1.
+  extra?: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap gap-3 items-end">
@@ -60,6 +65,7 @@ export function FilterBar({
           </select>
         </div>
       ))}
+      {extra}
       <Button type="button" variant="secondary" onClick={onClear}>
         Limpiar
       </Button>
