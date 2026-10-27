@@ -34,7 +34,10 @@ export function FilterBar({
   onSearchChange: (value: string) => void;
   searchPlaceholder: string;
   selects: FilterSelect[];
-  onClear: () => void;
+  // Opcional: las vistas que renderizan su propio «Limpiar»
+  // condicional (Agentes, Integraciones) no lo pasan y la barra
+  // no dibuja un botón muerto.
+  onClear?: () => void;
   // Acción extra en la misma fila (R1b: «Más filtros» de
   // Oportunidades, eliminado en R1d). Opcional; sin ella la
   // barra es la de R1. Se mantiene para otras vistas futuras.
@@ -87,9 +90,11 @@ export function FilterBar({
         </div>
       ))}
       {extra}
-      <Button type="button" variant="secondary" onClick={onClear} className={single ? 'shrink-0' : undefined}>
-        Limpiar
-      </Button>
+      {onClear && (
+        <Button type="button" variant="secondary" onClick={onClear} className={single ? 'shrink-0' : undefined}>
+          Limpiar
+        </Button>
+      )}
     </div>
   );
 }

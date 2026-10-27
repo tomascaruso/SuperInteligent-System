@@ -25,6 +25,8 @@ const NAV = [
   { to: '/aprobaciones', label: 'Aprobaciones' },
   { to: '/actividad', label: 'Actividad y ejecuciones' },
   { to: '/agentes', label: 'Agentes' },
+  // R5b: 7ª sección (Integraciones, catálogo honesto).
+  { to: '/integraciones', label: 'Integraciones' },
 ];
 
 const STATUS_TEXT: Record<SystemStatus, string> = {
