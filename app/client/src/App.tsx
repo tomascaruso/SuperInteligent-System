@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { HashRouter, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router';
-import { Alert } from './components/ui/alert';
 import { AppLayout, type SystemStatus } from './components/layout/AppLayout';
 import { LoginScreen } from './features/auth/LoginScreen';
 import { HomeView } from './features/inicio/HomeView';
@@ -79,14 +78,11 @@ function AccessGate() {
     return <p className="text-secondary">Cargando…</p>;
   }
   if (state === 'login' || !me) {
-    return (
-      <>
-        <Alert variant="error">{error}</Alert>
-        <div className="mt-4">
-          <LoginScreen onAuthenticated={handleAuthenticated} />
-        </div>
-      </>
-    );
+    // LOGIN-V2: sin envoltorio con margen (rompería el ajuste a
+    // 100dvh de la pantalla de acceso); el mensaje del padre
+    // (sesión expirada / servidor caído) se muestra dentro de la
+    // tarjeta de acceso. Alert ya no se usa en esta rama.
+    return <LoginScreen onAuthenticated={handleAuthenticated} accessError={error} />;
   }
   return (
     <AppLayout me={me} status={status} onLoggedOut={handleLoggedOut}>
