@@ -301,6 +301,7 @@ export async function initSchema(db: Db): Promise<void> {
   await ensureAgentCatalog(db);
   await ensureAgentPauseColumn(db);
   await ensureOpportunityScoreColumn(db);
+  await ensureDraftEditedColumns(db);
   await ensureDraftSnapshots(db);
   await ensurePolicyCatalog(db);
 }
@@ -499,6 +500,35 @@ export async function ensureOpportunityScoreColumn(db: Db): Promise<void> {
       source: row.source,
     });
     await exec(db, 'UPDATE opportunities SET score = ? WHERE id = ?', score, row.id);
+  }
+}
+
+// R3b: marca de borrador editado por un humano. Mismo patrón que
+// el puntaje: probar la columna y ALTER solo si falta (SQLite y
+// Postgres, sin paso manual en Render/Neon: corre sola al
+// arrancar). `edited` es 0/1 y `edited_at` la fecha de la última
+// edición; las filas viejas quedan en 0/NULL (nunca editadas) y
+// no necesitan backfill: nadie las editó.
+export async function ensureDraftEditedColumns(db: Db): Promise<void> {
+  const hasEdited = await queryOne<Record<string, unknown>>(
+    db,
+    'SELECT edited FROM drafts LIMIT 0',
+  ).then(
+    () => true,
+    () => false,
+  );
+  if (!hasEdited) {
+    await exec(db, 'ALTER TABLE drafts ADD COLUMN edited INTEGER NOT NULL DEFAULT 0');
+  }
+  const hasEditedAt = await queryOne<Record<string, unknown>>(
+    db,
+    'SELECT edited_at FROM drafts LIMIT 0',
+  ).then(
+    () => true,
+    () => false,
+  );
+  if (!hasEditedAt) {
+    await exec(db, 'ALTER TABLE drafts ADD COLUMN edited_at TEXT');
   }
 }
 

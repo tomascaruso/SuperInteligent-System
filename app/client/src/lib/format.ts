@@ -72,6 +72,8 @@ export function auditActionLabel(a: string): string {
       'draft.created': 'Borrador creado',
       'draft.approved': 'Borrador aprobado',
       'draft.rejected': 'Borrador rechazado',
+      // R3b: edición humana del borrador.
+      'draft.edited': 'Borrador editado',
       'execution.retried': 'Ejecución reintentada',
       // H1: pausa de agentes.
       'agent.paused': 'Agente pausado',
