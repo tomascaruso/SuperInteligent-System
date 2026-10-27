@@ -12,6 +12,7 @@ import {
   login,
   sendContact,
 } from '../../lib/api';
+import sisLogo from '../../assets/sis-logo.png';
 
 // Pantalla de acceso en React (Fase 2, puente actualizado en la
 // Fase 3): misma composición y mismos flujos que la pantalla
@@ -187,9 +188,14 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated?: () => void 
   return (
     <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
       <Card>
-        <p className="m-0 text-[32px] font-semibold text-primary">SIS</p>
-        <p className="mt-1 text-base font-semibold">SuperInteligent System</p>
-        <p className="m-0 text-[13px] text-muted">by PENSIA</p>
+        <img
+          src={sisLogo}
+          alt="SIS — SuperIntelligent System by PENSIA"
+          width={280}
+          height={256}
+          className="w-[280px] max-w-full h-auto"
+          style={{ aspectRatio: '1137 / 1040' }}
+        />
         <h2 className="text-xl font-semibold mt-4">Inteligencia artificial que trabaja para tu negocio</h2>
         <p className="text-secondary">
           Orquesta agentes, automatiza procesos y toma el control de tus operaciones con una plataforma diseñada para

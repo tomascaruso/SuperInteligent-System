@@ -181,3 +181,86 @@ export function getExecutions(): Promise<{ executions: ExecutionSummary[] }> {
 export function getAudit(): Promise<{ audit: AuditEntry[] }> {
   return request<{ audit: AuditEntry[] }>('/api/audit');
 }
+
+// Detalle completo de oportunidad, tarea y borrador (R1): los
+// shapes copian los contratos reales de app/src/routes.ts
+// (SELECT * de cada tabla + joins documentados ahí).
+export interface OpportunityDetail {
+  id: string;
+  contact_name: string;
+  contact_email: string;
+  company: string;
+  message: string;
+  source: string;
+  status: string;
+  category: string;
+  priority: string;
+  score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskFull {
+  id: string;
+  opportunity_id: string;
+  title: string;
+  assigned_to: string;
+  agent_id: string;
+  status: string;
+  due_at: string;
+  created_at: string;
+  updated_at: string;
+  agent_name: string | null;
+  contact_name: string;
+  company: string;
+}
+
+export interface DraftFull {
+  id: string;
+  opportunity_id: string;
+  body: string;
+  source_message: string | null;
+  status: string;
+  note: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  created_at: string;
+  contact_name: string;
+  company: string;
+  opportunity_message: string;
+  opportunity_source: string;
+  expired: boolean;
+  stale: boolean;
+}
+
+export function getOpportunityList(): Promise<{ opportunities: OpportunityDetail[] }> {
+  return request<{ opportunities: OpportunityDetail[] }>('/api/opportunities');
+}
+
+export function getAllTasks(): Promise<{ tasks: TaskFull[] }> {
+  return request<{ tasks: TaskFull[] }>('/api/tasks');
+}
+
+export function getDraftsDetail(): Promise<{ drafts: DraftFull[] }> {
+  return request<{ drafts: DraftFull[] }>('/api/drafts');
+}
+
+export function getOpportunityAudit(opportunityId: string): Promise<{ audit: AuditEntry[] }> {
+  return request<{ audit: AuditEntry[] }>(`/api/audit?opportunityId=${encodeURIComponent(opportunityId)}`);
+}
+
+export interface CreateOpportunityInput {
+  contactName: string;
+  contactEmail: string;
+  company: string;
+  message: string;
+}
+
+export function createOpportunity(
+  input: CreateOpportunityInput,
+): Promise<{ opportunity: OpportunityDetail; created: boolean; duplicate: boolean }> {
+  return request<{ opportunity: OpportunityDetail; created: boolean; duplicate: boolean }>('/api/opportunities', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
