@@ -28,7 +28,7 @@ import {
   type AuditEntry,
   type ExecutionFull,
   type ExecutionStep,
-  type OpportunityDetail,
+  type OpportunitySummary,
   type ProcessSummary,
   type WorkflowDef,
 } from '../../lib/api';
@@ -43,12 +43,15 @@ import { auditActionLabel, formatDateTime, localDate } from '../../lib/format';
 // auditoría, políticas); nada se inventa (ver
 // docs/R4-ACTIVIDAD-REPORTE.md para el mapeo referencia → real y
 // todo lo omitido).
+//
+// R4b — Humanización (solo presentación, sin cambio de
+// comportamiento): sin UUIDs en la tabla, nombre humano del flujo,
+// metadata en dos columnas, datos de entrada como campos con
+// nombre, pasos como frases, JSON técnico plegado al final y
+// referencias de auditoría vinculadas por oportunidad + ejecución
+// (ver docs/R4B-HUMANIZACION-REPORTE.md).
 
 const PAGE_SIZE = 20;
-
-function shortId(id: string): string {
-  return id.slice(0, 8);
-}
 
 function statusBadge(s: string): { variant: 'success' | 'danger' | 'info' | 'neutral'; label: string } {
   if (s === 'done') return { variant: 'success', label: 'Completada' };
@@ -101,6 +104,66 @@ function parseJson(text: string | null): unknown {
   }
 }
 
+// R4b — Nombre humano del flujo desde el registry real. Fallback:
+// el identificador crudo (solo si el registry no trae nombre; hoy
+// opportunity.intake trae "Captación de oportunidad").
+function workflowDisplayName(workflows: WorkflowDef[] | undefined, workflow: string): string {
+  return workflows?.find((w) => w.workflow === workflow)?.name ?? workflow;
+}
+
+// R4b — Origen real del ingreso (domain.ts: default 'manual';
+// routes.ts: el webhook pone 'webhook'). Un valor desconocido se
+// muestra tal cual, sin inventar etiqueta.
+const SOURCE_LABELS: Record<string, string> = {
+  manual: 'Alta manual',
+  webhook: 'Canal web',
+};
+
+function sourceLabel(source: unknown): string {
+  return typeof source === 'string' ? (SOURCE_LABELS[source] ?? source) : '—';
+}
+
+function priorityLabel(p: unknown): string {
+  return p === 'high' ? 'Alta' : p === 'medium' ? 'Media' : p === 'low' ? 'Baja' : '—';
+}
+
+// R4b — Frase humana por paso, con los datos reales del output.
+// Los IDs (opportunityId, taskId, draftId) no se muestran: el
+// cliente no los necesita y el detalle técnico los conserva.
+function stepSentence(s: ExecutionStep): string {
+  const out = parseJson(s.output_json) as Record<string, unknown> | null;
+  switch (s.step) {
+    case 'normalize':
+      return 'Se ordenaron los datos del contacto';
+    case 'dedup': {
+      if (out && typeof out.matched === 'boolean') {
+        return out.matched ? 'Se detectó un contacto ya existente' : 'No se encontró un contacto duplicado';
+      }
+      return 'Se revisó si el contacto ya existía';
+    }
+    case 'classify': {
+      if (out && typeof out.category === 'string' && typeof out.nextAction === 'string') {
+        const score = typeof out.score === 'number' ? ` (puntaje ${out.score})` : '';
+        return `Se clasificó como ${out.category}, prioridad ${priorityLabel(out.priority)}${score}, próximo paso: ${out.nextAction}`;
+      }
+      return 'Se clasificó la oportunidad';
+    }
+    case 'upsert':
+      return 'Se registró la oportunidad';
+    case 'next_action':
+      return 'Se creó la tarea de seguimiento';
+    case 'draft':
+      return 'Se preparó el borrador para revisión';
+    case 'intake':
+      // Paso sintético de fallo previo (pausa o error antes del
+      // pipeline): la frase no oculta el fallo; el mensaje real va
+      // debajo (s.error) y en Diagnóstico de error.
+      return 'El proceso no pudo iniciarse';
+    default:
+      return s.status === 'failed' ? 'El paso no pudo completarse' : 'Se completó un paso del proceso';
+  }
+}
+
 // Máscara de presentación (decisión de la referencia, no dato
 // nuevo): solo se enmascaran los valores de los campos personales
 // de la entrada (nombre, correo, empresa, mensaje). El resto de
@@ -120,6 +183,11 @@ function maskEmail(value: string): string {
   return `${value.slice(0, 1)}***${value.slice(at)}`;
 }
 
+// R4b — Mensaje recortado (misma máscara que el JSON técnico).
+function maskMessage(value: string): string {
+  return value.length > 15 ? `${value.slice(0, 15)}… (enmascarado)` : '*** (enmascarado)';
+}
+
 function maskJsonValue(key: string, value: unknown): unknown {
   if (Array.isArray(value)) return value.map((v) => maskJsonValue(key, v));
   if (value !== null && typeof value === 'object') {
@@ -130,7 +198,7 @@ function maskJsonValue(key: string, value: unknown): unknown {
   if (typeof value !== 'string') return value;
   if (key === 'contactEmail') return maskEmail(value);
   if (key === 'contactName' || key === 'company') return maskName(value);
-  if (key === 'message') return value.length > 15 ? `${value.slice(0, 15)}… (enmascarado)` : '*** (enmascarado)';
+  if (key === 'message') return maskMessage(value);
   return value;
 }
 
@@ -144,10 +212,20 @@ interface ActivityData {
   executions: ExecutionFull[];
   agents: AgentStatus[];
   processes: ProcessSummary[];
-  opportunities: OpportunityDetail[];
+  // R4b — Corrección de un error de tipos preexistente de R4:
+  // getOpportunities() devuelve OpportunitySummary[] (id,
+  // contact_name, company, category), no OpportunityDetail[]; la
+  // vista solo lee id, contact_name y company de acá.
+  opportunities: OpportunitySummary[];
   workflows: WorkflowDef[];
   isAdmin: boolean;
   maxAttempts: number;
+  // R4b — Nombre y correo del usuario actual (GET /api/me): única
+  // fuente real de nombres de usuario (no hay endpoint de listado
+  // de usuarios). Solo el actor que coincide con el usuario actual
+  // se muestra con nombre; los demás siguen con su correo.
+  meName: string;
+  meEmail: string;
 }
 
 export function ActivityView() {
@@ -203,6 +281,8 @@ export function ActivityView() {
         workflows,
         isAdmin: me.user.role === 'admin',
         maxAttempts,
+        meName: me.user.name,
+        meEmail: me.user.email,
       });
       setSystemStatus('ok');
       setState('ready');
@@ -332,7 +412,9 @@ export function ActivityView() {
       if (dateFilter === '7d' && now - new Date(e.created_at).getTime() > 7 * 24 * 60 * 60 * 1000) return false;
       if (dateFilter === '30d' && now - new Date(e.created_at).getTime() > 30 * 24 * 60 * 60 * 1000) return false;
       if (!q) return true;
-      return e.id.toLowerCase().includes(q) || oppLabel(e).toLowerCase().includes(q);
+      // R4b — Sin UUIDs visibles, la búsqueda es por oportunidad
+      // (nombre/empresa), no por ID.
+      return oppLabel(e).toLowerCase().includes(q);
     });
   }, [data, search, statusFilter, agentFilter, dateFilter, primaryAgent, oppLabel]);
 
@@ -453,7 +535,31 @@ export function ActivityView() {
 
   const selectedSteps = selected ? stepsByExec[selected.id] : undefined;
   const selectedDecisions = selectedOppId ? (auditByOpp[selectedOppId] ?? []).filter((a) => ['draft.approved', 'draft.rejected', 'draft.edited'].includes(a.action)) : [];
-  const selectedAuditRefs = selected && auditAll ? auditAll.filter((a) => a.entity_id === selected.id) : [];
+  // R4b — Hallazgo: el filtro viejo solo igualaba entity_id con el
+  // ID de ejecución, pero el único evento con entidad 'execution'
+  // es execution.retried; los eventos de oportunidad, borrador y
+  // tarea citan a la oportunidad, no a la ejecución. Por eso una
+  // ejecución con decisiones vinculadas mostraba "sin eventos".
+  // Vínculo corregido con relaciones reales: eventos de la
+  // ejecución + línea de tiempo de la oportunidad (que ya incluye
+  // tareas y borradores que la citan), sin duplicados, más
+  // recientes primero.
+  // Cómputo plano (no hook): va después de los early returns de
+  // loading/error, donde un hook rompería el orden de hooks.
+  const selectedAuditRefs: AuditEntry[] = (() => {
+    if (!selected) return [];
+    const byId = new Map<string, AuditEntry>();
+    for (const a of auditAll ?? []) {
+      if (a.entity_id === selected.id) byId.set(a.id, a);
+    }
+    if (selectedOppId) {
+      for (const a of auditByOpp[selectedOppId] ?? []) byId.set(a.id, a);
+    }
+    return [...byId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  })();
+  // R4b — Actor con nombre solo si es el usuario actual (única
+  // fuente real de nombres: GET /api/me); si no, el correo tal cual.
+  const actorLabel = (actor: string): string => (data && actor === data.meEmail ? data.meName : actor);
   const chain = selected ? retryChain(selected) : [];
   const attemptsUsed = selected ? chain.length - 1 : 0;
   const attemptsLeft = Math.max(0, data.maxAttempts - attemptsUsed);
@@ -471,7 +577,7 @@ export function ActivityView() {
           layout="single"
           searchValue={search}
           onSearchChange={(v) => { setSearch(v); setPage(0); }}
-          searchPlaceholder="Buscar por ID u oportunidad…"
+          searchPlaceholder="Buscar por oportunidad…"
           selects={[
             {
               id: 'filter-estado',
@@ -511,7 +617,8 @@ export function ActivityView() {
           onClear={clearFilters}
         />
         <p className="mt-2 text-xs text-secondary">
-          Sin filtro de proceso: hoy existe un único flujo (opportunity.intake).
+          Sin filtro de proceso: hoy existe un único flujo (
+          {data.workflows[0] ? workflowDisplayName(data.workflows, data.workflows[0].workflow) : '—'}).
         </p>
       </Card>
 
@@ -523,7 +630,7 @@ export function ActivityView() {
             <Table
               scrollable={false}
               textSize="text-xs"
-              headers={['Ejecución', 'Flujo', 'Agente principal', 'Oportunidad', 'Inicio', 'Duración', 'Estado']}
+              headers={['Proceso', 'Agente principal', 'Oportunidad', 'Inicio', 'Duración', 'Estado']}
               empty={pageItems.length === 0}
               emptyText={
                 filtered.length === 0 && data.executions.length === 0
@@ -548,12 +655,13 @@ export function ActivityView() {
                     className={`group cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary/20' : ''}`}
                   >
                     <td className="px-1 py-1.5 break-words">
-                      <div className="font-mono font-semibold" title={e.id}>{shortId(e.id)}</div>
-                      <div className={`text-xs ${isSelected ? 'text-ink' : 'text-secondary'} group-hover:text-ink`}>
-                        {e.retry_of ? `Reintento de ${shortId(e.retry_of)}` : 'Ejecución original'}
-                      </div>
+                      <div className="font-semibold">{workflowDisplayName(data.workflows, e.workflow)}</div>
+                      {e.retry_of && (
+                        <div className={`text-xs ${isSelected ? 'text-ink' : 'text-secondary'} group-hover:text-ink`}>
+                          Reintento
+                        </div>
+                      )}
                     </td>
-                    <td className="px-1 py-1.5 break-words">{e.workflow}</td>
                     <td className="px-1 py-1.5 break-words">{primaryAgent(e)}</td>
                     <td className="px-1 py-1.5 break-words">{oppLabel(e)}</td>
                     <td className="px-1 py-1.5 break-words">{formatDateTime(e.created_at)}</td>
@@ -577,8 +685,8 @@ export function ActivityView() {
           <DetailPanel
             variant="inline"
             wide
-            title={`Inspector de ejecución: ${shortId(selected.id)}`}
-            subtitle={`${selected.workflow} · ${statusBadge(selected.status).label}`}
+            title="Inspector de ejecución"
+            subtitle={`${workflowDisplayName(data.workflows, selected.workflow)} · ${statusBadge(selected.status).label}`}
             footer={
               selected.status === 'failed' && data.isAdmin ? (
                 <Button type="button" variant="primary" onClick={() => { setRetryError(null); setRetryOpen(true); }}>
@@ -594,10 +702,14 @@ export function ActivityView() {
           >
             <div>
               <h3 className="text-sm font-semibold">Metadata de la ejecución</h3>
-              <dl className="mt-2 divide-y divide-border text-sm">
-                <div className="py-2 first:pt-0">
+              {/* R4b — Dos columnas, como Datos contextuales en
+              Aprobaciones. La versión del flujo (v1) y el vínculo
+              de reintento salen de acá: la versión queda en el
+              Detalle técnico y el reintento en su sección. */}
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 text-sm">
+                <div className="py-2">
                   <dt className="text-xs text-secondary">Flujo</dt>
-                  <dd className="font-medium">{selected.workflow} · v{selected.workflow_version}</dd>
+                  <dd className="font-medium">{workflowDisplayName(data.workflows, selected.workflow)}</dd>
                 </div>
                 <div className="py-2">
                   <dt className="text-xs text-secondary">Agente principal</dt>
@@ -619,23 +731,49 @@ export function ActivityView() {
                   <dt className="text-xs text-secondary">Oportunidad vinculada</dt>
                   <dd className="font-medium">{oppLabel(selected)}</dd>
                 </div>
-                <div className="py-2">
-                  <dt className="text-xs text-secondary">ID completo</dt>
-                  <dd className="font-mono text-xs break-all">{selected.id}</dd>
-                </div>
-                <div className="py-2">
-                  <dt className="text-xs text-secondary">Reintento de</dt>
-                  <dd className="font-medium">{selected.retry_of ? shortId(selected.retry_of) : '—'}</dd>
-                </div>
               </dl>
+              <p className="mt-1 text-xs text-secondary">
+                ID técnico (uso interno): <span className="font-mono break-all">{selected.id}</span>
+              </p>
             </div>
 
             <div>
               <h3 className="text-sm font-semibold">Datos de entrada</h3>
               <p className="mt-1 text-xs text-secondary">
-                Entrada real de la ejecución; los datos personales van enmascarados por protección.
+                Los datos personales se muestran enmascarados por protección.
               </p>
-              <pre className="mt-2 whitespace-pre-wrap break-words rounded-control border border-border bg-surface p-3 text-xs">{maskJson(selected.input_json)}</pre>
+              {(() => {
+                const input = parseJson(selected.input_json) as Record<string, unknown> | null;
+                const str = (k: string): string | null => (typeof input?.[k] === 'string' ? (input[k] as string) : null);
+                const contact = str('contactName');
+                const email = str('contactEmail');
+                const company = str('company');
+                const message = str('message');
+                return (
+                  <dl className="mt-2 grid grid-cols-2 gap-x-4 text-sm">
+                    <div className="py-1">
+                      <dt className="text-xs text-secondary">Contacto</dt>
+                      <dd className="font-medium break-words">{contact ? maskName(contact) : '—'}</dd>
+                    </div>
+                    <div className="py-1">
+                      <dt className="text-xs text-secondary">Correo</dt>
+                      <dd className="font-medium break-words">{email ? maskEmail(email) : '—'}</dd>
+                    </div>
+                    <div className="py-1">
+                      <dt className="text-xs text-secondary">Empresa</dt>
+                      <dd className="font-medium break-words">{company ? maskName(company) : '—'}</dd>
+                    </div>
+                    <div className="py-1">
+                      <dt className="text-xs text-secondary">Origen</dt>
+                      <dd className="font-medium break-words">{input ? sourceLabel(input.source) : '—'}</dd>
+                    </div>
+                    <div className="col-span-2 py-1">
+                      <dt className="text-xs text-secondary">Mensaje</dt>
+                      <dd className="font-medium break-words">{message ? maskMessage(message) : '—'}</dd>
+                    </div>
+                  </dl>
+                );
+              })()}
             </div>
 
             <div>
@@ -659,13 +797,11 @@ export function ActivityView() {
                         )}
                         <div className="min-w-0">
                           <div className="font-medium">{stepLabel(s.step)}</div>
+                          <p className="mt-0.5 break-words">{stepSentence(s)}</p>
                           <div className="text-xs text-secondary">
                             {agentByStep.get(s.step) ?? '—'} · {formatDateTime(s.created_at)}
                           </div>
                           {s.error && <p className="mt-1 break-words text-danger">{s.error}</p>}
-                          {s.output_json && (
-                            <pre className="mt-1 whitespace-pre-wrap break-words rounded-control border border-border bg-surface p-2 text-xs">{maskJson(s.output_json)}</pre>
-                          )}
                         </div>
                       </div>
                     </li>
@@ -692,7 +828,7 @@ export function ActivityView() {
                     <li key={`${a.created_at}-${a.action}-${i}`} className="text-sm">
                       <div className="font-medium">{auditActionLabel(a.action)}</div>
                       <div className="text-xs text-secondary">
-                        {formatDateTime(a.created_at)} · {a.actor}
+                        {formatDateTime(a.created_at)} · {actorLabel(a.actor)}
                       </div>
                     </li>
                   ))}
@@ -730,7 +866,7 @@ export function ActivityView() {
                   {chain.map((c) => (
                     <li key={c.id} className="text-sm">
                       <div className="font-medium">
-                        {c.id === selected.id ? 'Esta ejecución' : c.retry_of === null ? 'Ejecución original' : 'Reintento'} · {shortId(c.id)}
+                        {c.id === selected.id ? 'Esta ejecución' : c.retry_of === null ? 'Primera ejecución' : 'Reintento'}
                       </div>
                       <div className="text-xs text-secondary">
                         {statusBadge(c.status).label} · {formatDateTime(c.created_at)}
@@ -743,22 +879,47 @@ export function ActivityView() {
 
             <div>
               <h3 className="text-sm font-semibold">Referencias de auditoría</h3>
-              {selectedAuditRefs.length === 0 ? (
-                <p className="mt-2 text-sm text-secondary">Sin eventos de auditoría vinculados a esta ejecución.</p>
+              {auditLoading && selectedOppId && !auditByOpp[selectedOppId] ? (
+                <p className="mt-2 text-secondary">Cargando registros…</p>
+              ) : selectedAuditRefs.length === 0 ? (
+                <p className="mt-2 text-sm text-secondary">No hay otros registros para esta ejecución.</p>
               ) : (
                 <ul className="mt-2 space-y-2">
                   {selectedAuditRefs.map((a) => (
                     <li key={a.id} className="text-sm">
                       <div className="font-medium">{auditActionLabel(a.action)}</div>
-                      <div className="font-mono text-xs text-secondary break-all">ID {a.id}</div>
                       <div className="text-xs text-secondary">
-                        {formatDateTime(a.created_at)} · {a.actor}
+                        {formatDateTime(a.created_at)} · {actorLabel(a.actor)}
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
+
+            <details className="rounded-control border border-border bg-surface p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                Detalle técnico (para soporte)
+              </summary>
+              <div className="mt-2 space-y-2 text-xs">
+                <p className="break-words">
+                  Flujo: {selected.workflow} v{selected.workflow_version} · ID técnico: <span className="font-mono break-all">{selected.id}</span>
+                </p>
+                <div>
+                  <div className="font-medium">Entrada</div>
+                  <pre className="mt-1 whitespace-pre-wrap break-words">{maskJson(selected.input_json)}</pre>
+                </div>
+                {(selectedSteps ?? []).map((s) => (
+                  <div key={s.id}>
+                    <div className="font-medium">{stepLabel(s.step)}</div>
+                    {s.output_json && (
+                      <pre className="mt-1 whitespace-pre-wrap break-words">{maskJson(s.output_json)}</pre>
+                    )}
+                    {s.error && <p className="break-words text-danger">{s.error}</p>}
+                  </div>
+                ))}
+              </div>
+            </details>
           </DetailPanel>
         )}
       </div>
@@ -769,7 +930,7 @@ export function ActivityView() {
         title="Reintentar ejecución"
       >
         <p>
-          ¿Reintentar la ejecución completa «{selected ? shortId(selected.id) : ''}»? Se vuelve a correr el ingreso
+          ¿Reintentar la ejecución completa «{selected ? `${workflowDisplayName(data.workflows, selected.workflow)} · ${oppLabel(selected)} · ${formatDateTime(selected.created_at)}` : ''}»? Se vuelve a correr el ingreso
           entero (no un paso aislado) y se crea una ejecución nueva.
         </p>
         <p className="text-sm text-secondary">
