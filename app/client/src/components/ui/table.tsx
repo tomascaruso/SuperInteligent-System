@@ -13,23 +13,28 @@ export function Table({
   empty,
   emptyText,
   scrollable = true,
+  textSize = 'text-sm',
 }: {
   headers: string[];
   children: ReactNode;
   empty: boolean;
   emptyText: string;
   scrollable?: boolean;
+  // R1g: tamaño de fuente de la tabla (por defecto el de R1).
+  // Oportunidades usa text-[13px] para que las 7 columnas
+  // quepan dentro de su tarjeta sin desbordar.
+  textSize?: string;
 }) {
   return (
     <div className={scrollable ? 'overflow-x-auto' : 'min-w-0'}>
-      <table className="w-full text-sm border-collapse">
+      <table className={`w-full border-collapse ${textSize}`}>
         <thead>
           <tr>
             {headers.map((h) => (
               <th
                 key={h}
                 className={`text-left py-2 border-b border-border text-secondary font-medium ${
-                  scrollable ? 'px-3' : 'px-2 break-words'
+                  scrollable ? 'px-3' : 'px-1.5 break-words'
                 }`}
               >
                 {h}

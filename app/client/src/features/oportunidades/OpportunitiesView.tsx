@@ -418,11 +418,12 @@ export function OpportunitiesView() {
         />
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_440px] items-start">
-      <Card compact>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
+      <Card compact pad="p-3">
         <div>
           <Table
             scrollable={false}
+            textSize="text-[13px]"
             headers={['Oportunidad', 'Estado', 'Prioridad', 'Fuente', 'Agente', 'Atención humana', 'Próximo paso']}
             empty={pageItems.length === 0}
             emptyText={
@@ -449,31 +450,41 @@ export function OpportunitiesView() {
                   }}
                   className={`cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary/20' : ''}`}
                 >
-                  <td className="px-1.5 py-1.5 break-words">
+                  <td className="px-1 py-1.5 break-words">
                     <div className="font-semibold">{o.contact_name}</div>
                     <div className="text-secondary">{o.company || '—'}</div>
                     <div className="text-xs text-secondary">{categoryLabel(o.category)}</div>
                   </td>
-                  <td className="px-1.5 py-1.5 break-words">
+                  <td className="px-1 py-1.5 break-words">
                     <Badge variant={statusVariant(o.status)} className="whitespace-nowrap">
                       {statusLabel(o.status)}
                     </Badge>
                   </td>
-                  <td className="px-1.5 py-1.5 break-words">
+                  <td className="px-1 py-1.5 break-words">
                     <Badge variant={priorityVariant(o.priority)} className="whitespace-nowrap">
                       {priorityLabel(o.priority)}
                     </Badge>
                   </td>
-                  <td className="px-1.5 py-1.5 break-words">{channelLabel(o.source)}</td>
-                  <td className="px-1.5 py-1.5 break-words">{next ? next.agent_name || next.assigned_to : '—'}</td>
-                  <td className="px-1.5 py-1.5 break-words">
+                  <td className="px-1 py-1.5 break-words">{channelLabel(o.source)}</td>
+                  <td className="px-1 py-1.5 break-words">{next ? next.agent_name || next.assigned_to : '—'}</td>
+                  <td className="px-1 py-1.5 break-words">
                     {needsAttention ? (
-                      <Badge variant="warning">Atención humana requerida</Badge>
+                      // R1g: la píldora no puede superar 120 px:
+                      // su texto envuelve dentro de la píldora
+                      // (centrado) en vez de empujar la tabla
+                      // fuera de la tarjeta. El texto no se acorta.
+                      <Badge variant="warning" className="max-w-[120px] whitespace-normal text-center leading-tight">
+                        Atención humana requerida
+                      </Badge>
                     ) : (
-                      <span className="text-secondary whitespace-nowrap">Sin pendiente</span>
+                      // R1g: vuelve a envolverse en dos líneas
+                      // (R1e lo había fijado en una línea); la
+                      // fila ya tiene 3 líneas por Oportunidad,
+                      // así que no crece en alto.
+                      <span className="text-secondary">Sin pendiente</span>
                     )}
                   </td>
-                  <td className="px-1.5 py-1.5 break-words">{next ? next.title : '—'}</td>
+                  <td className="px-1 py-1.5 break-words">{next ? next.title : '—'}</td>
                 </tr>
               );
             })}
