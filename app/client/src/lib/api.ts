@@ -158,6 +158,10 @@ export interface ExecutionSummary {
 }
 
 export interface AuditEntry {
+  // R4: id y entity_id los devuelve el servidor (SELECT *); se
+  // declaran porque el inspector los muestra como referencias.
+  id: string;
+  entity_id: string;
   actor: string;
   action: string;
   entity: string;
@@ -183,6 +187,69 @@ export function getExecutions(): Promise<{ executions: ExecutionSummary[] }> {
 
 export function getAudit(): Promise<{ audit: AuditEntry[] }> {
   return request<{ audit: AuditEntry[] }>('/api/audit');
+}
+
+// R4 — Actividad y ejecuciones: shapes copiados de los contratos
+// reales de routes.ts (ejecuciones, pasos, workflows, políticas).
+// No hay endpoint nuevo: todo existe desde C2/C3/C6/H1.
+export interface ExecutionFull {
+  id: string;
+  workflow: string;
+  workflow_version: string;
+  input_json: string;
+  retry_of: string | null;
+  status: string;
+  result_json: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExecutionStep {
+  id: string;
+  step: string;
+  status: string;
+  output_json: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+export interface WorkflowDef {
+  workflow: string;
+  version: string;
+  name: string;
+  steps: string[];
+}
+
+export interface PolicyEntry {
+  key: string;
+  value: string;
+  description: string;
+}
+
+export function getExecutionsFull(): Promise<{ executions: ExecutionFull[] }> {
+  return request<{ executions: ExecutionFull[] }>('/api/executions');
+}
+
+export function getExecutionSteps(id: string): Promise<{ executionId: string; steps: ExecutionStep[] }> {
+  return request<{ executionId: string; steps: ExecutionStep[] }>(
+    `/api/executions/${encodeURIComponent(id)}/steps`,
+  );
+}
+
+export function retryExecution(id: string): Promise<{ executionId: string; retriedFrom: string }> {
+  return request<{ executionId: string; retriedFrom: string }>(
+    `/api/executions/${encodeURIComponent(id)}/retry`,
+    { method: 'POST' },
+  );
+}
+
+export function getWorkflows(): Promise<{ workflows: WorkflowDef[] }> {
+  return request<{ workflows: WorkflowDef[] }>('/api/workflows');
+}
+
+export function getPolicies(): Promise<{ policies: PolicyEntry[] }> {
+  return request<{ policies: PolicyEntry[] }>('/api/policies');
 }
 
 // H1 — Inicio: agentes con estado derivado, procesos y detalle con

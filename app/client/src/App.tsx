@@ -7,6 +7,7 @@ import { HomeView } from './features/inicio/HomeView';
 import { OpportunitiesView } from './features/oportunidades/OpportunitiesView';
 import { TasksView } from './features/tareas/TasksView';
 import { ApprovalsView } from './features/aprobaciones/ApprovalsView';
+import { ActivityView } from './features/actividad/ActivityView';
 import { SectionPlaceholder } from './features/sections/SectionPlaceholder';
 import { ApiError, getMe, type MeResponse } from './lib/api';
 
@@ -102,7 +103,7 @@ export function App() {
           <Route path="oportunidades" element={<OpportunitiesView />} />
           <Route path="tareas" element={<TasksView />} />
           <Route path="aprobaciones" element={<ApprovalsView />} />
-          <Route path="actividad" element={<SectionPlaceholder title="Actividad y ejecuciones" about="La auditoría completa y las ejecuciones de los procesos." />} />
+          <Route path="actividad" element={<ActivityView />} />
           <Route path="agentes" element={<SectionPlaceholder title="Agentes" about="Los cinco agentes, su función y su trabajo." />} />
           <Route index element={<Navigate to="inicio" replace />} />
           <Route path="*" element={<Navigate to="inicio" replace />} />

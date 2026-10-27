@@ -506,34 +506,36 @@ export function ApprovalsView() {
 
             <div>
               <h3 className="text-sm font-semibold">Datos contextuales</h3>
-              <dl className="mt-2 divide-y divide-border text-sm">
-                <div className="py-2 first:pt-0">
+              {/* R4: dos columnas (pedido del usuario), mismos campos
+                  y mismo contenido que la lista vertical anterior. */}
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 text-sm">
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Cliente</dt>
-                  <dd className="font-medium">{selected.company || '—'}</dd>
+                  <dd className="font-medium break-words">{selected.company || '—'}</dd>
                 </div>
-                <div className="py-2">
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Contacto</dt>
-                  <dd className="font-medium">{selected.contact_name}</dd>
+                  <dd className="font-medium break-words">{selected.contact_name}</dd>
                 </div>
-                <div className="py-2">
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Correo</dt>
                   <dd className="font-medium break-words">{selectedOpp ? selectedOpp.contact_email : '—'}</dd>
                 </div>
-                <div className="py-2">
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Categoría</dt>
-                  <dd className="font-medium">{selectedOpp ? categoryLabel(selectedOpp.category) : '—'}</dd>
+                  <dd className="font-medium break-words">{selectedOpp ? categoryLabel(selectedOpp.category) : '—'}</dd>
                 </div>
-                <div className="py-2">
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Prioridad</dt>
-                  <dd className="font-medium">{selectedOpp ? priorityLabel(selectedOpp.priority) : '—'}</dd>
+                  <dd className="font-medium break-words">{selectedOpp ? priorityLabel(selectedOpp.priority) : '—'}</dd>
                 </div>
-                <div className="py-2">
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Puntaje</dt>
-                  <dd className="font-medium">{selectedOpp ? selectedOpp.score : '—'}</dd>
+                  <dd className="font-medium break-words">{selectedOpp ? selectedOpp.score : '—'}</dd>
                 </div>
-                <div className="py-2">
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Canal</dt>
-                  <dd className="font-medium">{selected.opportunity_source === 'manual' ? 'Alta manual' : selected.opportunity_source === 'webhook' ? 'Entrada externa' : selected.opportunity_source}</dd>
+                  <dd className="font-medium break-words">{selected.opportunity_source === 'manual' ? 'Alta manual' : selected.opportunity_source === 'webhook' ? 'Entrada externa' : selected.opportunity_source}</dd>
                 </div>
               </dl>
             </div>
