@@ -739,3 +739,37 @@ describe('cliente react /v2/ (fase 3)', () => {
     }
   });
 });
+
+describe('cliente react /v2/ (fase 4: inicio)', () => {
+  function clientJs(): string {
+    // El build del cliente lo genera el pretest; se lee el JS
+    // construido para no hardcodear hashes.
+    const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
+    const match = html.match(/\/v2\/assets\/[^"']+\.js/);
+    if (!match) throw new Error('sin asset JS en el build del cliente');
+    return readFileSync(new URL(`../client/dist/${match[0].replace('/v2/', '')}`, import.meta.url), 'utf8');
+  }
+
+  it('el JS del cliente referencia las APIs que alimenta la vista Inicio', async () => {
+    const js = clientJs();
+    for (const path of ['/api/stats', '/api/tasks?status=open', '/api/drafts', '/api/executions', '/api/opportunities', '/api/audit']) {
+      expect(js).toContain(path);
+    }
+  });
+
+  it('el JS del cliente contiene los textos reales de la vista Inicio', async () => {
+    const js = clientJs();
+    for (const text of ['Centro de operaciones', 'Acciones prioritarias', 'Actividad reciente', 'Sin acciones urgentes', 'Sin actividad comercial todavía']) {
+      expect(js).toContain(text);
+    }
+  });
+
+  it('GET /v2/ sigue sirviendo el HTML del cliente React', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/v2/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<div id="root"');
+    expect(res.body).toContain('/v2/assets/');
+    await app.close();
+  });
+});

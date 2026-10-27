@@ -126,3 +126,58 @@ export function sendContact(input: ContactInput): Promise<ContactResponse> {
 export function getStats(): Promise<StatsResponse> {
   return request<StatsResponse>('/api/stats');
 }
+
+// Resúmenes mínimos que usa la vista Inicio (Fase 4). Los
+// shapes copian los contratos reales de app/src/routes.ts: solo
+// los campos que la vista lee; el resto de la fila no se usa.
+export interface OpportunitySummary {
+  id: string;
+  contact_name: string;
+  company: string;
+  category: string;
+}
+
+export interface TaskSummary {
+  id: string;
+  title: string;
+  due_at: string;
+  status: string;
+}
+
+export interface DraftSummary {
+  id: string;
+  status: string;
+}
+
+export interface ExecutionSummary {
+  id: string;
+  status: string;
+}
+
+export interface AuditEntry {
+  actor: string;
+  action: string;
+  entity: string;
+  detail_json: string;
+  created_at: string;
+}
+
+export function getOpportunities(): Promise<{ opportunities: OpportunitySummary[] }> {
+  return request<{ opportunities: OpportunitySummary[] }>('/api/opportunities');
+}
+
+export function getOpenTasks(): Promise<{ tasks: TaskSummary[] }> {
+  return request<{ tasks: TaskSummary[] }>('/api/tasks?status=open');
+}
+
+export function getDrafts(): Promise<{ drafts: DraftSummary[] }> {
+  return request<{ drafts: DraftSummary[] }>('/api/drafts');
+}
+
+export function getExecutions(): Promise<{ executions: ExecutionSummary[] }> {
+  return request<{ executions: ExecutionSummary[] }>('/api/executions');
+}
+
+export function getAudit(): Promise<{ audit: AuditEntry[] }> {
+  return request<{ audit: AuditEntry[] }>('/api/audit');
+}

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { HashRouter, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router';
 import { Alert } from './components/ui/alert';
 import { AppLayout, type SystemStatus } from './components/layout/AppLayout';
 import { LoginScreen } from './features/auth/LoginScreen';
+import { HomeView } from './features/inicio/HomeView';
 import { SectionPlaceholder } from './features/sections/SectionPlaceholder';
 import { ApiError, getMe, type MeResponse } from './lib/api';
 
@@ -57,6 +58,18 @@ function AccessGate() {
     navigate('/', { replace: true });
   }
 
+  // 401 durante la carga de una vista (Fase 4): como el vanilla,
+  // la sesión expirada vuelve a la pantalla de acceso con el
+  // mensaje, en vez de dejar la app visible con datos viejos.
+  // useCallback para que la identidad estable no re-ejecute la
+  // carga de la vista en bucle.
+  const handleSessionExpired = useCallback(() => {
+    setMe(null);
+    setError('La sesión expiró. Volvé a entrar.');
+    setState('login');
+    navigate('/', { replace: true });
+  }, [navigate]);
+
   if (state === 'loading') {
     return <p className="text-secondary">Cargando…</p>;
   }
@@ -72,7 +85,7 @@ function AccessGate() {
   }
   return (
     <AppLayout me={me} status={status} onLoggedOut={handleLoggedOut}>
-      <Outlet />
+      <Outlet context={{ setSystemStatus: setStatus, onSessionExpired: handleSessionExpired }} />
     </AppLayout>
   );
 }
@@ -82,7 +95,7 @@ export function App() {
     <HashRouter>
       <Routes>
         <Route path="/" element={<AccessGate />}>
-          <Route path="inicio" element={<SectionPlaceholder title="Inicio" about="Indicadores, acciones prioritarias y actividad reciente." />} />
+          <Route path="inicio" element={<HomeView />} />
           <Route path="oportunidades" element={<SectionPlaceholder title="Oportunidades" about="La lista de oportunidades con su empresa, categoría y prioridad." />} />
           <Route path="tareas" element={<SectionPlaceholder title="Tareas y seguimientos" about="Las tareas abiertas con vencimiento y agente a cargo." />} />
           <Route path="aprobaciones" element={<SectionPlaceholder title="Aprobaciones" about="Los borradores pendientes de revisión y decisión." />} />
