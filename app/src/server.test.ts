@@ -708,3 +708,34 @@ describe('cliente react /v2/ (fase 2)', () => {
     await app.close();
   });
 });
+
+describe('cliente react /v2/ (fase 3)', () => {
+  it('GET /v2 redirige (302) a /v2/', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/v2' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe('/v2/');
+    await app.close();
+  });
+
+  it('GET /v2/ sigue sirviendo el HTML del cliente React', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/v2/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<div id="root"');
+    expect(res.body).toContain('/v2/assets/');
+    await app.close();
+  });
+
+  it('el JS del cliente referencia las 6 rutas de sección de la Fase 3', async () => {
+    // Las rutas viven en el bundle (HashRouter), no en el HTML: se
+    // verifica que el JS construido las contenga como literales.
+    const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
+    const match = html.match(/\/v2\/assets\/[^"']+\.js/);
+    if (!match) throw new Error('sin asset JS en el build del cliente');
+    const js = readFileSync(new URL(`../client/dist/${match[0].replace('/v2/', '')}`, import.meta.url), 'utf8');
+    for (const path of ['/inicio', '/oportunidades', '/tareas', '/aprobaciones', '/actividad', '/agentes']) {
+      expect(js).toContain(path);
+    }
+  });
+});
