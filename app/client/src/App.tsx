@@ -5,6 +5,7 @@ import { AppLayout, type SystemStatus } from './components/layout/AppLayout';
 import { LoginScreen } from './features/auth/LoginScreen';
 import { HomeView } from './features/inicio/HomeView';
 import { OpportunitiesView } from './features/oportunidades/OpportunitiesView';
+import { TasksView } from './features/tareas/TasksView';
 import { SectionPlaceholder } from './features/sections/SectionPlaceholder';
 import { ApiError, getMe, type MeResponse } from './lib/api';
 
@@ -98,7 +99,7 @@ export function App() {
         <Route path="/" element={<AccessGate />}>
           <Route path="inicio" element={<HomeView />} />
           <Route path="oportunidades" element={<OpportunitiesView />} />
-          <Route path="tareas" element={<SectionPlaceholder title="Tareas y seguimientos" about="Las tareas abiertas con vencimiento y agente a cargo." />} />
+          <Route path="tareas" element={<TasksView />} />
           <Route path="aprobaciones" element={<SectionPlaceholder title="Aprobaciones" about="Los borradores pendientes de revisión y decisión." />} />
           <Route path="actividad" element={<SectionPlaceholder title="Actividad y ejecuciones" about="La auditoría completa y las ejecuciones de los procesos." />} />
           <Route path="agentes" element={<SectionPlaceholder title="Agentes" about="Los cinco agentes, su función y su trabajo." />} />

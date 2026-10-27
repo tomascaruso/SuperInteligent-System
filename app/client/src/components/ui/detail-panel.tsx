@@ -47,7 +47,7 @@ export function DetailPanel({
       >
         <div>
           <h2 className="text-base font-semibold">{title}</h2>
-          {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+          {subtitle && <p className="mt-1 text-sm text-secondary">{subtitle}</p>}
         </div>
         <div className="mt-4 space-y-4">{children}</div>
         {footer && <div className="mt-5 pt-4 border-t border-border flex flex-wrap gap-2">{footer}</div>}
@@ -62,7 +62,7 @@ export function DetailPanel({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">{title}</h2>
-            {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+            {subtitle && <p className="mt-1 text-sm text-secondary">{subtitle}</p>}
           </div>
           <Button type="button" variant="secondary" size="sm" onClick={onClose} autoFocus>
             Cerrar

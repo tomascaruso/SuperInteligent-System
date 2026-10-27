@@ -23,7 +23,7 @@ export function Tabs({
     <div
       role="tablist"
       aria-label="Secciones del detalle"
-      className={`flex gap-1 border-b border-border ${scrollable ? 'overflow-x-auto' : 'flex-wrap'}`}
+      className={`flex gap-1 border-b border-border ${scrollable ? 'overflow-x-auto scrollbar-none' : 'flex-wrap'}`}
     >
       {tabs.map((t) => (
         <button
@@ -34,6 +34,10 @@ export function Tabs({
           aria-controls={idPrefix ? `${idPrefix}-panel-${t.id}` : undefined}
           aria-selected={active === t.id}
           onClick={() => onChange(t.id)}
+          // R2: con la barra oculta, la pestaña enfocada con
+          // teclado debe entrar a la vista (el navegador ya lo
+          // hace al enfocar, esto lo refuerza sin animación).
+          onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
           className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px ${
             active === t.id ? 'border-primary text-primary' : 'border-transparent text-secondary hover:text-ink'
           }`}

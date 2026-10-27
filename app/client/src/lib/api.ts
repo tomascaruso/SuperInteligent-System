@@ -332,6 +332,15 @@ export function getAllTasks(): Promise<{ tasks: TaskFull[] }> {
   return request<{ tasks: TaskFull[] }>('/api/tasks');
 }
 
+// R2: completar (o reabrir) una tarea. El servidor solo acepta
+// 'open' | 'done'; la vista solo ofrece completar, nunca reabrir.
+export function updateTask(id: string, status: 'open' | 'done'): Promise<{ task: TaskFull }> {
+  return request<{ task: TaskFull }>(`/api/tasks/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
 export function getDraftsDetail(): Promise<{ drafts: DraftFull[] }> {
   return request<{ drafts: DraftFull[] }>('/api/drafts');
 }

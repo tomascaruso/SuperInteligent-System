@@ -37,3 +37,13 @@ body {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* R2: ocultar la barra de desplazamiento de las pestañas con
+   scroll (pedido del usuario): el desplazamiento sigue
+   funcionando con rueda, táctil y teclado; solo no se ve. */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
