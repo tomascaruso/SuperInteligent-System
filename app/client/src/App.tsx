@@ -9,6 +9,7 @@ import { TasksView } from './features/tareas/TasksView';
 import { ApprovalsView } from './features/aprobaciones/ApprovalsView';
 import { ActivityView } from './features/actividad/ActivityView';
 import { AgentsView } from './features/agentes/AgentsView';
+import { IntegrationsView } from './features/integraciones/IntegrationsView';
 import { ApiError, getMe, type MeResponse } from './lib/api';
 
 // Fase 3: HashRouter (sin cambios en el servidor: toda la ruta
@@ -105,6 +106,7 @@ export function App() {
           <Route path="aprobaciones" element={<ApprovalsView />} />
           <Route path="actividad" element={<ActivityView />} />
           <Route path="agentes" element={<AgentsView />} />
+          <Route path="integraciones" element={<IntegrationsView />} />
           <Route index element={<Navigate to="inicio" replace />} />
           <Route path="*" element={<Navigate to="inicio" replace />} />
         </Route>

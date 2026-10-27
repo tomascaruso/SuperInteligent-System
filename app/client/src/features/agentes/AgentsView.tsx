@@ -1,5 +1,14 @@
 // R5 — Agentes (vista real, reemplaza el aviso de migración de la
 // Fase 3; con esto quedan las 6 secciones reales implementadas).
+// R5b — Detalle siempre visible (Orquestador por defecto; si los
+// filtros lo ocultan, el primer visible), secciones en el orden
+// pedido (Nombre, Objetivo, Capacidades, Herramientas autorizadas,
+// Logs de Ejecución, Permisos y Límites, Procesos Activos,
+// Resultados recientes). Herramientas autorizadas es SECCIÓN
+// PROPIA (corrección del usuario: NO se unifica con Capacidades):
+// serán las integraciones conectadas; hoy ninguna, así que muestra
+// el estado honesto + enlace a /integraciones. Los logs usan las
+// frases humanas de R4b (mismo mapeo), no nombres técnicos.
 // Sigue el patrón de Tareas/Aprobaciones/Actividad: tarjetas con
 // iconos, filtros en una sola fila, lista de tarjetas clicables y
 // panel derecho wide 480 px. La referencia de diseño es solo eso:
@@ -33,7 +42,7 @@
 //   sin porcentajes de progreso (no existen).
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router';
+import { Link, useOutletContext } from 'react-router';
 import {
   CheckCircle2,
   ClipboardList,
@@ -103,6 +112,58 @@ function stepLabel(step: string): string {
       intake: 'Ingreso',
     }[step] ?? step
   );
+}
+
+function parseJson(text: string | null): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+// R5b — Frase humana por paso, MISMO mapeo que R4b (Actividad):
+// los logs del detalle se leen como frases, no como nombres
+// técnicos de pasos. Los IDs (opportunityId, taskId, draftId) no
+// se muestran; el error real de un paso fallido sí se conserva.
+function stepSentence(s: ExecutionStep): string {
+  const out = parseJson(s.output_json) as Record<string, unknown> | null;
+  switch (s.step) {
+    case 'normalize':
+      return 'Se ordenaron los datos del contacto';
+    case 'dedup': {
+      if (out && typeof out.matched === 'boolean') {
+        return out.matched ? 'Se detectó un contacto ya existente' : 'No se encontró un contacto duplicado';
+      }
+      return 'Se revisó si el contacto ya existía';
+    }
+    case 'classify': {
+      if (out && typeof out.category === 'string' && typeof out.nextAction === 'string') {
+        const score = typeof out.score === 'number' ? ` (puntaje ${out.score})` : '';
+        const prio =
+          out.priority === 'high'
+            ? 'Alta'
+            : out.priority === 'medium'
+              ? 'Media'
+              : out.priority === 'low'
+                ? 'Baja'
+                : '—';
+        return `Se clasificó como ${out.category}, prioridad ${prio}${score}, próximo paso: ${out.nextAction}`;
+      }
+      return 'Se clasificó la oportunidad';
+    }
+    case 'upsert':
+      return 'Se registró la oportunidad';
+    case 'next_action':
+      return 'Se creó la tarea de seguimiento';
+    case 'draft':
+      return 'Se preparó el borrador para revisión';
+    case 'intake':
+      return 'El proceso no pudo iniciarse';
+    default:
+      return s.status === 'failed' ? 'El paso no pudo completarse' : 'Se completó un paso del proceso';
+  }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -271,6 +332,9 @@ export function AgentsView() {
             isAdmin: meRes.user.role === 'admin',
             recentSteps,
           });
+          // R5b: detalle siempre visible — por defecto, el
+          // Orquestador Central (no se pisa una selección previa).
+          setSelectedId((cur) => cur ?? 'orchestrator');
           setState('ready');
         }
       } catch (e: unknown) {
@@ -404,6 +468,13 @@ export function AgentsView() {
     () => entries.find((e) => e.id === selectedId) ?? null,
     [entries, selectedId],
   );
+
+  // R5b: si los filtros ocultan la selección, el detalle muestra
+  // el primer visible (nunca queda vacío mientras haya resultados).
+  const visibleSelected = useMemo(() => {
+    if (selected && filtered.some((e) => e.id === selected.id)) return selected;
+    return filtered[0] ?? null;
+  }, [selected, filtered]);
 
   const openDetail = useCallback((id: string) => {
     setSelectedId(id);
@@ -551,7 +622,7 @@ export function AgentsView() {
           {filtered.map((e) => {
             const { icon: Icon, pill } = agentIcon(e.id);
             const badge = statusBadge(e.statusKey);
-            const isSelected = e.id === selectedId;
+            const isSelected = e.id === visibleSelected?.id;
             return (
               <button
                 key={e.id}
@@ -612,7 +683,7 @@ export function AgentsView() {
           })}
         </div>
 
-        {selected && <AgentDetail entry={selected} data={data} onPause={setPauseTarget} />}
+        {visibleSelected && <AgentDetail entry={visibleSelected} data={data} onPause={setPauseTarget} />}
       </div>
 
       <Dialog
@@ -695,7 +766,7 @@ function AgentDetail({
   // inventa el nombre).
   const flowName =
     data.workflows.find((w) => w.workflow === 'opportunity.intake')?.name ?? '—';
-  const oppLabel = (o: { contact_name: string | null; company: string | null } | undefined) =>
+  const oppLabel = (o: { contact_name: string | null; company: string | null } | undefined | null) =>
     o ? [o.contact_name, o.company].filter(Boolean).join(' · ') || '—' : '—';
 
   // Resultados recientes: atribución honesta por agente (ver el
@@ -747,11 +818,13 @@ function AgentDetail({
     <DetailPanel
       variant="inline"
       wide
-      title={`Detalle del agente: ${entry.name}`}
+      title="Detalle del agente"
       subtitle={`${entry.functionLabel} · ${badge.label}`}
     >
       <div>
-        <div className="flex flex-wrap gap-2">
+        <h3 className="text-sm font-semibold">Nombre</h3>
+        <p className="mt-1 font-semibold">{entry.name}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
           {entry.kind === 'orchestrator' && (
             <Badge variant="info" compact>
               <span className="inline-flex items-center gap-1">
@@ -768,14 +841,17 @@ function AgentDetail({
             </Badge>
           )}
         </div>
-        <h3 className="mt-4 text-sm font-semibold">Objetivo</h3>
-        <p className="mt-1 text-sm text-secondary">{entry.description}</p>
         {entry.kind === 'orchestrator' && (
           <p className="mt-1 text-xs text-muted">
             Master significa que coordina a los demás agentes; no es un agente más y no se puede
             pausar.
           </p>
         )}
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold">Objetivo</h3>
+        <p className="mt-1 text-sm text-secondary">{entry.description}</p>
       </div>
 
       <div className={sectionClass}>
@@ -795,18 +871,19 @@ function AgentDetail({
       </div>
 
       <div className={sectionClass}>
-        <h3 className="text-sm font-semibold">Capacidades y Herramientas Autorizadas</h3>
+        <h3 className="text-sm font-semibold">Herramientas autorizadas</h3>
+        <p className="mt-1 text-sm text-secondary">Sin herramientas conectadas todavía.</p>
         <p className="mt-1 text-sm text-secondary">
-          El sistema no usa herramientas externas: las herramientas reales son los pasos del
-          pipeline, cada uno de un agente.
+          Las herramientas autorizadas de este agente serán las integraciones conectadas: herramientas
+          tecnológicas que se conectan al sistema para ayudar a cumplir sus objetivos. Hoy el sistema
+          no usa herramientas externas; el trabajo real del agente son sus pasos del pipeline (ver
+          Capacidades).
         </p>
-        {entry.steps.length > 0 && (
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-            {entry.steps.map((s) => (
-              <li key={s}>{stepLabel(s)}</li>
-            ))}
-          </ul>
-        )}
+        <p className="mt-2 text-sm">
+          <Link to="/integraciones" className="font-medium text-primary underline">
+            Ver integraciones
+          </Link>
+        </p>
       </div>
 
       <div className={sectionClass}>
@@ -818,8 +895,11 @@ function AgentDetail({
               .slice(0, 5)
               .map((e) => (
                 <p key={e.id} className="mt-2 text-sm">
-                  {formatDateTime(e.created_at)} — Ejecución {flowName} ·{' '}
-                  {e.status === 'done' ? 'Completada' : e.status === 'failed' ? 'Fallida' : 'En curso'}
+                  {e.status === 'done'
+                    ? `Ejecución completada el ${formatDateTime(e.created_at)}`
+                    : e.status === 'failed'
+                      ? `Ejecución fallida el ${formatDateTime(e.created_at)}${e.error ? ` · ${e.error}` : ''}`
+                      : `Ejecución en curso desde el ${formatDateTime(e.created_at)}`}
                 </p>
               ))}
             {data.executions.length === 0 && (
@@ -830,8 +910,7 @@ function AgentDetail({
           <>
             {detail.mySteps.slice(0, 5).map((s) => (
               <p key={s.id} className="mt-2 text-sm">
-                {formatDateTime(s.created_at)} — {stepLabel(s.step)} ·{' '}
-                {s.status === 'done' ? 'Completado' : s.status === 'failed' ? 'Fallido' : 'En curso'}
+                {formatDateTime(s.created_at)} — {stepSentence(s)}
                 {s.status === 'failed' && s.error ? ` · ${s.error}` : ''}
               </p>
             ))}
@@ -845,6 +924,21 @@ function AgentDetail({
             )}
           </>
         )}
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold">Permisos y Límites</h3>
+        <p className="mt-1 text-xs text-muted">
+          Políticas del sistema (aplican a todos los agentes; no hay límites por agente).
+        </p>
+        <ul className="mt-2 space-y-1 text-sm">
+          {data.policies.map((p) => (
+            <li key={p.key}>
+              {p.description} —{' '}
+              {p.value === 'true' ? 'Sí' : p.value === 'false' ? 'No' : p.value}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className={sectionClass}>
@@ -872,21 +966,6 @@ function AgentDetail({
             ))}
           </>
         )}
-      </div>
-
-      <div className={sectionClass}>
-        <h3 className="text-sm font-semibold">Permisos y Límites</h3>
-        <p className="mt-1 text-xs text-muted">
-          Políticas del sistema (aplican a todos los agentes; no hay límites por agente).
-        </p>
-        <ul className="mt-2 space-y-1 text-sm">
-          {data.policies.map((p) => (
-            <li key={p.key}>
-              {p.description} —{' '}
-              {p.value === 'true' ? 'Sí' : p.value === 'false' ? 'No' : p.value}
-            </li>
-          ))}
-        </ul>
       </div>
 
       <div className={sectionClass}>
