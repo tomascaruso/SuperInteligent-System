@@ -5,6 +5,7 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { DetailPanel } from '../../components/ui/detail-panel';
+import { Dialog } from '../../components/ui/dialog';
 import { FilterBar } from '../../components/ui/filter-bar';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -65,6 +66,13 @@ import {
 // llama «Borrador», nunca «Borrador IA» (F2-AI DISCARD).
 // Paginación en cliente (el servidor devuelve hasta 100 filas
 // sin paginar); filtros en cliente.
+// R1c (pulido visual, misma funcionalidad): densidad compacta
+// en esta vista, sin barras de desplazamiento internas (tabla
+// sin scroll horizontal, panel sin scroll propio: la única
+// barra es la de la página), diálogo modal para «Nueva
+// oportunidad» (componente Dialog compartido, con trampa de
+// foco) y panel derecho con diseño de tarjeta/secciones, sin
+// cambiar ningún dato.
 
 const PAGE_SIZE = 20;
 
@@ -117,7 +125,7 @@ export function OpportunitiesView() {
   const [page, setPage] = useState(0);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [tab, setTab] = useState('resumen');
   const [auditById, setAuditById] = useState<Record<string, AuditEntry[]>>({});
   const [auditLoading, setAuditLoading] = useState(false);
@@ -128,7 +136,11 @@ export function OpportunitiesView() {
   const [createCompany, setCreateCompany] = useState('');
   const [createMessage, setCreateMessage] = useState('');
   const [creating, setCreating] = useState(false);
-  const [createFeedback, setCreateFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  // R1c: el éxito se muestra en la vista (encima de la tabla)
+  // una vez cerrado el diálogo; el error se muestra dentro del
+  // diálogo y el diálogo queda abierto.
+  const [viewFeedback, setViewFeedback] = useState<string | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState('loading');
@@ -206,9 +218,22 @@ export function OpportunitiesView() {
     setTab('resumen');
   }
 
+  function clearCreateForm() {
+    setCreateName('');
+    setCreateEmail('');
+    setCreateCompany('');
+    setCreateMessage('');
+    setDialogError(null);
+  }
+
+  function closeDialog() {
+    setDialogOpen(false);
+    clearCreateForm();
+  }
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    setCreateFeedback(null);
+    setDialogError(null);
     setCreating(true);
     try {
       const result = await createOpportunity({
@@ -217,21 +242,13 @@ export function OpportunitiesView() {
         company: createCompany,
         message: createMessage,
       });
-      setCreateName('');
-      setCreateEmail('');
-      setCreateCompany('');
-      setCreateMessage('');
-      setCreateFeedback({
-        kind: 'success',
-        text: result.duplicate ? 'La oportunidad ya estaba registrada.' : 'Oportunidad creada.',
-      });
+      clearCreateForm();
+      setDialogOpen(false);
+      setViewFeedback(result.duplicate ? 'La oportunidad ya estaba registrada.' : 'Oportunidad creada.');
       setPage(0);
       setReloadKey((k) => k + 1);
     } catch (err: unknown) {
-      setCreateFeedback({
-        kind: 'error',
-        text: err instanceof ApiError ? err.message : 'No se pudo crear la oportunidad.',
-      });
+      setDialogError(err instanceof ApiError ? err.message : 'No se pudo crear la oportunidad.');
     } finally {
       setCreating(false);
     }
@@ -244,7 +261,7 @@ export function OpportunitiesView() {
   if (state === 'error' || !data) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold">Oportunidades</h1>
+        <h1 className="text-lg font-semibold">Oportunidades</h1>
         <Alert variant="error">{error || 'No se pudo cargar Oportunidades.'}</Alert>
         <Button type="button" variant="primary" onClick={() => setReloadKey((k) => k + 1)}>
           Reintentar
@@ -301,83 +318,22 @@ export function OpportunitiesView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Oportunidades</h1>
-          <p className="text-secondary">Centraliza, clasifica y supervisa las oportunidades comerciales</p>
+          <h1 className="text-lg font-semibold">Oportunidades</h1>
+          <p className="text-sm text-secondary">Centraliza, clasifica y supervisa las oportunidades comerciales</p>
         </div>
-        <Button type="button" onClick={() => setShowCreate((v) => !v)} aria-expanded={showCreate}>
+        <Button type="button" onClick={() => setDialogOpen(true)}>
           Nueva oportunidad
         </Button>
       </div>
 
-      {showCreate && (
-      <Card>
-        <h2 className="text-base font-semibold">Nueva oportunidad (alta manual)</h2>
-        {createFeedback && (
-          <div className="mt-3">
-            <Alert variant={createFeedback.kind === 'success' ? 'success' : 'error'}>{createFeedback.text}</Alert>
-          </div>
-        )}
-        <form onSubmit={onCreate} className="mt-3">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <Label htmlFor="opp-name">Nombre de contacto</Label>
-              <Input id="opp-name" required value={createName} onChange={(e) => setCreateName(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="opp-email">Correo de contacto</Label>
-              <Input
-                id="opp-email"
-                type="email"
-                required
-                value={createEmail}
-                onChange={(e) => setCreateEmail(e.target.value)}
-                autoComplete="email"
-              />
-            </div>
-            <div>
-              <Label htmlFor="opp-company">Empresa (opcional)</Label>
-              <Input id="opp-company" value={createCompany} onChange={(e) => setCreateCompany(e.target.value)} />
-            </div>
-            <div className="sm:col-span-3">
-              <Label htmlFor="opp-message">Mensaje de la oportunidad</Label>
-              <textarea
-                id="opp-message"
-                required
-                value={createMessage}
-                onChange={(e) => setCreateMessage(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-surface text-ink border border-border rounded-control min-h-[72px]"
-              />
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Creando…' : 'Crear oportunidad'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setShowCreate(false);
-                setCreateName('');
-                setCreateEmail('');
-                setCreateCompany('');
-                setCreateMessage('');
-                setCreateFeedback(null);
-              }}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Card>
-      )}
+      {viewFeedback && <Alert variant="success">{viewFeedback}</Alert>}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_370px] items-start">
-      <Card>
-        <div className="mt-3">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_370px] items-start">
+      <Card compact>
+        <div>
           <FilterBar
             searchValue={search}
             onSearchChange={(v) => {
@@ -430,6 +386,7 @@ export function OpportunitiesView() {
                 },
               },
             ]}
+            compact
             onClear={() => {
               setSearch('');
               setStatusFilter('all');
@@ -446,7 +403,7 @@ export function OpportunitiesView() {
           />
         </div>
         {showMoreFilters && (
-          <div className="mt-3 flex flex-wrap gap-3 items-end">
+          <div className="mt-2 flex flex-wrap gap-2 items-end">
             <div>
               <Label htmlFor="filter-category">Categoría</Label>
               <select
@@ -456,7 +413,7 @@ export function OpportunitiesView() {
                   setCategoryFilter(e.target.value);
                   setPage(0);
                 }}
-                className="w-full px-3 py-2 text-sm bg-surface text-ink border border-border rounded-control"
+                className="w-full px-3 h-9 text-sm bg-surface text-ink border border-border rounded-control"
               >
                 <option value="all">Todas</option>
                 {categories.map((c) => (
@@ -468,8 +425,9 @@ export function OpportunitiesView() {
             </div>
           </div>
         )}
-        <div className="mt-4">
+        <div className="mt-3">
           <Table
+            scrollable={false}
             headers={['Oportunidad', 'Estado', 'Prioridad', 'Fuente', 'Agente', 'Atención humana', 'Próximo paso']}
             empty={pageItems.length === 0}
             emptyText={
@@ -496,33 +454,33 @@ export function OpportunitiesView() {
                   }}
                   className={`cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary-subtle' : ''}`}
                 >
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5 break-words">
                     <div className="font-semibold">{o.contact_name}</div>
                     <div className="text-secondary">{o.company || '—'}</div>
                     <div className="text-xs text-secondary">{categoryLabel(o.category)}</div>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5 break-words">
                     <Badge variant={statusVariant(o.status)}>{statusLabel(o.status)}</Badge>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5 break-words">
                     <Badge variant={priorityVariant(o.priority)}>{priorityLabel(o.priority)}</Badge>
                   </td>
-                  <td className="px-3 py-2">{channelLabel(o.source)}</td>
-                  <td className="px-3 py-2">{next ? next.agent_name || next.assigned_to : '—'}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5 break-words">{channelLabel(o.source)}</td>
+                  <td className="px-2 py-1.5 break-words">{next ? next.agent_name || next.assigned_to : '—'}</td>
+                  <td className="px-2 py-1.5 break-words">
                     {needsAttention ? (
                       <Badge variant="warning">Atención humana requerida</Badge>
                     ) : (
                       <span className="text-secondary">Sin pendiente</span>
                     )}
                   </td>
-                  <td className="px-3 py-2">{next ? next.title : '—'}</td>
+                  <td className="px-2 py-1.5 break-words">{next ? next.title : '—'}</td>
                 </tr>
               );
             })}
           </Table>
         </div>
-        <div className="mt-4">
+        <div className="mt-3">
           <Pagination page={safePage} pageCount={pageCount} total={filtered.length} from={from} to={to} onPage={setPage} />
         </div>
       </Card>
@@ -538,72 +496,72 @@ export function OpportunitiesView() {
             ) : undefined
           }
         >
-          <div className="space-y-2 text-sm">
+          <div className="space-y-3 text-sm">
             <p>
               <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
             </p>
-            <dl className="grid grid-cols-2 gap-2">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border pt-3">
               <div>
-                <dt className="text-secondary">Categoría</dt>
-                <dd>{categoryLabel(selected.category)}</dd>
+                <dt className="text-xs text-secondary">Categoría</dt>
+                <dd className="font-medium">{categoryLabel(selected.category)}</dd>
               </div>
               <div>
-                <dt className="text-secondary">Prioridad</dt>
-                <dd>{priorityLabel(selected.priority)}</dd>
+                <dt className="text-xs text-secondary">Prioridad</dt>
+                <dd className="font-medium">{priorityLabel(selected.priority)}</dd>
               </div>
               <div>
-                <dt className="text-secondary">Canal</dt>
-                <dd>{channelLabel(selected.source)}</dd>
+                <dt className="text-xs text-secondary">Canal</dt>
+                <dd className="font-medium">{channelLabel(selected.source)}</dd>
               </div>
               <div>
-                <dt className="text-secondary">Puntaje</dt>
-                <dd>{selected.score}</dd>
+                <dt className="text-xs text-secondary">Puntaje</dt>
+                <dd className="font-medium">{selected.score}</dd>
               </div>
             </dl>
           </div>
-          <Tabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />
+          <Tabs tabs={DETAIL_TABS} active={tab} onChange={setTab} scrollable={false} />
 
           {tab === 'resumen' && (
-            <dl className="space-y-2 text-sm">
-              <div>
-                <dt className="text-secondary">Contacto</dt>
-                <dd>{selected.contact_name}</dd>
+            <dl className="divide-y divide-border text-sm">
+              <div className="py-2 first:pt-0">
+                <dt className="text-xs text-secondary">Contacto</dt>
+                <dd className="mt-0.5">{selected.contact_name}</dd>
               </div>
-              <div>
-                <dt className="text-secondary">Correo</dt>
-                <dd>{selected.contact_email}</dd>
+              <div className="py-2">
+                <dt className="text-xs text-secondary">Correo</dt>
+                <dd className="mt-0.5 break-words">{selected.contact_email}</dd>
               </div>
-              <div>
-                <dt className="text-secondary">Empresa</dt>
-                <dd>{selected.company || '—'}</dd>
+              <div className="py-2">
+                <dt className="text-xs text-secondary">Empresa</dt>
+                <dd className="mt-0.5">{selected.company || '—'}</dd>
               </div>
-              <div>
-                <dt className="text-secondary">Mensaje</dt>
-                <dd className="whitespace-pre-wrap">{selected.message}</dd>
+              <div className="py-2">
+                <dt className="text-xs text-secondary">Mensaje</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap">{selected.message}</dd>
               </div>
-              <div>
-                <dt className="text-secondary">Canal</dt>
-                <dd>{channelLabel(selected.source)}</dd>
+              <div className="py-2">
+                <dt className="text-xs text-secondary">Canal</dt>
+                <dd className="mt-0.5">{channelLabel(selected.source)}</dd>
               </div>
-              <div>
-                <dt className="text-secondary">Estado</dt>
-                <dd>
+              <div className="py-2">
+                <dt className="text-xs text-secondary">Estado</dt>
+                <dd className="mt-0.5">
                   <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
                 </dd>
               </div>
-              <div>
-                <dt className="text-secondary">Puntaje</dt>
-                <dd>{selected.score}</dd>
+              <div className="py-2">
+                <dt className="text-xs text-secondary">Puntaje</dt>
+                <dd className="mt-0.5">{selected.score}</dd>
               </div>
-              <div>
-                <dt className="text-secondary">Creada</dt>
-                <dd>{formatDateTime(selected.created_at)}</dd>
+              <div className="py-2">
+                <dt className="text-xs text-secondary">Creada</dt>
+                <dd className="mt-0.5">{formatDateTime(selected.created_at)}</dd>
               </div>
-              <div>
-                <dt className="text-secondary">Actualizada</dt>
-                <dd>{formatDateTime(selected.updated_at)}</dd>
+              <div className="py-2 last:pb-0">
+                <dt className="text-xs text-secondary">Actualizada</dt>
+                <dd className="mt-0.5">{formatDateTime(selected.updated_at)}</dd>
               </div>
-              <p className="text-secondary">
+              <p className="pt-2 text-xs text-secondary">
                 El puntaje sale de reglas deterministas (urgencia, presupuesto, empresa, dominio y categoría); el
                 desglose por oportunidad no queda guardado.
               </p>
@@ -614,7 +572,7 @@ export function OpportunitiesView() {
             <div className="space-y-3 text-sm">
               {!selectedDraft && <p className="text-secondary">Sin borrador para esta oportunidad.</p>}
               {selectedDraft && (
-                <>
+                <div className="bg-primary-subtle border border-border rounded-card p-4 space-y-3">
                   <p>
                     <Badge variant={draftVariant(selectedDraft.status)}>{draftStatusLabel(selectedDraft.status)}</Badge>{' '}
                     {selectedDraft.expired && <Badge variant="danger">Vencido</Badge>}{' '}
@@ -632,28 +590,33 @@ export function OpportunitiesView() {
                       se puede aprobar. Podés rechazarlo y generar uno nuevo.
                     </p>
                   )}
-                  <pre className="whitespace-pre-wrap text-sm bg-canvas border border-border rounded-control p-3">
+                  <pre className="whitespace-pre-wrap text-sm bg-surface border border-border rounded-control p-3">
                     {selectedDraft.body}
                   </pre>
                   {selectedDraft.status !== 'pending_approval' && (
-                    <p className="text-secondary">
+                    <p className="text-xs text-secondary">
                       Decidido por {selectedDraft.decided_by ?? '—'} el{' '}
                       {selectedDraft.decided_at ? formatDateTime(selectedDraft.decided_at) : '—'}
                       {selectedDraft.note ? ` · Motivo: ${selectedDraft.note}` : ''}
                     </p>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}
 
           {tab === 'tareas' && (
-            <ul className="space-y-2 text-sm">
+            <ul className="divide-y divide-border text-sm">
               {selectedTasks.length === 0 && <li className="text-secondary">Sin tareas para esta oportunidad.</li>}
               {selectedTasks.map((t) => (
-                <li key={t.id}>
-                  {t.title} — <Badge variant={taskVariant(t.status)}>{taskLabel(t.status)}</Badge> — Agente:{' '}
-                  {t.agent_name || t.assigned_to} — vence {formatDate(t.due_at)}
+                <li key={t.id} className="py-2 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-medium">{t.title}</span>
+                    <Badge variant={taskVariant(t.status)}>{taskLabel(t.status)}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-secondary">
+                    Agente: {t.agent_name || t.assigned_to} · vence {formatDate(t.due_at)}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -686,21 +649,81 @@ export function OpportunitiesView() {
               {!auditLoading &&
                 !auditError &&
                 selectedAudit &&
-                selectedAudit.map((a, i) => (
-                  <p key={`${a.created_at}-${a.actor}-${a.action}-${i}`}>
-                    {formatDateTime(a.created_at)} — {a.actor}: {auditActionLabel(a.action)} (
-                    {auditEntityLabel(a.entity)}){auditDetail(a)}
-                  </p>
-                ))}
+                selectedAudit.length > 0 && (
+                  <ol className="space-y-4 border-l-2 border-border ml-2 pl-4">
+                    {selectedAudit.map((a, i) => (
+                      <li key={`${a.created_at}-${a.actor}-${a.action}-${i}`} className="relative">
+                        <span
+                          aria-hidden="true"
+                          className="absolute -left-7 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-surface"
+                        />
+                        <p className="text-sm font-medium">
+                          {auditActionLabel(a.action)} ({auditEntityLabel(a.entity)})
+                        </p>
+                        <p className="mt-0.5 text-xs text-secondary">
+                          {formatDateTime(a.created_at)} · {a.actor}
+                          {auditDetail(a)}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
             </div>
           )}
         </DetailPanel>
       ) : (
-        <aside className="bg-surface border border-border rounded-card p-6">
-          <p className="text-secondary">Seleccioná una oportunidad para ver su detalle.</p>
+        <aside className="bg-surface border border-border rounded-card shadow-sm p-4">
+          <p className="text-sm text-secondary">Seleccioná una oportunidad para ver su detalle.</p>
         </aside>
       )}
       </div>
+
+      <Dialog open={dialogOpen} title="Nueva oportunidad (alta manual)" onClose={closeDialog}>
+        {dialogError && (
+          <div className="mb-3">
+            <Alert variant="error">{dialogError}</Alert>
+          </div>
+        )}
+        <form onSubmit={onCreate} className="space-y-3">
+          <div>
+            <Label htmlFor="opp-name">Nombre de contacto</Label>
+            <Input id="opp-name" required value={createName} onChange={(e) => setCreateName(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="opp-email">Correo de contacto</Label>
+            <Input
+              id="opp-email"
+              type="email"
+              required
+              value={createEmail}
+              onChange={(e) => setCreateEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div>
+            <Label htmlFor="opp-company">Empresa (opcional)</Label>
+            <Input id="opp-company" value={createCompany} onChange={(e) => setCreateCompany(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="opp-message">Mensaje de la oportunidad</Label>
+            <textarea
+              id="opp-message"
+              required
+              value={createMessage}
+              onChange={(e) => setCreateMessage(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-surface text-ink border border-border rounded-control min-h-[72px]"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creando…' : 'Crear oportunidad'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={closeDialog}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }
