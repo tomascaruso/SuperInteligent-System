@@ -652,7 +652,7 @@ export function ActivityView() {
                         openDetail(e.id);
                       }
                     }}
-                    className={`group cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary/20' : ''}`}
+                    className={`group cursor-pointer border-b border-border hover:bg-primary-subtle ${isSelected ? 'bg-primary/20' : ''}`}
                   >
                     <td className="px-1 py-1.5 break-words">
                       <div className="font-semibold">{workflowDisplayName(data.workflows, e.workflow)}</div>
@@ -737,7 +737,7 @@ export function ActivityView() {
               </p>
             </div>
 
-            <div>
+            <div className="mt-6 border-t border-border pt-5">
               <h3 className="text-sm font-semibold">Datos de entrada</h3>
               <p className="mt-1 text-xs text-secondary">
                 Los datos personales se muestran enmascarados por protección.
@@ -776,7 +776,7 @@ export function ActivityView() {
               })()}
             </div>
 
-            <div>
+            <div className="mt-6 border-t border-border pt-5">
               <h3 className="text-sm font-semibold">Cronología de pasos</h3>
               {stepsLoading && !selectedSteps && <p className="mt-2 text-secondary">Cargando pasos…</p>}
               {stepsError && <Alert variant="error">{stepsError}</Alert>}
@@ -810,7 +810,7 @@ export function ActivityView() {
               )}
             </div>
 
-            <div>
+            <div className="mt-6 border-t border-border pt-5">
               <h3 className="text-sm font-semibold">Decisiones vinculadas</h3>
               {auditLoading && !selectedOppId && <p className="mt-2 text-secondary">Cargando decisiones…</p>}
               {auditError && <Alert variant="error">{auditError}</Alert>}
@@ -837,7 +837,7 @@ export function ActivityView() {
             </div>
 
             {selected.status === 'failed' && (
-              <div>
+              <div className="mt-6 border-t border-border pt-5">
                 <h3 className="text-sm font-semibold">Diagnóstico de error</h3>
                 <Alert variant="error">
                   <span className="break-words">{selected.error ?? 'Sin mensaje de error guardado.'}</span>
@@ -857,7 +857,7 @@ export function ActivityView() {
               </div>
             )}
 
-            <div>
+            <div className="mt-6 border-t border-border pt-5">
               <h3 className="text-sm font-semibold">Reintentos</h3>
               {chain.length <= 1 ? (
                 <p className="mt-2 text-sm text-secondary">Sin reintentos para esta ejecución.</p>
@@ -877,7 +877,7 @@ export function ActivityView() {
               )}
             </div>
 
-            <div>
+            <div className="mt-6 border-t border-border pt-5">
               <h3 className="text-sm font-semibold">Referencias de auditoría</h3>
               {auditLoading && selectedOppId && !auditByOpp[selectedOppId] ? (
                 <p className="mt-2 text-secondary">Cargando registros…</p>
@@ -897,7 +897,7 @@ export function ActivityView() {
               )}
             </div>
 
-            <details className="rounded-control border border-border bg-surface p-3">
+            <details className="mt-6 rounded-control border border-border bg-surface p-3">
               <summary className="cursor-pointer text-sm font-medium">
                 Detalle técnico (para soporte)
               </summary>
