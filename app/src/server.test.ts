@@ -627,3 +627,45 @@ describe('paso 1 composición (referencia visual)', () => {
     await app.close();
   });
 });
+
+describe('pantalla de acceso (diagnóstico login)', () => {
+  it('GET / sirve los dos paneles, la vista ilustrativa y el formulario real', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('login-layout');
+    expect(res.body).toContain('login-brand');
+    expect(res.body).toContain('login-preview');
+    expect(res.body).not.toContain('Vista ilustrativa');
+    expect(res.body).toContain('Bienvenido');
+    expect(res.body).toContain('Iniciar sesión');
+    expect(res.body).toContain('btn-toggle-password');
+    expect(res.body).toContain('btn-show-contact');
+    // Se preservan: invitación, cuenta demo y contacto existente.
+    expect(res.body).toContain('Tengo una invitación');
+    expect(res.body).toContain('Cuenta de demostración');
+    expect(res.body).toContain('Quiero una demo para mi empresa');
+    await app.close();
+  });
+
+  it('GET /app.js sirve el toggle de contraseña y el enlace de contacto', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.body).toContain('btn-toggle-password');
+    expect(js.body).toContain('Ocultar contraseña');
+    expect(js.body).toContain('btn-show-contact');
+    expect(js.body).toContain('contact-link-wrap');
+    await app.close();
+  });
+
+  it('GET /styles sirve el layout y los estilos de acceso', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const layout = await app.inject({ method: 'GET', url: '/styles/layout.css' });
+    expect(layout.statusCode).toBe(200);
+    expect(layout.body).toContain('.login-layout');
+    const components = await app.inject({ method: 'GET', url: '/styles/components.css' });
+    expect(components.statusCode).toBe(200);
+    expect(components.body).toContain('.login-preview');
+    await app.close();
+  });
+});
