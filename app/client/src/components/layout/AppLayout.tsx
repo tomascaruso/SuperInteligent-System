@@ -69,7 +69,7 @@ export function AppLayout({
   return (
     <div className="min-h-screen">
       <header className="bg-surface border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="max-w-[1440px] mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
           <p className="m-0 flex items-center gap-2">
             <img src={sisMark} alt="" aria-hidden="true" width={25} height={32} className="h-8 w-auto" />
             <span className="text-xl font-semibold text-primary">SIS</span>{' '}
@@ -88,12 +88,12 @@ export function AppLayout({
             <LogOut size={16} aria-hidden="true" /> {leaving ? 'Saliendo…' : 'Salir'}
           </Button>
         </div>
-        <div className="max-w-7xl mx-auto px-4 pb-2">
+        <div className="max-w-[1440px] mx-auto px-4 pb-2">
           <Alert variant="error">{error}</Alert>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-4 lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-6">
+      <div className="max-w-[1440px] mx-auto px-4 py-4 lg:grid lg:grid-cols-[190px_minmax(0,1fr)] lg:gap-6">
         <nav aria-label="Navegación principal" className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible mb-4 lg:mb-0">
           {NAV.map(({ to, label }) => (
             <NavLink

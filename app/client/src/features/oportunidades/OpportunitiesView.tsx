@@ -418,12 +418,12 @@ export function OpportunitiesView() {
         />
       </Card>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
       <Card compact pad="p-3">
         <div>
           <Table
             scrollable={false}
-            textSize="text-[13px]"
+            textSize="text-xs"
             headers={['Oportunidad', 'Estado', 'Prioridad', 'Fuente', 'Agente', 'Atención humana', 'Próximo paso']}
             empty={pageItems.length === 0}
             emptyText={
@@ -469,18 +469,20 @@ export function OpportunitiesView() {
                   <td className="px-1 py-1.5 break-words">{next ? next.agent_name || next.assigned_to : '—'}</td>
                   <td className="px-1 py-1.5 break-words">
                     {needsAttention ? (
-                      // R1h: a 12 px el texto caía en 3 líneas
-                      // y la píldora quedaba alta y angosta, con
-                      // el texto pegado a los bordes (feo, visto
-                      // en captura del usuario 27-oct). A 11 px
-                      // (prop compact de Badge) «Atención humana»
-                      // entra en la primera línea y «requerida»
-                      // en la segunda: píldora horizontal normal
-                      // de 2 líneas, con el mismo tope de 120 px,
-                      // así la tabla no se ensancha y «Próximo
-                      // paso» (ya confirmado dentro) no se sale.
-                      // El texto y el color no se tocan.
-                      <Badge variant="warning" compact className="max-w-[120px] whitespace-normal text-center leading-snug">
+                      // R1i: el 11 px de R1h no alcanzó en la
+                      // pantalla del usuario (siguió en 3 líneas,
+                      // visto en captura 27-oct): la tabla estaba
+                      // apretada entre menú y panel. Ahora la
+                      // tabla gana aire (panel 420→360, menú
+                      // 200→190, contenedor 1280→1440 en
+                      // AppLayout, celdas 13→12 px) y la píldora
+                      // sube su tope de 120 a 150 px, así
+                      // «Atención humana» entra con margen en la
+                      // primera línea y «requerida» queda en la
+                      // segunda, sin que «Próximo paso» (ya
+                      // confirmado dentro) se salga. El texto y
+                      // el color no se tocan.
+                      <Badge variant="warning" compact className="max-w-[150px] whitespace-normal text-center leading-snug">
                         Atención humana requerida
                       </Badge>
                     ) : (
