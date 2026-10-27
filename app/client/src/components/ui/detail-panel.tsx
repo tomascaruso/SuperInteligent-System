@@ -15,8 +15,9 @@ import { Button } from './button';
 // R1c: la variante inline ya NO tiene sticky ni scroll propio
 // (nada de max-height con overflow interno): acompaña a la
 // página y la única barra posible es la de la página misma.
-// R3b: `wide` da un panel inline de 480 px (solo Aprobaciones,
-// que lo pidió el usuario para replicar su referencia). El ancho
+// R3b: `wide` da un panel inline de 480 px (Aprobaciones, que lo
+// pidió el usuario para replicar su referencia; R4 lo reutiliza
+// para el inspector). El ancho
 // lo fija el panel, no la grilla: la vista que lo usa pone la
 // columna del panel en `auto`. Oportunidades NO usa wide y
 // queda en 360 px como siempre.
