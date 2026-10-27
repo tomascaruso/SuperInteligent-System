@@ -93,7 +93,7 @@ export function AppLayout({
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-4 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
+      <div className="max-w-7xl mx-auto px-4 py-4 lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-6">
         <nav aria-label="Navegación principal" className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible mb-4 lg:mb-0">
           {NAV.map(({ to, label }) => (
             <NavLink

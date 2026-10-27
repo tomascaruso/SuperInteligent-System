@@ -56,7 +56,8 @@ import {
 //   desactualizado sigue en pending_approval hasta que se
 //   decida, así que también marca atención requerida.
 // La categoría no se pierde: va en la tercera línea de la
-// celda Oportunidad y como filtro real tras «Más filtros».
+// celda Oportunidad y como filtro real siempre visible en la
+// fila única de filtros (R1d; el «Más filtros» de R1b se eliminó).
 // OMITIDO de la referencia por falta de fuente real: «Agente
 // IA Asignado» (Agente X-1/X-2/X-3), valor estimado,
 // probabilidad, fecha de cierre, «Borrador IA», desglose IA con
@@ -121,7 +122,6 @@ export function OpportunitiesView() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [page, setPage] = useState(0);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -331,10 +331,12 @@ export function OpportunitiesView() {
 
       {viewFeedback && <Alert variant="success">{viewFeedback}</Alert>}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_370px] items-start">
+      {/* R1d: la fila de filtros vive en su propia tarjeta a ancho
+          completo de la sección, encima de la grilla tabla+panel:
+          dentro de la tarjeta de la tabla se partía en dos filas
+          por el panel derecho. */}
       <Card compact>
-        <div>
-          <FilterBar
+        <FilterBar
             searchValue={search}
             onSearchChange={(v) => {
               setSearch(v);
@@ -385,8 +387,22 @@ export function OpportunitiesView() {
                   setPage(0);
                 },
               },
+              {
+                id: 'filter-category',
+                label: 'Categoría',
+                value: categoryFilter,
+                options: [
+                  { value: 'all', label: 'Todas' },
+                  ...categories.map((c) => ({ value: c, label: categoryLabel(c) })),
+                ],
+                onChange: (v) => {
+                  setCategoryFilter(v);
+                  setPage(0);
+                },
+              },
             ]}
             compact
+            layout="single"
             onClear={() => {
               setSearch('');
               setStatusFilter('all');
@@ -395,37 +411,12 @@ export function OpportunitiesView() {
               setCategoryFilter('all');
               setPage(0);
             }}
-            extra={
-              <Button type="button" variant="secondary" onClick={() => setShowMoreFilters((v) => !v)} aria-expanded={showMoreFilters}>
-                Más filtros
-              </Button>
-            }
-          />
-        </div>
-        {showMoreFilters && (
-          <div className="mt-2 flex flex-wrap gap-2 items-end">
-            <div>
-              <Label htmlFor="filter-category">Categoría</Label>
-              <select
-                id="filter-category"
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setPage(0);
-                }}
-                className="w-full px-3 h-9 text-sm bg-surface text-ink border border-border rounded-control"
-              >
-                <option value="all">Todas</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {categoryLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-        <div className="mt-3">
+        />
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_440px] items-start">
+      <Card compact>
+        <div>
           <Table
             scrollable={false}
             headers={['Oportunidad', 'Estado', 'Prioridad', 'Fuente', 'Agente', 'Atención humana', 'Próximo paso']}
