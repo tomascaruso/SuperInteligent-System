@@ -3,12 +3,14 @@ import { cx } from '../../lib/utils';
 
 type Variant = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
+// R1e: colores sólidos con texto blanco (más vivos que los
+// tintes /10 anteriores), con los tokens SIS existentes.
 const variants: Record<Variant, string> = {
-  neutral: 'bg-canvas text-secondary',
-  info: 'bg-info/10 text-info',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  danger: 'bg-danger/10 text-danger',
+  neutral: 'bg-slate-500 text-white',
+  info: 'bg-info text-white',
+  success: 'bg-success text-white',
+  warning: 'bg-warning text-white',
+  danger: 'bg-danger text-white',
 };
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {

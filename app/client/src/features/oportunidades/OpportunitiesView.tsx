@@ -218,18 +218,22 @@ export function OpportunitiesView() {
     setTab('resumen');
   }
 
-  function clearCreateForm() {
+  // R1f: estables (useCallback) para que el onClose del diálogo
+  // no cambie de identidad en cada render y no re-corra su
+  // efecto de foco en cada pulsación. Solo usan setters, así
+  // que no hay estado capturado que quede desactualizado.
+  const clearCreateForm = useCallback(() => {
     setCreateName('');
     setCreateEmail('');
     setCreateCompany('');
     setCreateMessage('');
     setDialogError(null);
-  }
+  }, []);
 
-  function closeDialog() {
+  const closeDialog = useCallback(() => {
     setDialogOpen(false);
     clearCreateForm();
-  }
+  }, [clearCreateForm]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -443,29 +447,33 @@ export function OpportunitiesView() {
                       openDetail(o.id);
                     }
                   }}
-                  className={`cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary-subtle' : ''}`}
+                  className={`cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary/20' : ''}`}
                 >
-                  <td className="px-2 py-1.5 break-words">
+                  <td className="px-1.5 py-1.5 break-words">
                     <div className="font-semibold">{o.contact_name}</div>
                     <div className="text-secondary">{o.company || '—'}</div>
                     <div className="text-xs text-secondary">{categoryLabel(o.category)}</div>
                   </td>
-                  <td className="px-2 py-1.5 break-words">
-                    <Badge variant={statusVariant(o.status)}>{statusLabel(o.status)}</Badge>
+                  <td className="px-1.5 py-1.5 break-words">
+                    <Badge variant={statusVariant(o.status)} className="whitespace-nowrap">
+                      {statusLabel(o.status)}
+                    </Badge>
                   </td>
-                  <td className="px-2 py-1.5 break-words">
-                    <Badge variant={priorityVariant(o.priority)}>{priorityLabel(o.priority)}</Badge>
+                  <td className="px-1.5 py-1.5 break-words">
+                    <Badge variant={priorityVariant(o.priority)} className="whitespace-nowrap">
+                      {priorityLabel(o.priority)}
+                    </Badge>
                   </td>
-                  <td className="px-2 py-1.5 break-words">{channelLabel(o.source)}</td>
-                  <td className="px-2 py-1.5 break-words">{next ? next.agent_name || next.assigned_to : '—'}</td>
-                  <td className="px-2 py-1.5 break-words">
+                  <td className="px-1.5 py-1.5 break-words">{channelLabel(o.source)}</td>
+                  <td className="px-1.5 py-1.5 break-words">{next ? next.agent_name || next.assigned_to : '—'}</td>
+                  <td className="px-1.5 py-1.5 break-words">
                     {needsAttention ? (
                       <Badge variant="warning">Atención humana requerida</Badge>
                     ) : (
-                      <span className="text-secondary">Sin pendiente</span>
+                      <span className="text-secondary whitespace-nowrap">Sin pendiente</span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 break-words">{next ? next.title : '—'}</td>
+                  <td className="px-1.5 py-1.5 break-words">{next ? next.title : '—'}</td>
                 </tr>
               );
             })}
