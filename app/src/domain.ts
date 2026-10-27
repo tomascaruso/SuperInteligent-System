@@ -37,6 +37,13 @@ export const draftRejectSchema = z.object({
   note: z.string().trim().max(1000).optional().default(''),
 });
 
+// R3b: edición del borrador por un humano. Mismo estilo que el
+// rechazo: cuerpo validado, nota no aplica acá. El máximo (5000)
+// cubre con holgura un mensaje comercial y evita cuerpos absurdos.
+export const draftEditSchema = z.object({
+  body: z.string().trim().min(1).max(5000),
+});
+
 export type OpportunityInput = z.infer<typeof opportunityInputSchema>;
 
 // ---------- Normalización (determinista) ----------
@@ -137,19 +144,38 @@ export function classifyOpportunity(n: NormalizedOpportunity): Classification {
 
 // ---------- Borrador por plantilla (MVP: sin IA) ----------
 
+// R3b: el borrador se lee como mensaje al cliente, así que la
+// plantilla ya no puede soltar etiquetas internas ("Propuesta de
+// siguiente paso: enviar mensaje de calificación" sonaba a nota
+// interna, no a mensaje humano). Cada nextAction real del
+// clasificador tiene su frase humana; no se inventan nextActions
+// nuevos: la clave que no esté acá cae en el genérico.
+const NEXT_STEP_HUMAN: Record<string, string> = {
+  'Llamar en menos de 24 h':
+    '¿Te parece si agendamos una breve llamada en las próximas 24 horas para definir el alcance?',
+  'Enviar propuesta en 48 h':
+    'En las próximas 48 horas te vamos a enviar una propuesta para que la revises con calma.',
+  'Enviar mensaje de calificación':
+    'Te escribo para conocer un poco mejor lo que necesitan y ver cómo podemos ayudarlos.',
+};
+
 export function draftBody(
   n: NormalizedOpportunity,
   c: Classification,
 ): string {
   const empresa = n.company ? ` de ${n.company}` : '';
+  // Categoría "general" significa sin clasificar: "apoyo en general"
+  // sonaba tan raro como la línea vieja, así que se dice de otra forma.
+  const apoyo = c.category === 'general' ? 'con su negocio' : `en ${c.category}`;
+  const siguiente = NEXT_STEP_HUMAN[c.nextAction] ?? 'Quedamos atentos a tu respuesta.';
   return [
     `Hola ${n.contactName},`,
     '',
-    `Gracias por contactarnos${empresa}. Entendemos que buscan apoyo en ${c.category} y queremos ayudarlos a avanzar sin demoras.`,
+    `Gracias por contactarnos${empresa}. Entendemos que buscan apoyo ${apoyo} y queremos ayudarlos a avanzar sin demoras.`,
     '',
-    `Propuesta de siguiente paso: ${c.nextAction.toLowerCase()}.`,
+    siguiente,
     '',
-    'Quedamos atentos a tu respuesta para agendar una breve llamada y definir el alcance.',
+    'Quedamos atentos a tu respuesta.',
     '',
     'Saludos,',
     'Equipo comercial',

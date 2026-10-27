@@ -316,6 +316,9 @@ export interface DraftFull {
   decided_by: string | null;
   decided_at: string | null;
   created_at: string;
+  // R3b: marca de edición humana (el servidor la normaliza a booleano).
+  edited: boolean;
+  edited_at: string | null;
   contact_name: string;
   company: string;
   opportunity_message: string;

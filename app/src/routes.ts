@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { audit, exec, newId, nowIso, queryAll, queryOne, todayUtc, type Db, type Param } from './db.js';
 import {
   acceptInvitationSchema,
+  draftEditSchema,
   draftRejectSchema,
   invitationSchema,
   loginSchema,
@@ -126,6 +127,16 @@ interface DraftRow {
   decided_by: string | null;
   decided_at: string | null;
   created_at: string;
+  // R3b: marca de edición humana (migración portable; 0/1 en base).
+  edited: number;
+  edited_at: string | null;
+}
+
+// R3b: la base guarda edited como 0/1 y el cliente lo espera
+// booleano; se normaliza en el borde, en todas las salidas de
+// borrador, para no filtrar el detalle de almacenamiento.
+function draftOut(d: DraftRow): Omit<DraftRow, 'edited'> & { edited: boolean } {
+  return { ...d, edited: d.edited === 1 || (d.edited as unknown) === true };
 }
 
 interface ExecutionRow {
@@ -753,7 +764,7 @@ export function registerRoutes(
     );
     return {
       drafts: rows.map((d) => ({
-        ...d,
+        ...draftOut(d),
         expired: isDraftExpired(d, expiryMs),
         stale: isDraftStale(d, d.opportunity_message),
       })),
@@ -839,7 +850,7 @@ export function registerRoutes(
     await audit(db, user.orgId, user.email, `draft.${decision}`, 'draft', id, {
       opportunityId: draft.opportunity_id,
     });
-    await reply.send({ draft: (await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ?', id))! });
+    await reply.send({ draft: draftOut((await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ?', id))!) });
   };
 
   app.post('/api/drafts/:id/approve', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
@@ -857,6 +868,75 @@ export function registerRoutes(
       return;
     }
     await decideDraft(request, reply, 'rejected');
+  });
+
+  // R3b: edición del borrador por un humano. Solo admin (mismo
+  // requireAdmin que decidir) y solo pendiente vigente: los
+  // chequeos C5 se reutilizan tal cual (vencido y desactualizado
+  // dan los mismos códigos que al aprobar). Editar NO cambia el
+  // vencimiento (sigue contando desde created_at) ni afecta la
+  // desactualización (que compara el mensaje de la oportunidad
+  // con source_message, no con body): solo reemplaza el texto y
+  // marca el borrador como editado, con evento de auditoría que
+  // guarda el cuerpo anterior para trazabilidad.
+  app.patch('/api/drafts/:id', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
+    const parsed = draftEditSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      await reply.code(400).send({
+        error: 'validation',
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      });
+      return;
+    }
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const draft = await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ? AND org_id = ?', id, user.orgId);
+    if (!draft) {
+      await reply.code(404).send({ error: 'not_found', message: 'Borrador no encontrado' });
+      return;
+    }
+    if (draft.status !== 'pending_approval') {
+      await reply.code(409).send({ error: 'conflict', message: 'El borrador ya fue decidido' });
+      return;
+    }
+    const policies = await loadPolicies();
+    const expiryDays = Number(policies['draft.expiry_days'] ?? 7);
+    if (isDraftExpired(draft, draftExpiryMs(policies))) {
+      await reply.code(409).send({
+        error: 'draft_expired',
+        message: `El borrador venció: pasaron más de ${Number.isFinite(expiryDays) && expiryDays > 0 ? expiryDays : 7} días desde que se creó y ya no se puede editar`,
+      });
+      return;
+    }
+    const opp = await queryOne<{ message: string }>(
+      db,
+      'SELECT message FROM opportunities WHERE id = ?',
+      draft.opportunity_id,
+    );
+    if (!opp) {
+      await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
+      return;
+    }
+    if (isDraftStale(draft, opp.message)) {
+      await reply.code(409).send({
+        error: 'draft_stale',
+        message: 'El borrador quedó desactualizado: el mensaje de la oportunidad cambió desde que se creó y ya no se puede editar',
+      });
+      return;
+    }
+    await exec(
+      db,
+      'UPDATE drafts SET body = ?, edited = 1, edited_at = ? WHERE id = ?',
+      parsed.data.body,
+      nowIso(),
+      id,
+    );
+    await audit(db, user.orgId, user.email, 'draft.edited', 'draft', id, {
+      opportunityId: draft.opportunity_id,
+      previousBody: draft.body,
+    });
+    const updated = await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ?', id);
+    await reply.send({ draft: draftOut(updated!) });
   });
 
   // ---------- Auditoría ----------

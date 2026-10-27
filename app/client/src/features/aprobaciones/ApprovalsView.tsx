@@ -45,6 +45,10 @@ import {
 //   para no prometer algo que no se guarda.
 // - Aprobar NO envía ningún mensaje externo: solo mueve la
 //   oportunidad a seguimiento (o a nueva, al rechazar).
+// - R3b: el borrador se puede EDITAR (PATCH, solo admin, solo
+//   pendiente vigente): el panel es ancho (480 px, variante wide
+//   del DetailPanel; Oportunidades sigue en 360) y muestra la
+//   marca "Editado por un humano" cuando corresponde.
 
 const PAGE_SIZE = 20;
 
@@ -161,6 +165,13 @@ export function ApprovalsView() {
   const [decideError, setDecideError] = useState<string | null>(null);
   const [viewFeedback, setViewFeedback] = useState<string | null>(null);
 
+  // R3b: edición humana del borrador (PATCH, solo admin y solo
+  // pendiente vigente; el servidor impone ambas cosas).
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBody, setEditBody] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setState('loading');
     setError('');
@@ -262,6 +273,39 @@ export function ApprovalsView() {
     [selected, rejectNote],
   );
 
+  const saveEdit = useCallback(async () => {
+    if (!selected) return;
+    const body = editBody.trim();
+    if (!body) {
+      setEditError('El borrador no puede quedar vacío.');
+      return;
+    }
+    setEditing(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/drafts/${encodeURIComponent(selected.id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body }),
+      });
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const b = (data ?? {}) as { message?: unknown; error?: unknown };
+        throw new ApiError(
+          typeof b.message === 'string' ? b.message : typeof b.error === 'string' ? b.error : `Error ${res.status}`,
+          res.status,
+        );
+      }
+      setViewFeedback('Borrador editado. Sigue pendiente hasta que lo apruebes o rechaces.');
+      setEditOpen(false);
+      setReloadKey((k) => k + 1);
+    } catch (e: unknown) {
+      setEditError(e instanceof ApiError ? e.message : 'No se pudo guardar la edición.');
+    } finally {
+      setEditing(false);
+    }
+  }, [selected, editBody]);
+
   if (state === 'loading') {
     return <p className="text-ink">Cargando…</p>;
   }
@@ -351,7 +395,7 @@ export function ApprovalsView() {
 
       {viewFeedback && <Alert variant="success">{viewFeedback}</Alert>}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] items-start">
         <div className="space-y-3">
           {pageItems.length === 0 && (
             <Card compact pad="p-3">
@@ -407,11 +451,20 @@ export function ApprovalsView() {
         {selected && selectedBadge && (
           <DetailPanel
             variant="inline"
+            wide
             title={`Revisión: propuesta para ${selected.contact_name}`}
             subtitle={`${selected.company || 'Sin empresa'} · Creada ${formatDateTime(selected.created_at)}`}
             footer={
               selectedPending && isAdmin ? (
                 <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={selectedBlocked}
+                    onClick={() => { setEditError(null); setEditBody(selected.body); setEditOpen(true); }}
+                  >
+                    Editar borrador
+                  </Button>
                   <Button
                     type="button"
                     variant="secondary"
@@ -438,6 +491,14 @@ export function ApprovalsView() {
 
             <div>
               <h3 className="text-sm font-semibold">Contenido exacto del borrador</h3>
+              {selected.edited && (
+                <p className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="info">Editado por un humano</Badge>
+                  {selected.edited_at && (
+                    <span className="text-xs text-secondary">{formatDateTime(selected.edited_at)}</span>
+                  )}
+                </p>
+              )}
               <p className="mt-2 border border-border rounded-control p-3 bg-canvas whitespace-pre-wrap break-words text-sm">
                 {selected.body}
               </p>
@@ -511,7 +572,7 @@ export function ApprovalsView() {
             )}
             {selectedPending && isAdmin && selectedBlocked && (
               <p className="text-sm text-secondary">
-                Las decisiones están deshabilitadas: {selectedBlockedReason} El servidor las rechazaría de todos modos.
+                Las decisiones y la edición están deshabilitadas: {selectedBlockedReason} El servidor las rechazaría de todos modos.
               </p>
             )}
           </DetailPanel>
@@ -564,6 +625,37 @@ export function ApprovalsView() {
             {deciding ? 'Rechazando…' : 'Rechazar'}
           </Button>
           <Button type="button" variant="secondary" disabled={deciding} onClick={() => setRejectOpen(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={editOpen}
+        onClose={() => { if (!editing) setEditOpen(false); }}
+        title="Editar borrador"
+      >
+        <p>
+          Cambiá el texto de la propuesta para {selected?.contact_name}. El borrador sigue pendiente
+          hasta que lo apruebes o rechaces, y quedará marcado como editado por un humano.
+        </p>
+        <div>
+          <Label htmlFor="edit-body">Texto del borrador (máx. 5000 caracteres)</Label>
+          <textarea
+            id="edit-body"
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value.slice(0, 5000))}
+            rows={10}
+            className="w-full px-3 py-2 text-sm bg-surface text-ink border border-border rounded-control whitespace-pre-wrap"
+          />
+          <p className="mt-1 text-xs text-secondary">{editBody.length} / 5000 caracteres</p>
+        </div>
+        {editError && <Alert variant="error">{editError}</Alert>}
+        <div className="flex gap-2">
+          <Button type="button" variant="primary" disabled={editing || editBody.trim().length === 0} onClick={() => void saveEdit()}>
+            {editing ? 'Guardando…' : 'Guardar edición'}
+          </Button>
+          <Button type="button" variant="secondary" disabled={editing} onClick={() => setEditOpen(false)}>
             Cancelar
           </Button>
         </div>

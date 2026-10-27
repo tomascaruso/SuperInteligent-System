@@ -15,6 +15,11 @@ import { Button } from './button';
 // R1c: la variante inline ya NO tiene sticky ni scroll propio
 // (nada de max-height con overflow interno): acompaña a la
 // página y la única barra posible es la de la página misma.
+// R3b: `wide` da un panel inline de 480 px (solo Aprobaciones,
+// que lo pidió el usuario para replicar su referencia). El ancho
+// lo fija el panel, no la grilla: la vista que lo usa pone la
+// columna del panel en `auto`. Oportunidades NO usa wide y
+// queda en 360 px como siempre.
 export function DetailPanel({
   title,
   subtitle,
@@ -22,6 +27,7 @@ export function DetailPanel({
   children,
   footer,
   variant = 'overlay',
+  wide = false,
 }: {
   title: string;
   subtitle?: string;
@@ -29,6 +35,7 @@ export function DetailPanel({
   children: ReactNode;
   footer?: ReactNode;
   variant?: 'overlay' | 'inline';
+  wide?: boolean;
 }) {
   useEffect(() => {
     if (variant !== 'overlay' || !onClose) return;
@@ -43,7 +50,7 @@ export function DetailPanel({
     return (
       <aside
         aria-label={title}
-        className="bg-surface border border-border rounded-card shadow-sm p-5"
+        className={`bg-surface border border-border rounded-card shadow-sm p-5 ${wide ? 'w-full lg:w-[480px]' : ''}`}
       >
         <div>
           <h2 className="text-base font-semibold">{title}</h2>
