@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildServer } from './server.js';
 
@@ -666,6 +667,44 @@ describe('pantalla de acceso (diagnóstico login)', () => {
     const components = await app.inject({ method: 'GET', url: '/styles/components.css' });
     expect(components.statusCode).toBe(200);
     expect(components.body).toContain('.login-preview');
+    await app.close();
+  });
+});
+
+describe('cliente react /v2/ (fase 2)', () => {
+  // El build del cliente lo genera el pretest (npm run build:client);
+  // el test lee el HTML construido para no hardcodear hashes.
+  function clientAsset(ext: string): string {
+    const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
+    const match = html.match(new RegExp(`/v2/assets/[^"']+\\.${ext}`));
+    if (!match) throw new Error(`sin asset .${ext} en el build del cliente`);
+    return match[0];
+  }
+
+  it('GET /v2/ sirve el HTML del cliente React con base /v2/', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/v2/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<div id="root"');
+    expect(res.body).toContain('/v2/assets/');
+    await app.close();
+  });
+
+  it('GET /v2/assets sirve el JS y el CSS del build', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    for (const ext of ['js', 'css']) {
+      const res = await app.inject({ method: 'GET', url: clientAsset(ext) });
+      expect(res.statusCode).toBe(200);
+    }
+    await app.close();
+  });
+
+  it('GET /v2/* rechaza extensiones no permitidas y traversal', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    for (const url of ['/v2/notas.txt', '/v2/../secret', '/v2/assets/../../x.js']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(404);
+    }
     await app.close();
   });
 });
