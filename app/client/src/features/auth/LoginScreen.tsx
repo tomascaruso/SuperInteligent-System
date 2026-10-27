@@ -269,7 +269,9 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated?: () => void 
 
         {showInvitation && (
           <form onSubmit={onAcceptInvitation} className="mt-4">
-            <p className="text-muted">
+            {/* A1, P1-3: texto informativo, no decorativo: muted
+                (2,56:1) → secondary (4,76:1 sobre blanco). */}
+            <p className="text-secondary">
               PENSIA da de alta a cada empresa con una invitación: sin invitación no se puede crear una organización.
               Pegá el código que recibiste para crear la tuya.
             </p>
@@ -300,12 +302,12 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated?: () => void 
           </form>
         )}
 
-        <p className="text-muted mt-4">
+        <p className="text-secondary mt-4">
           Cuenta de demostración: <code>demo@agenciamartin.demo</code> / <code>Demo1234!</code>.
         </p>
 
         {contactEnabled && !showContact && (
-          <p className="text-muted">
+          <p className="text-secondary">
             ¿No tenés una cuenta?{' '}
             <Button type="button" variant="ghost" onClick={() => setShowContact(true)}>
               Contactanos
@@ -316,7 +318,7 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated?: () => void 
         {showContact && (
           <form onSubmit={onContact} className="mt-4">
             <h2 className="text-base font-semibold">Quiero una demo para mi empresa</h2>
-            <p className="text-muted">Contanos quién sos y qué necesitás; PENSIA te responde.</p>
+            <p className="text-secondary">Contanos quién sos y qué necesitás; PENSIA te responde.</p>
             <div className="mb-3">
               <Label htmlFor="v2-contact-name">Nombre</Label>
               <Input id="v2-contact-name" ref={contactNameRef} value={contactName} onChange={(e) => setContactName(e.target.value)} />

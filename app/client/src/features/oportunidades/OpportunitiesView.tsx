@@ -259,7 +259,8 @@ export function OpportunitiesView() {
   }
 
   if (state === 'loading') {
-    return <p className="text-secondary">Cargando…</p>;
+    // A1, P3-2: igual que en Inicio, directo sobre el fondo.
+    return <p className="text-ink">Cargando…</p>;
   }
 
   if (state === 'error' || !data) {
@@ -452,8 +453,11 @@ export function OpportunitiesView() {
                 >
                   <td className="px-1 py-1.5 break-words">
                     <div className="font-semibold">{o.contact_name}</div>
-                    <div className="text-secondary">{o.company || '—'}</div>
-                    <div className="text-xs text-secondary">{categoryLabel(o.category)}</div>
+                    {/* A1, P1-2: secundario sobre la fila seleccionada
+                        (primary/20) da 3,49:1; en la fila seleccionada
+                        los subtextos usan tinta (11,94:1). */}
+                    <div className={isSelected ? 'text-ink' : 'text-secondary'}>{o.company || '—'}</div>
+                    <div className={`text-xs ${isSelected ? 'text-ink' : 'text-secondary'}`}>{categoryLabel(o.category)}</div>
                   </td>
                   <td className="px-1 py-1.5 break-words">
                     <Badge variant={statusVariant(o.status)} className="whitespace-nowrap">
@@ -490,7 +494,7 @@ export function OpportunitiesView() {
                       // (R1e lo había fijado en una línea); la
                       // fila ya tiene 3 líneas por Oportunidad,
                       // así que no crece en alto.
-                      <span className="text-secondary">Sin pendiente</span>
+                      <span className={isSelected ? 'text-ink' : 'text-secondary'}>Sin pendiente</span>
                     )}
                   </td>
                   <td className="px-1 py-1.5 break-words">{next ? next.title : '—'}</td>
@@ -538,8 +542,14 @@ export function OpportunitiesView() {
               </div>
             </dl>
           </div>
-          <Tabs tabs={DETAIL_TABS} active={tab} onChange={setTab} scrollable={false} />
+          {/* A1, P2-1: con flex-wrap "Actividad" caía a una segunda
+              línea; las pestañas del panel ahora desplazan en
+              horizontal, sin cambiar las etiquetas. */}
+          <Tabs tabs={DETAIL_TABS} active={tab} onChange={setTab} scrollable idPrefix="opp-detail" />
 
+          {/* A1, P3-4: el contenido de la pestaña activa vive en un
+              tabpanel enlazado con la pestaña (id/aria-controls). */}
+          <div role="tabpanel" id={`opp-detail-panel-${tab}`} aria-labelledby={`opp-detail-tab-${tab}`}>
           {tab === 'resumen' && (
             <dl className="divide-y divide-border text-sm">
               <div className="py-2 first:pt-0">
@@ -689,6 +699,7 @@ export function OpportunitiesView() {
                 )}
             </div>
           )}
+          </div>
         </DetailPanel>
       ) : (
         <aside className="bg-surface border border-border rounded-card shadow-sm p-4">

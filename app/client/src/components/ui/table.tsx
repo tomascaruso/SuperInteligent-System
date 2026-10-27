@@ -33,6 +33,7 @@ export function Table({
             {headers.map((h) => (
               <th
                 key={h}
+                scope="col"
                 className={`text-left py-2 border-b border-border text-secondary font-medium ${
                   scrollable ? 'px-3' : 'px-1.5 break-words'
                 }`}
