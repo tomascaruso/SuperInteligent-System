@@ -51,23 +51,44 @@
 // R5c (pedido del usuario): el panel de filtro (campo «Buscar» +
 // pestañas «Categoría») se quitó y se reemplazó por un icono de
 // búsqueda en el encabezado que despliega el campo (foco
-// automático; Escape o X lo cierran y limpian la búsqueda). La
-// navegación por categoría sigue siendo el índice por
-// funcionalidad (scroll a la sección); las pestañas ya no existen.
+// automático; Escape o X lo cierran y limpian la búsqueda).
+//
+// R5d (pedido del usuario, con dos correcciones): el índice por
+// funcionalidad FILTRA la vista (vista única: solo la categoría
+// elegida; «Todas» vuelve a todo) en lugar de desplazar con
+// scroll, y se combina con la búsqueda (AND). El catálogo quedó
+// en 4 tarjetas por categoría (20 en total): Comunicación sin
+// cambios; CRM y ventas suma Zoho CRM; Gestión de datos suma
+// Airtable, Google Sheets, Notion y Google Drive; Automatización
+// suma Zapier, Make, n8n y Microsoft Power Automate; API &
+// Webhooks suma Postman, Pipedream e Insomnia junto al webhook
+// de ingesta, la única real. Las 10 nuevas son 'coming_soon'.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import {
+  Briefcase,
   Cloud,
+  Folder,
   Layers,
   Mail,
   MessageSquare,
+  Moon,
+  Network,
+  NotebookPen,
+  Plug,
+  Repeat,
   Search,
+  Send,
+  Sheet,
+  Table,
   Target,
   Users,
   Video,
   Webhook,
+  Workflow,
   X,
+  Zap,
 } from 'lucide-react';
 import { Alert } from '../../components/ui/alert';
 import { Badge } from '../../components/ui/badge';
@@ -104,15 +125,12 @@ const CATEGORY_DESCRIPTIONS: Record<Category, string> = {
   'API & Webhooks': 'Herramientas de conexión por API y webhooks.',
 };
 
-// IDs estables para el índice (el ancla # no se usa: HashRouter
-// la interpretaría como ruta; el índice desplaza por scroll).
-const CATEGORY_IDS: Record<Category, string> = {
-  'Comunicación': 'cat-comunicacion',
-  'CRM y ventas': 'cat-crm-y-ventas',
-  'Gestión de datos': 'cat-gestion-de-datos',
-  'Automatización': 'cat-automatizacion',
-  'API & Webhooks': 'cat-api-webhooks',
-};
+// R5d (pedido del usuario): el índice por funcionalidad ya NO
+// desplaza por scroll: FILTRA la vista. Al elegir una categoría
+// solo se muestra esa sección (vista única); «Todas» vuelve a la
+// vista completa agrupada. Se combina con la búsqueda por icono
+// (AND): con una categoría seleccionada, la búsqueda filtra
+// dentro de ella.
 
 // Una entrada del catálogo. `capabilities` son REALES solo cuando
 // status es 'available'; cuando es 'coming_soon' son PREVISTAS y
@@ -247,6 +265,177 @@ const INTEGRATIONS: IntegrationDef[] = [
     ],
     oauthNote: 'Requerirá OAuth de Pipedrive cuando se construya.',
   },
+  // R5d: 4 tarjetas por categoría (20 en total). Las 10 entradas
+  // nuevas son todas 'coming_soon': sin conexión real, sin última
+  // sinc, sin salud inventada y sin fecha de disponibilidad.
+  {
+    id: 'zoho-crm',
+    name: 'Zoho CRM',
+    category: 'CRM y ventas',
+    icon: Briefcase,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'CRM de ventas. Conexión real aún no disponible.',
+    capabilities: [
+      'Sincronizar contactos y negocios',
+      'Actualizar etapas del pipeline',
+    ],
+    oauthNote: 'Requerirá OAuth de Zoho cuando se construya.',
+  },
+  {
+    id: 'airtable',
+    name: 'Airtable',
+    category: 'Gestión de datos',
+    icon: Table,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Bases de datos flexibles. Conexión real aún no disponible.',
+    capabilities: [
+      'Leer y escribir registros en bases',
+      'Sincronizar campos con la oportunidad',
+    ],
+    oauthNote: 'Requerirá OAuth de Airtable cuando se construya.',
+  },
+  {
+    id: 'google-sheets',
+    name: 'Google Sheets',
+    category: 'Gestión de datos',
+    icon: Sheet,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Hojas de cálculo. Conexión real aún no disponible.',
+    capabilities: [
+      'Exportar oportunidades a hojas',
+      'Leer filas como fuente de datos',
+    ],
+    oauthNote: 'Requerirá OAuth de Google cuando se construya.',
+  },
+  {
+    id: 'notion',
+    name: 'Notion',
+    category: 'Gestión de datos',
+    icon: NotebookPen,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Notas y bases de conocimiento. Conexión real aún no disponible.',
+    capabilities: [
+      'Crear páginas desde oportunidades',
+      'Consultar bases de conocimiento',
+    ],
+    oauthNote: 'Requerirá OAuth de Notion cuando se construya.',
+  },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    category: 'Gestión de datos',
+    icon: Folder,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Archivos en la nube. Conexión real aún no disponible.',
+    capabilities: [
+      'Adjuntar archivos a la oportunidad',
+      'Guardar documentos generados',
+    ],
+    oauthNote: 'Requerirá OAuth de Google cuando se construya.',
+  },
+  {
+    id: 'zapier',
+    name: 'Zapier',
+    category: 'Automatización',
+    icon: Zap,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Automatización entre aplicaciones. Conexión real aún no disponible.',
+    capabilities: [
+      'Disparar flujos cuando cambia una oportunidad',
+      'Crear oportunidades desde otras aplicaciones',
+    ],
+    oauthNote: 'Requerirá OAuth de Zapier cuando se construya.',
+  },
+  {
+    id: 'make',
+    name: 'Make',
+    category: 'Automatización',
+    icon: Workflow,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Automatización visual de flujos. Conexión real aún no disponible.',
+    capabilities: [
+      'Armar escenarios con datos de SIS',
+      'Sincronizar oportunidades entre sistemas',
+    ],
+    oauthNote: 'Requerirá OAuth de Make cuando se construya.',
+  },
+  {
+    id: 'n8n',
+    name: 'n8n',
+    category: 'Automatización',
+    icon: Network,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Automatización de flujos. Conexión real aún no disponible.',
+    capabilities: [
+      'Crear flujos con nodos de SIS',
+      'Recibir eventos de SIS en flujos propios',
+    ],
+    oauthNote: 'Requerirá OAuth de n8n cuando se construya.',
+  },
+  {
+    id: 'power-automate',
+    name: 'Microsoft Power Automate',
+    category: 'Automatización',
+    icon: Repeat,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Automatización de Microsoft. Conexión real aún no disponible.',
+    capabilities: [
+      'Crear flujos con datos de SIS',
+      'Automatizar aprobaciones y avisos',
+    ],
+    oauthNote: 'Requerirá OAuth de Microsoft cuando se construya.',
+  },
+  {
+    id: 'postman',
+    name: 'Postman',
+    category: 'API & Webhooks',
+    icon: Send,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Exploración y prueba de APIs. Conexión real aún no disponible.',
+    capabilities: [
+      'Probar los endpoints de SIS',
+      'Documentar llamadas de ejemplo',
+    ],
+    oauthNote: 'Requerirá una colección oficial de SIS cuando se construya.',
+  },
+  {
+    id: 'pipedream',
+    name: 'Pipedream',
+    category: 'API & Webhooks',
+    icon: Plug,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Flujos sobre APIs y eventos. Conexión real aún no disponible.',
+    capabilities: [
+      'Recibir eventos de SIS en flujos',
+      'Llamar a la API de SIS desde flujos',
+    ],
+    oauthNote: 'Requerirá OAuth de Pipedream cuando se construya.',
+  },
+  {
+    id: 'insomnia',
+    name: 'Insomnia',
+    category: 'API & Webhooks',
+    icon: Moon,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Cliente de APIs. Conexión real aún no disponible.',
+    capabilities: [
+      'Probar los endpoints de SIS',
+      'Guardar entornos de trabajo',
+    ],
+    oauthNote: 'Requerirá una colección oficial de SIS cuando se construya.',
+  },
 ];
 
 export function IntegrationsView() {
@@ -258,6 +447,7 @@ export function IntegrationsView() {
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<'Todas' | Category>('Todas');
   const [selectedId, setSelectedId] = useState<string>('webhook');
 
   useEffect(() => {
@@ -302,37 +492,25 @@ export function IntegrationsView() {
     return { count: webhookOpps.length, last, events, byId };
   }, [opportunities, audit]);
 
+  // Filtro combinado (AND): categoría del índice + búsqueda.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return INTEGRATIONS.filter((i) => {
+      if (selectedCategory !== 'Todas' && i.category !== selectedCategory) return false;
       if (q && !`${i.name} ${i.category} ${i.summary}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [search]);
+  }, [search, selectedCategory]);
 
-  const selected = INTEGRATIONS.find((i) => i.id === selectedId) ?? INTEGRATIONS[0];
-
-  // El índice lista solo secciones que realmente se muestran: con
-  // búsqueda activa, una categoría sin coincidencias se oculta
-  // (no dice «Aún no hay» cuando sí tiene integraciones que no
-  // coinciden); sin búsqueda, las categorías vacías se muestran
-  // con su mensaje honesto y también aparecen en el índice.
-  const indexCategories = CATEGORIES.filter((c) => {
-    if (filtered.some((i) => i.category === c)) return true;
-    if (search.trim() === '') return true;
-    return false;
-  });
+  // El detalle sigue a lo visible: si la tarjeta seleccionada
+  // queda fuera del filtro, se muestra la primera visible.
+  const selected =
+    filtered.find((i) => i.id === selectedId) ?? filtered[0] ?? INTEGRATIONS[0];
 
   // Cerrar la búsqueda limpia el texto y vuelve a mostrar todo.
   const closeSearch = useCallback(() => {
     setSearch('');
     setSearchOpen(false);
-  }, []);
-
-  // Índice por funcionalidad: desplaza a la sección (no usa ancla
-  // #: HashRouter la interpretaría como ruta).
-  const scrollToCategory = useCallback((category: Category) => {
-    document.getElementById(CATEGORY_IDS[category])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   if (state === 'loading') {
@@ -405,39 +583,32 @@ export function IntegrationsView() {
       </p>
 
       <nav aria-label="Índice por funcionalidad" className="flex flex-wrap gap-2">
-        {indexCategories.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => scrollToCategory(c)}
-            className="px-3 py-1.5 text-sm rounded-control border border-border bg-surface text-secondary hover:border-primary hover:text-ink"
-          >
-            {c}
-          </button>
-        ))}
+        {(['Todas', ...CATEGORIES] as const).map((c) => {
+          const active = selectedCategory === c;
+          return (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setSelectedCategory(c)}
+              className={`px-3 py-1.5 text-sm rounded-control border bg-surface hover:border-primary hover:text-ink ${active ? 'border-primary text-ink font-semibold' : 'border-border text-secondary'}`}
+            >
+              {c}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] items-start">
         <div className="space-y-6">
-          {CATEGORIES.map((category) => {
+          {(selectedCategory === 'Todas' ? CATEGORIES : [selectedCategory]).map((category) => {
             const cards = filtered.filter((i) => i.category === category);
-            if (cards.length === 0) {
-              // Con búsqueda activa, la sección se oculta: decir
-              // «Aún no hay» sería falso (las integraciones
-              // existen, solo no coinciden con la búsqueda).
-              if (search.trim() !== '') return null;
-              return (
-                <div key={category} id={CATEGORY_IDS[category]} className="scroll-mt-4">
-                  <h2 className="text-base font-semibold">{category}</h2>
-                  <p className="mt-1 text-sm text-secondary">{CATEGORY_DESCRIPTIONS[category]}</p>
-                  <p className="mt-1 text-sm text-secondary">
-                    Aún no hay integraciones en esta categoría.
-                  </p>
-                </div>
-              );
-            }
+            // Con filtro o búsqueda activos, una categoría sin
+            // tarjetas visibles se oculta (el mensaje global de
+            // vacío cubre el caso sin resultados).
+            if (cards.length === 0) return null;
             return (
-              <div key={category} id={CATEGORY_IDS[category]} className="scroll-mt-4">
+              <div key={category}>
                 <h2 className="text-base font-semibold">{category}</h2>
                 <p className="mt-1 text-sm text-secondary">{CATEGORY_DESCRIPTIONS[category]}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
