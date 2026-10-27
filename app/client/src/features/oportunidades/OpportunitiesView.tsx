@@ -469,11 +469,18 @@ export function OpportunitiesView() {
                   <td className="px-1 py-1.5 break-words">{next ? next.agent_name || next.assigned_to : '—'}</td>
                   <td className="px-1 py-1.5 break-words">
                     {needsAttention ? (
-                      // R1g: la píldora no puede superar 120 px:
-                      // su texto envuelve dentro de la píldora
-                      // (centrado) en vez de empujar la tabla
-                      // fuera de la tarjeta. El texto no se acorta.
-                      <Badge variant="warning" className="max-w-[120px] whitespace-normal text-center leading-tight">
+                      // R1h: a 12 px el texto caía en 3 líneas
+                      // y la píldora quedaba alta y angosta, con
+                      // el texto pegado a los bordes (feo, visto
+                      // en captura del usuario 27-oct). A 11 px
+                      // (prop compact de Badge) «Atención humana»
+                      // entra en la primera línea y «requerida»
+                      // en la segunda: píldora horizontal normal
+                      // de 2 líneas, con el mismo tope de 120 px,
+                      // así la tabla no se ensancha y «Próximo
+                      // paso» (ya confirmado dentro) no se sale.
+                      // El texto y el color no se tocan.
+                      <Badge variant="warning" compact className="max-w-[120px] whitespace-normal text-center leading-snug">
                         Atención humana requerida
                       </Badge>
                     ) : (
