@@ -81,6 +81,8 @@ export function auditActionLabel(a: string): string {
       // F1: envío por el agente tras aprobar.
       'message.sent': 'Mensaje enviado',
       'message.failed': 'Envío fallido',
+      // Fase A: respuesta entrante por webhook (sin respuesta automática).
+      'message.received': 'Respuesta recibida',
     }[a] ?? a
   );
 }

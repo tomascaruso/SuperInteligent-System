@@ -21,11 +21,15 @@ import {
   getDraftsDetail,
   getOpportunityAudit,
   getOpportunityList,
+  getOpportunityResponses,
+  getUnmatchedInbound,
   type AuditEntry,
   type DraftFull,
+  type InboundMessage,
   type OpportunityDetail,
   type TaskFull,
 } from '../../lib/api';
+import { maskMessage, maskPhone } from '../../lib/mask';
 import {
   auditActionLabel,
   auditEntityLabel,
@@ -108,6 +112,8 @@ const DETAIL_TABS = [
   { id: 'borrador', label: 'Borrador' },
   { id: 'tareas', label: 'Tareas' },
   { id: 'actividad', label: 'Actividad' },
+  // Fase A: respuestas entrantes de WhatsApp de la oportunidad.
+  { id: 'respuestas', label: 'Respuestas' },
 ];
 
 export function OpportunitiesView() {
@@ -130,6 +136,14 @@ export function OpportunitiesView() {
   const [auditById, setAuditById] = useState<Record<string, AuditEntry[]>>({});
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState('');
+  // Fase A: respuestas entrantes (detalle: texto completo) y
+  // respuestas sin coincidencia (lista: enmascarada por defecto,
+  // texto completo solo al expandir un ítem).
+  const [responsesById, setResponsesById] = useState<Record<string, InboundMessage[]>>({});
+  const [responsesLoading, setResponsesLoading] = useState(false);
+  const [responsesError, setResponsesError] = useState('');
+  const [unmatched, setUnmatched] = useState<InboundMessage[] | null>(null);
+  const [expandedUnmatched, setExpandedUnmatched] = useState<string | null>(null);
 
   const [createName, setCreateName] = useState('');
   const [createEmail, setCreateEmail] = useState('');
@@ -214,6 +228,34 @@ export function OpportunitiesView() {
       })
       .finally(() => setAuditLoading(false));
   }, [effectiveSelectedId, auditById, onSessionExpired]);
+
+  // Fase A: respuestas de la oportunidad seleccionada, cargadas al
+  // abrir la pestaña (una sola vez por oportunidad), y respuestas
+  // sin coincidencia, cargadas una sola vez para la revisión manual.
+  useEffect(() => {
+    if (tab !== 'respuestas' || !effectiveSelectedId || responsesById[effectiveSelectedId]) return;
+    setResponsesLoading(true);
+    setResponsesError('');
+    getOpportunityResponses(effectiveSelectedId)
+      .then(({ responses }) => {
+        setResponsesById((prev) => ({ ...prev, [effectiveSelectedId]: responses }));
+      })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 401) {
+          onSessionExpired();
+          return;
+        }
+        setResponsesError(e instanceof ApiError ? e.message : 'No se pudieron cargar las respuestas.');
+      })
+      .finally(() => setResponsesLoading(false));
+  }, [tab, effectiveSelectedId, responsesById, onSessionExpired]);
+
+  useEffect(() => {
+    if (unmatched !== null || state !== 'ready') return;
+    getUnmatchedInbound()
+      .then(({ responses }) => setUnmatched(responses))
+      .catch(() => setUnmatched([]));
+  }, [unmatched, state]);
 
   function openDetail(id: string) {
     setSelectedId(id);
@@ -711,6 +753,36 @@ export function OpportunitiesView() {
                 )}
             </div>
           )}
+
+          {tab === 'respuestas' && (
+            <div className="space-y-2 text-sm">
+              {responsesLoading && <p className="text-secondary">Cargando respuestas…</p>}
+              {responsesError && <Alert variant="error">{responsesError}</Alert>}
+              {!responsesLoading && !responsesError && (() => {
+                const list = selected ? responsesById[selected.id] : undefined;
+                if (!list) return null;
+                if (list.length === 0) {
+                  return <p className="text-secondary">Sin respuestas recibidas por WhatsApp para esta oportunidad.</p>;
+                }
+                return (
+                  <ul className="divide-y divide-border">
+                    {list.map((r) => (
+                      <li key={r.id} className="py-2 first:pt-0 last:pb-0">
+                        <p className="whitespace-pre-wrap">{r.body}</p>
+                        <p className="mt-1 text-xs text-secondary">
+                          {formatDateTime(r.received_at)} · WhatsApp
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+              <p className="text-xs text-secondary">
+                Las respuestas se registran, no se contestan automáticamente. Una respuesta abre la ventana de
+                24 horas de WhatsApp para ese contacto.
+              </p>
+            </div>
+          )}
           </div>
         </DetailPanel>
       ) : (
@@ -719,6 +791,41 @@ export function OpportunitiesView() {
         </aside>
       )}
       </div>
+
+      {/* Fase A: respuestas de WhatsApp sin oportunidad asociada:
+          se guardan para revisión manual, no crean nada ni disparan
+          nada. La lista muestra remitente y cuerpo enmascarados; el
+          texto completo solo se revela al expandir un ítem. */}
+      <Card>
+        <h2 className="text-base font-semibold">Respuestas sin coincidencia</h2>
+        {unmatched === null && <p className="mt-1 text-sm text-secondary">Cargando…</p>}
+        {unmatched !== null && unmatched.length === 0 && (
+          <p className="text-sm text-secondary">
+            Sin respuestas sin coincidencia. Cuando un mensaje de WhatsApp llega de un número sin oportunidad
+            asociada, aparece acá para revisión manual.
+          </p>
+        )}
+        {unmatched !== null && unmatched.length > 0 && (
+          <ul className="divide-y divide-border text-sm">
+            {unmatched.map((r) => (
+              <li key={r.id} className="py-2 first:pt-0 last:pb-0">
+                <button
+                  type="button"
+                  className="w-full text-left"
+                  aria-expanded={expandedUnmatched === r.id}
+                  onClick={() => setExpandedUnmatched(expandedUnmatched === r.id ? null : r.id)}
+                >
+                  <span className="font-medium">{maskPhone(r.from_phone)}</span>
+                  <span className="text-secondary"> · {formatDateTime(r.received_at)}</span>
+                  <span className="mt-0.5 block whitespace-pre-wrap">
+                    {expandedUnmatched === r.id ? r.body : maskMessage(r.body)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <Dialog open={dialogOpen} title="Nueva oportunidad (alta manual)" onClose={closeDialog}>
         {dialogError && (

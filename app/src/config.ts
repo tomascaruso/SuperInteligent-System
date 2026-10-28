@@ -22,6 +22,10 @@ export interface AppConfig {
   // F1: credenciales OAuth de Google del operador (cliente de la app).
   // Opcionales: sin ellas, el inicio de OAuth responde 503.
   googleOAuth?: { clientId: string; clientSecret: string; redirectUri: string };
+  // Fase A: secretos de la app de Meta para el webhook de WhatsApp
+  // (verificación del canal, no por org). Opcionales: sin ellos, el
+  // endpoint responde cerrado (fail-closed, ver routes.ts).
+  metaWebhook?: { appSecret: string; verifyToken: string };
 }
 
 function requiredInt(name: string, fallback: number): number {
@@ -63,6 +67,12 @@ export function loadConfig(): AppConfig {
     googleClientId !== '' && googleClientSecret !== '' && googleRedirectUri !== ''
       ? { clientId: googleClientId, clientSecret: googleClientSecret, redirectUri: googleRedirectUri }
       : undefined;
+  const metaAppSecret = process.env.META_APP_SECRET || '';
+  const metaVerifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN || '';
+  const metaWebhook =
+    metaAppSecret !== '' && metaVerifyToken !== ''
+      ? { appSecret: metaAppSecret, verifyToken: metaVerifyToken }
+      : undefined;
   return {
     host: process.env.HOST ?? '127.0.0.1',
     port: requiredInt('PORT', 3000),
@@ -76,5 +86,6 @@ export function loadConfig(): AppConfig {
     contact,
     connectionEncryptionKey: process.env.CONNECTION_ENCRYPTION_KEY || undefined,
     googleOAuth,
+    metaWebhook,
   };
 }

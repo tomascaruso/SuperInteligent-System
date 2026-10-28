@@ -150,6 +150,18 @@ const SCHEMA = `
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS inbound_messages (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL REFERENCES organizations(id),
+      opportunity_id TEXT REFERENCES opportunities(id),
+      provider_message_id TEXT NOT NULL,
+      from_phone TEXT NOT NULL,
+      message_type TEXT NOT NULL,
+      body TEXT NOT NULL,
+      received_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (org_id, provider_message_id)
+    );
     CREATE TABLE IF NOT EXISTS approvals (
       id TEXT PRIMARY KEY,
       draft_id TEXT NOT NULL REFERENCES drafts(id),

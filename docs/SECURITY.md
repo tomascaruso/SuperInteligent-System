@@ -25,6 +25,7 @@
 | Acceso entre organizaciones (IDOR, token manipulado) | `org_id` del token en cada consulta + RLS + test de escape |
 | Acción no autorizada (rol insuficiente) | Policy Engine: rol por organización, permisos por acción |
 | Webhook falsificado | Firma HMAC con secreto por canal; rechazo sin firma válida; timestamp anti-replay |
+| Webhook de WhatsApp falsificado (Fase A, endpoint público) | Sin JWT por necesidad (Meta no inicia sesión): verificación por token en el GET y firma HMAC-SHA256 `X-Hub-Signature-256` en el POST con el secreto de la app de Meta; firma inválida o ausente → se descarta sin guardar nada; el POST siempre responde 200 vacío (sin filtrar si algo falló); sin secretos de operador, endpoint cerrado (fail-closed); contenido de mensajes nunca en logs; dedup por `wamid` por org; enrutado solo por `phone_number_id` con conexión en la org (sin coincidencia → 200 sin guardar); ninguna respuesta automática |
 | Prompt injection / contenido externo malicioso | Entradas tratadas como datos; plantillas fijas; la IA (Fase 2) nunca recibe permisos de escritura directa; salida validada por esquema |
 | Agente que amplía sus permisos | Tool Registry cerrado; el planificador no modifica políticas ni su propio registro |
 | Abuso de coste / bucles | Presupuesto por ejecución y por organización; tope de pasos y reintentos; alertas |

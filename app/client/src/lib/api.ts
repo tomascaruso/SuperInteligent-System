@@ -433,6 +433,36 @@ export function retryDelivery(id: string): Promise<{ delivery: Delivery }> {
   });
 }
 
+// Fase A: respuesta entrante de WhatsApp (webhook de Meta). El
+// servidor guarda el cuerpo completo; la presentación enmascara en
+// listas y en Actividad (mask.ts), y lo muestra completo solo en
+// el detalle de la oportunidad.
+export interface InboundMessage {
+  id: string;
+  org_id: string;
+  opportunity_id: string | null;
+  provider_message_id: string;
+  from_phone: string;
+  message_type: string;
+  body: string;
+  received_at: string;
+  created_at: string;
+}
+
+export function getOpportunityResponses(id: string): Promise<{ responses: InboundMessage[] }> {
+  return request<{ responses: InboundMessage[] }>(`/api/opportunities/${encodeURIComponent(id)}/responses`);
+}
+
+export function getUnmatchedInbound(): Promise<{ responses: InboundMessage[] }> {
+  return request<{ responses: InboundMessage[] }>('/api/inbound-messages/unmatched');
+}
+
+export function getWhatsappWindow(id: string): Promise<{ windowOpen: boolean; lastInboundAt: string | null }> {
+  return request<{ windowOpen: boolean; lastInboundAt: string | null }>(
+    `/api/opportunities/${encodeURIComponent(id)}/whatsapp-window`,
+  );
+}
+
 export function getOpportunityList(): Promise<{ opportunities: OpportunityDetail[] }> {
   return request<{ opportunities: OpportunityDetail[] }>('/api/opportunities');
 }

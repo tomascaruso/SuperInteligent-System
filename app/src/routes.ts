@@ -85,6 +85,10 @@ export interface RouteOptions {
   // de Google, no de un usuario). Sin ellas, el inicio de OAuth
   // responde 503: nunca se finge una conexión.
   googleOAuth?: { clientId: string; clientSecret: string; redirectUri: string };
+  // Fase A: secretos de la app de Meta para el webhook de WhatsApp
+  // (verificación del canal, no por org). Sin ellos, el endpoint
+  // responde cerrado (fail-closed, ver la sección del webhook).
+  metaWebhook?: { appSecret: string; verifyToken: string };
 }
 
 interface OrgRow {
@@ -816,6 +820,242 @@ export function registerRoutes(
       }
       throw err;
     }
+  });
+
+  // ---------- Webhook de WhatsApp (Fase A: respuestas entrantes) ----------
+  // Endpoint PÚBLICO por necesidad: Meta no inicia sesión en SIS, así
+  // que no hay JWT. La única protección es criptográfica: verificación
+  // por token en el GET y firma HMAC-SHA256 del cuerpo crudo en el
+  // POST (misma función verifySignature que la ingesta, otra clave).
+  // Sin secretos de operador configurados, el endpoint responde
+  // cerrado (fail-closed): el GET exige token y el POST descarta
+  // todo. Hacia afuera, el POST siempre responde 200 vacío, válido
+  // o no: Meta reintenta lo que no es 200, el dedup hace seguros
+  // los reintentos y no se filtra si algo falló. Excepción: un
+  // cuerpo JSON malformado lo rechaza el parser compartido con 400
+  // (Meta siempre envía JSON válido); un contenido que no sea
+  // application/json responde 415 por el mismo parser.
+  // Nunca se registra contenido de mensajes en logs: solo el
+  // resultado del enrutado vive en la base, no en los registros.
+  // Normalización canónica E.164: Meta envía `from` solo con dígitos
+  // (sin +) mientras el contacto guardado lleva +; sin este paso, un
+  // mensaje real nunca igualaría a su oportunidad.
+  function normalizePhone(value: string): string {
+    const digits = value.replace(/[\s\-()]/g, '');
+    if (digits === '') return '';
+    return digits.startsWith('+') ? digits : `+${digits}`;
+  }
+
+  interface InboundMessageRow {
+    id: string;
+    org_id: string;
+    opportunity_id: string | null;
+    provider_message_id: string;
+    from_phone: string;
+    message_type: string;
+    body: string;
+    received_at: string;
+    created_at: string;
+  }
+
+  async function findOrgByWhatsappNumberId(phoneNumberId: string): Promise<string | null> {
+    const conns = await queryAll<ConnectionRow>(
+      db,
+      "SELECT * FROM org_connections WHERE provider = 'whatsapp' AND credentials_ciphertext IS NOT NULL",
+    );
+    for (const conn of conns) {
+      try {
+        const creds = JSON.parse(
+          decryptCredentials(conn.credentials_ciphertext!, opts.connectionEncryptionKey),
+        ) as WhatsAppCredentials;
+        if (creds.phone_number_id === phoneNumberId) return conn.org_id;
+      } catch {
+        // Sin clave de cifrado (o credencial corrupta) no se puede
+        // enrutar: se descarta el evento, no se adivina la org.
+        continue;
+      }
+    }
+    return null;
+  }
+
+  async function matchOpportunityByPhone(orgId: string, fromPhone: string): Promise<string | null> {
+    const opps = await queryAll<{ id: string; contact_phone: string | null; created_at: string }>(
+      db,
+      'SELECT id, contact_phone, created_at FROM opportunities WHERE org_id = ?',
+      orgId,
+    );
+    const matches = opps.filter((o) => o.contact_phone && normalizePhone(o.contact_phone) === fromPhone);
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return matches[0].id;
+    // Varias con el mismo teléfono: la de envío de WhatsApp más
+    // reciente; sin envíos, la creada más recientemente.
+    const lastSent = await queryAll<{ opportunity_id: string; last_sent: string }>(
+      db,
+      "SELECT opportunity_id, MAX(created_at) AS last_sent FROM message_deliveries WHERE org_id = ? AND channel = 'whatsapp' GROUP BY opportunity_id",
+      orgId,
+    );
+    const lastSentByOpp = new Map(lastSent.map((r) => [r.opportunity_id, r.last_sent]));
+    matches.sort((a, b) => {
+      const sa = lastSentByOpp.get(a.id) ?? '';
+      const sb = lastSentByOpp.get(b.id) ?? '';
+      if (sa !== sb) return sb.localeCompare(sa);
+      return b.created_at.localeCompare(a.created_at);
+    });
+    return matches[0].id;
+  }
+
+  app.get('/api/webhooks/whatsapp', async (request, reply) => {
+    const q = request.query as { 'hub.mode'?: string; 'hub.verify_token'?: string; 'hub.challenge'?: string };
+    const configured = opts.metaWebhook?.verifyToken;
+    if (
+      q['hub.mode'] === 'subscribe' &&
+      configured &&
+      q['hub.verify_token'] === configured &&
+      typeof q['hub.challenge'] === 'string'
+    ) {
+      await reply.type('text/plain').send(q['hub.challenge']);
+      return;
+    }
+    await reply.code(403).send({ error: 'forbidden', message: 'Verificación del webhook no válida' });
+  });
+
+  app.post('/api/webhooks/whatsapp', async (request, reply) => {
+    const done = () => reply.code(200).send('');
+    const appSecret = opts.metaWebhook?.appSecret;
+    if (!appSecret) return done();
+    const rawBody = (request as unknown as { rawBody?: string }).rawBody ?? '';
+    if (!verifySignature(appSecret, rawBody, request.headers['x-hub-signature-256'] as string | undefined)) {
+      return done();
+    }
+    const payload = (request.body ?? {}) as Record<string, unknown>;
+    const entries = Array.isArray(payload.entry) ? payload.entry : [];
+    for (const entry of entries) {
+      const changes = Array.isArray((entry as { changes?: unknown }).changes)
+        ? (entry as { changes: Array<Record<string, unknown>> }).changes
+        : [];
+      for (const change of changes) {
+        if (change.field !== 'messages') continue;
+        const value = (change.value ?? {}) as Record<string, unknown>;
+        const metadata = (value.metadata ?? {}) as Record<string, unknown>;
+        const phoneNumberId = typeof metadata.phone_number_id === 'string' ? metadata.phone_number_id : null;
+        if (!phoneNumberId) continue;
+        const orgId = await findOrgByWhatsappNumberId(phoneNumberId);
+        if (!orgId) continue;
+        const messages = Array.isArray(value.messages) ? value.messages : [];
+        for (const raw of messages) {
+          const msg = raw as Record<string, unknown>;
+          // Solo texto en esta fase. El resto (imagen, audio, video,
+          // documento, sticker) se ignora con 200, igual que los
+          // recibos de estado (value.statuses): no cambian entregas.
+          if (msg.type !== 'text' || typeof msg.id !== 'string' || typeof msg.from !== 'string') continue;
+          const text = (msg.text ?? {}) as Record<string, unknown>;
+          const body = typeof text.body === 'string' ? text.body : '';
+          const existing = await queryOne<{ id: string }>(
+            db,
+            'SELECT id FROM inbound_messages WHERE org_id = ? AND provider_message_id = ?',
+            orgId,
+            msg.id,
+          );
+          if (existing) continue;
+          const fromPhone = normalizePhone(msg.from);
+          const opportunityId = await matchOpportunityByPhone(orgId, fromPhone);
+          const receivedAt =
+            typeof msg.timestamp === 'string' && /^\d+$/.test(msg.timestamp)
+              ? new Date(Number(msg.timestamp) * 1000).toISOString()
+              : nowIso();
+          const id = newId();
+          await exec(
+            db,
+            'INSERT INTO inbound_messages (id, org_id, opportunity_id, provider_message_id, from_phone, message_type, body, received_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            id,
+            orgId,
+            opportunityId,
+            msg.id,
+            fromPhone,
+            'text',
+            body,
+            receivedAt,
+            nowIso(),
+          );
+          // Claves recipient/message: la vista de Actividad ya las
+          // enmascara (mask.ts); el detalle completo vive solo en
+          // la oportunidad y en la lista de revisión (con máscara).
+          await audit(db, orgId, 'webhook:whatsapp', 'message.received', 'inbound_message', id, {
+            channel: 'whatsapp',
+            opportunityId,
+            providerMessageId: msg.id,
+            recipient: fromPhone,
+            message: body,
+          });
+        }
+      }
+    }
+    return done();
+  });
+
+  // Respuestas de una oportunidad (detalle: datos completos, como el
+  // resto de Oportunidades) y respuestas sin coincidencia (revisión
+  // manual: el cliente las muestra enmascaradas en la lista).
+  app.get('/api/opportunities/:id/responses', { preHandler: auth }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const opp = await queryOne<{ id: string }>(
+      db,
+      'SELECT id FROM opportunities WHERE id = ? AND org_id = ?',
+      id,
+      user.orgId,
+    );
+    if (!opp) {
+      await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
+      return;
+    }
+    const responses = await queryAll<InboundMessageRow>(
+      db,
+      'SELECT * FROM inbound_messages WHERE org_id = ? AND opportunity_id = ? ORDER BY received_at DESC, created_at DESC',
+      user.orgId,
+      id,
+    );
+    return { responses };
+  });
+
+  app.get('/api/inbound-messages/unmatched', { preHandler: auth }, async (request) => {
+    const user = getUser(request);
+    const responses = await queryAll<InboundMessageRow>(
+      db,
+      'SELECT * FROM inbound_messages WHERE org_id = ? AND opportunity_id IS NULL ORDER BY received_at DESC, created_at DESC LIMIT 200',
+      user.orgId,
+    );
+    return { responses };
+  });
+
+  // Ventana derivada (Fase A): no es una columna, se calcula del
+  // último mensaje entrante de ese contacto en las últimas 24 h.
+  // Es solo una sugerencia para la UI: SIS nunca se niega a intentar
+  // un envío por este cálculo; Meta sigue siendo la autoridad y
+  // 131047 sigue mapeándose a window_closed como en F2.
+  app.get('/api/opportunities/:id/whatsapp-window', { preHandler: auth }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const opp = await queryOne<{ contact_phone: string | null }>(
+      db,
+      'SELECT contact_phone FROM opportunities WHERE id = ? AND org_id = ?',
+      id,
+      user.orgId,
+    );
+    if (!opp) {
+      await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
+      return;
+    }
+    if (!opp.contact_phone) return { windowOpen: false, lastInboundAt: null };
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const row = await queryOne<{ last_inbound: string }>(
+      db,
+      'SELECT MAX(received_at) AS last_inbound FROM inbound_messages WHERE org_id = ? AND from_phone = ? AND received_at >= ?',
+      user.orgId,
+      normalizePhone(opp.contact_phone),
+      cutoff,
+    );
+    return { windowOpen: row?.last_inbound != null, lastInboundAt: row?.last_inbound ?? null };
   });
 
   // ---------- Tareas ----------
