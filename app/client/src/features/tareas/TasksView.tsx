@@ -255,7 +255,8 @@ export function TasksView() {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold">Tareas y seguimientos</h1>
-        <p className="text-sm text-secondary">Controla las próximas acciones y los compromisos pendientes</p>
+        {/* A2: subtítulo directo sobre el fondo: secondary 4,48:1, tinta 15,33:1. */}
+        <p className="text-sm text-ink">Controla las próximas acciones y los compromisos pendientes</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

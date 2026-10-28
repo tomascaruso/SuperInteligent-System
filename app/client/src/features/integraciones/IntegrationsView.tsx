@@ -536,7 +536,8 @@ export function IntegrationsView() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">Integraciones</h1>
-          <p className="text-sm text-secondary">
+          {/* A2: subtítulo directo sobre el fondo: secondary 4,48:1, tinta 15,33:1. */}
+          <p className="text-sm text-ink">
             Conecta las herramientas de tu organización con SIS para ayudar a cumplir sus objetivos
           </p>
         </div>

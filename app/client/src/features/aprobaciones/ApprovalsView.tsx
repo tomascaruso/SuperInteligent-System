@@ -339,7 +339,8 @@ export function ApprovalsView() {
             {pendingCount} {pendingCount === 1 ? 'pendiente' : 'pendientes'}
           </span>
         </h1>
-        <p className="text-sm text-secondary">Revisa las acciones que requieren autorización antes de ejecutarse</p>
+        {/* A2: subtítulo directo sobre el fondo: secondary 4,48:1, tinta 15,33:1. */}
+        <p className="text-sm text-ink">Revisa las acciones que requieren autorización antes de ejecutarse</p>
       </div>
 
       <Card compact pad="p-3">

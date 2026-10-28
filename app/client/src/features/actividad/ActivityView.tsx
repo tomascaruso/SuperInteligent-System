@@ -569,7 +569,8 @@ export function ActivityView() {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold">Actividad y ejecuciones</h1>
-        <p className="text-sm text-secondary">Consulta el historial de operaciones, decisiones y resultados</p>
+        {/* A2: subtítulo directo sobre el fondo: secondary 4,48:1, tinta 15,33:1. */}
+        <p className="text-sm text-ink">Consulta el historial de operaciones, decisiones y resultados</p>
       </div>
 
       <Card compact pad="p-3">
