@@ -327,7 +327,8 @@ export function OpportunitiesView() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">Oportunidades</h1>
-          <p className="text-sm text-secondary">Centraliza, clasifica y supervisa las oportunidades comerciales</p>
+          {/* A2: subtítulo directo sobre el fondo: secondary 4,48:1, tinta 15,33:1. */}
+          <p className="text-sm text-ink">Centraliza, clasifica y supervisa las oportunidades comerciales</p>
         </div>
         <Button type="button" onClick={() => setDialogOpen(true)}>
           Nueva oportunidad
@@ -449,15 +450,18 @@ export function OpportunitiesView() {
                       openDetail(o.id);
                     }
                   }}
-                  className={`cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary/20' : ''}`}
+                  className={`group cursor-pointer hover:bg-primary-subtle ${isSelected ? 'bg-primary/20' : ''}`}
                 >
                   <td className="px-1 py-1.5 break-words">
                     <div className="font-semibold">{o.contact_name}</div>
                     {/* A1, P1-2: secundario sobre la fila seleccionada
                         (primary/20) da 3,49:1; en la fila seleccionada
                         los subtextos usan tinta (11,94:1). */}
-                    <div className={isSelected ? 'text-ink' : 'text-secondary'}>{o.company || '—'}</div>
-                    <div className={`text-xs ${isSelected ? 'text-ink' : 'text-secondary'}`}>{categoryLabel(o.category)}</div>
+                    {/* A2: en hover (primary-subtle) el secundario da
+                        4,26:1; con group-hover pasa a tinta (14,55:1),
+                        misma técnica que Tareas (R2) y Actividad. */}
+                    <div className={isSelected ? 'text-ink' : 'text-secondary group-hover:text-ink'}>{o.company || '—'}</div>
+                    <div className={`text-xs ${isSelected ? 'text-ink' : 'text-secondary group-hover:text-ink'}`}>{categoryLabel(o.category)}</div>
                   </td>
                   <td className="px-1 py-1.5 break-words">
                     <Badge variant={statusVariant(o.status)} className="whitespace-nowrap">
@@ -494,7 +498,7 @@ export function OpportunitiesView() {
                       // (R1e lo había fijado en una línea); la
                       // fila ya tiene 3 líneas por Oportunidad,
                       // así que no crece en alto.
-                      <span className={isSelected ? 'text-ink' : 'text-secondary'}>Sin pendiente</span>
+                      <span className={isSelected ? 'text-ink' : 'text-secondary group-hover:text-ink'}>Sin pendiente</span>
                     )}
                   </td>
                   <td className="px-1 py-1.5 break-words">{next ? next.title : '—'}</td>

@@ -304,9 +304,11 @@ export function HomeView() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Centro de operaciones</h1>
-          <p className="text-secondary">Supervisa los procesos y agentes de tu organización</p>
+          {/* A2: subtítulo y línea de organización directos sobre el
+              fondo: secondary da 4,48:1; tinta da 15,33:1. */}
+          <p className="text-ink">Supervisa los procesos y agentes de tu organización</p>
         </div>
-        <p className="text-sm text-secondary">Organización: {data.me.org.name}</p>
+        <p className="text-sm text-ink">Organización: {data.me.org.name}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

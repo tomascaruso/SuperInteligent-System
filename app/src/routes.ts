@@ -760,7 +760,13 @@ export function registerRoutes(
       return;
     }
     await exec(db, 'UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?', body.status, nowIso(), id);
-    await audit(db, user.orgId, user.email, 'task.updated', 'task', id, { status: body.status });
+    // A2: task.updated cita a la oportunidad de la tarea, igual que
+    // task.created y draft.created (engine.ts): así la línea de tiempo
+    // de la oportunidad (GET /api/audit?opportunityId=) la incluye.
+    await audit(db, user.orgId, user.email, 'task.updated', 'task', id, {
+      status: body.status,
+      opportunityId: task.opportunity_id,
+    });
     await reply.send({ task: (await queryOne<TaskRow>(db, 'SELECT * FROM tasks WHERE id = ?', id))! });
   });
 

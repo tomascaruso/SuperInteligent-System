@@ -526,7 +526,8 @@ export function AgentsView() {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold">Agentes</h1>
-        <p className="text-sm text-secondary">Supervisa las capacidades y la actividad de tus agentes especializados</p>
+        {/* A2: subtítulo directo sobre el fondo: secondary 4,48:1, tinta 15,33:1. */}
+        <p className="text-sm text-ink">Supervisa las capacidades y la actividad de tus agentes especializados</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
