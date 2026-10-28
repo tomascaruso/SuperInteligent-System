@@ -135,6 +135,8 @@ export function OpportunitiesView() {
   const [createEmail, setCreateEmail] = useState('');
   const [createCompany, setCreateCompany] = useState('');
   const [createMessage, setCreateMessage] = useState('');
+  // F0: teléfono opcional (7–15 dígitos; lo valida el servidor).
+  const [createPhone, setCreatePhone] = useState('');
   const [creating, setCreating] = useState(false);
   // R1c: el éxito se muestra en la vista (encima de la tabla)
   // una vez cerrado el diálogo; el error se muestra dentro del
@@ -227,6 +229,7 @@ export function OpportunitiesView() {
     setCreateEmail('');
     setCreateCompany('');
     setCreateMessage('');
+    setCreatePhone('');
     setDialogError(null);
   }, []);
 
@@ -245,6 +248,7 @@ export function OpportunitiesView() {
         contactEmail: createEmail,
         company: createCompany,
         message: createMessage,
+        contactPhone: createPhone,
       });
       clearCreateForm();
       setDialogOpen(false);
@@ -565,6 +569,10 @@ export function OpportunitiesView() {
                 <dd className="mt-0.5 break-words">{selected.contact_email}</dd>
               </div>
               <div className="py-2">
+                <dt className="text-xs text-secondary">Teléfono</dt>
+                <dd className="mt-0.5">{selected.contact_phone || '—'}</dd>
+              </div>
+              <div className="py-2">
                 <dt className="text-xs text-secondary">Empresa</dt>
                 <dd className="mt-0.5">{selected.company || '—'}</dd>
               </div>
@@ -737,6 +745,17 @@ export function OpportunitiesView() {
           <div>
             <Label htmlFor="opp-company">Empresa (opcional)</Label>
             <Input id="opp-company" value={createCompany} onChange={(e) => setCreateCompany(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="opp-phone">Teléfono (opcional, para WhatsApp)</Label>
+            <Input
+              id="opp-phone"
+              type="tel"
+              value={createPhone}
+              onChange={(e) => setCreatePhone(e.target.value)}
+              placeholder="+54 11 1234-5678"
+              autoComplete="tel"
+            />
           </div>
           <div>
             <Label htmlFor="opp-message">Mensaje de la oportunidad</Label>

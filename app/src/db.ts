@@ -82,6 +82,7 @@ const SCHEMA = `
       priority TEXT NOT NULL,
       score INTEGER,
       dedup_key TEXT NOT NULL,
+      contact_phone TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       UNIQUE (org_id, dedup_key)
@@ -118,6 +119,36 @@ const SCHEMA = `
       decided_by TEXT,
       decided_at TEXT,
       created_at TEXT NOT NULL
+    );
+    -- F0/F1: después de drafts, porque message_deliveries la
+    -- referencia y Postgres (a diferencia de SQLite) exige que
+    -- la tabla referenciada exista al crear la tabla.
+    CREATE TABLE IF NOT EXISTS org_connections (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL REFERENCES organizations(id),
+      provider TEXT NOT NULL CHECK (provider IN ('gmail', 'whatsapp')),
+      status TEXT NOT NULL CHECK (status IN ('connected', 'error', 'revoked')),
+      display_account TEXT NOT NULL DEFAULT '',
+      credentials_ciphertext TEXT,
+      last_verified_at TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (org_id, provider)
+    );
+    CREATE TABLE IF NOT EXISTS message_deliveries (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL REFERENCES organizations(id),
+      draft_id TEXT NOT NULL UNIQUE REFERENCES drafts(id),
+      opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
+      channel TEXT NOT NULL CHECK (channel IN ('gmail', 'whatsapp')),
+      status TEXT NOT NULL CHECK (status IN ('pending', 'sent', 'failed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      provider_message_id TEXT,
+      error_code TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS approvals (
       id TEXT PRIMARY KEY,
@@ -301,6 +332,7 @@ export async function initSchema(db: Db): Promise<void> {
   await ensureAgentCatalog(db);
   await ensureAgentPauseColumn(db);
   await ensureOpportunityScoreColumn(db);
+  await ensureOpportunityPhoneColumn(db);
   await ensureDraftEditedColumns(db);
   await ensureDraftSnapshots(db);
   await ensurePolicyCatalog(db);
@@ -498,8 +530,26 @@ export async function ensureOpportunityScoreColumn(db: Db): Promise<void> {
       company: row.company,
       message: row.message,
       source: row.source,
+      contactPhone: '',
     });
     await exec(db, 'UPDATE opportunities SET score = ? WHERE id = ?', score, row.id);
+  }
+}
+
+// F0: teléfono de la oportunidad (nullable, sin backfill: no se
+// inventa ningún número). Mismo patrón portable que el resto: probar
+// la columna y ALTER solo si falta. En bases nuevas la columna ya
+// viene del DDL.
+export async function ensureOpportunityPhoneColumn(db: Db): Promise<void> {
+  const hasColumn = await queryOne<Record<string, unknown>>(
+    db,
+    'SELECT contact_phone FROM opportunities LIMIT 0',
+  ).then(
+    () => true,
+    () => false,
+  );
+  if (!hasColumn) {
+    await exec(db, 'ALTER TABLE opportunities ADD COLUMN contact_phone TEXT');
   }
 }
 
@@ -562,8 +612,8 @@ const KNOWN_AGENTS = [
   {
     id: 'response_proposal',
     name: 'Respuesta y propuesta',
-    description: 'Genera el borrador desde plantillas.',
-    steps: ['draft'],
+    description: 'Genera el borrador desde plantillas y, tras aprobar, lo envía por el canal elegido.',
+    steps: ['draft', 'send'],
     sortOrder: 3,
   },
   {
@@ -692,6 +742,16 @@ const KNOWN_POLICIES = [
     key: 'draft.expiry_days',
     value: '7',
     description: 'Días hasta que un borrador vence.',
+  },
+  {
+    key: 'send.retry.admin_only',
+    value: 'true',
+    description: 'Solo un admin puede reintentar envíos fallidos.',
+  },
+  {
+    key: 'send.retry.max_attempts',
+    value: '3',
+    description: 'Máximo de reintentos por entrega fallida.',
   },
 ];
 

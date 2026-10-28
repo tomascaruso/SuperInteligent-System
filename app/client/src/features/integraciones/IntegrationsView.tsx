@@ -63,6 +63,17 @@
 // suma Zapier, Make, n8n y Microsoft Power Automate; API &
 // Webhooks suma Postman, Pipedream e Insomnia junto al webhook
 // de ingesta, la única real. Las 10 nuevas son 'coming_soon'.
+//
+// F1 (28-oct-2026): Gmail DEJA de ser solo catálogo: se puede
+// conectar de verdad por OAuth desde esta vista (solo envío, y
+// solo si el operador configuró Google). Su tarjeta muestra el
+// estado REAL de GET /api/connections: sin conexión sigue
+// 'coming_soon'; con conexión verificada muestra «Disponible»
+// con la cuenta conectada (nunca «Conectado» inventado ni
+// secretos). WhatsApp entra como entrada nueva 'coming_soon',
+// así que Comunicación pasa a 5 tarjetas y el total a 21,
+// rompiendo la regla R5d de 4 por categoría (registrado en
+// docs/F0F1-GMAIL-REPORTE.md).
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
@@ -99,8 +110,12 @@ import type { HomeOutletContext } from '../inicio/HomeView';
 import {
   ApiError,
   getAudit,
+  getConnections,
+  getMe,
   getOpportunityList,
   type AuditEntry,
+  type Connection,
+  type MeResponse,
   type OpportunityDetail,
 } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
@@ -202,12 +217,12 @@ const INTEGRATIONS: IntegrationDef[] = [
     icon: Mail,
     pill: 'bg-slate-100 text-slate-700',
     status: 'coming_soon',
-    summary: 'Correo del equipo. Conexión real aún no disponible.',
+    summary: 'Correo del equipo. Se conecta por OAuth desde esta vista (solo envío).',
     capabilities: [
-      'Enviar correos desde SIS',
-      'Registrar respuestas en la oportunidad',
+      'Enviar el borrador aprobado por Gmail cuando el admin elige ese canal',
     ],
-    oauthNote: 'Requerirá OAuth de Google y permisos de correo cuando se construya.',
+    oauthNote:
+      'OAuth de Google con alcance mínimo solo gmail.send; las credenciales se guardan cifradas y ningún endpoint las devuelve.',
   },
   {
     id: 'zoom',
@@ -222,6 +237,21 @@ const INTEGRATIONS: IntegrationDef[] = [
       'Adjuntar el enlace a la tarea',
     ],
     oauthNote: 'Requerirá OAuth de Zoom cuando se construya.',
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    category: 'Comunicación',
+    icon: Send,
+    pill: 'bg-slate-100 text-slate-700',
+    status: 'coming_soon',
+    summary: 'Mensajería instantánea. Conexión real aún no disponible.',
+    capabilities: [
+      'Enviar mensajes por WhatsApp Business desde SIS',
+      'Enviar el borrador aprobado por el canal elegido',
+    ],
+    oauthNote:
+      'Requerirá una cuenta de WhatsApp Business y un número verificado cuando se construya.',
   },
   {
     id: 'salesforce',
@@ -444,6 +474,12 @@ export function IntegrationsView() {
   const [error, setError] = useState<string | null>(null);
   const [opportunities, setOpportunities] = useState<OpportunityDetail[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
+  // F1: conexiones reales de envío + quién mira (solo admin
+  // conecta/desconecta). Sin conexión, Gmail sigue coming_soon.
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [connectionAction, setConnectionAction] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -456,10 +492,17 @@ export function IntegrationsView() {
     setError(null);
     (async () => {
       try {
-        const [oppsRes, auditRes] = await Promise.all([getOpportunityList(), getAudit()]);
+        const [oppsRes, auditRes, connRes, meRes] = await Promise.all([
+          getOpportunityList(),
+          getAudit(),
+          getConnections(),
+          getMe(),
+        ]);
         if (!cancelled) {
           setOpportunities(oppsRes.opportunities);
           setAudit(auditRes.audit);
+          setConnections(connRes.connections);
+          setMe(meRes);
           setState('ready');
         }
       } catch (e: unknown) {
@@ -506,6 +549,59 @@ export function IntegrationsView() {
   // queda fuera del filtro, se muestra la primera visible.
   const selected =
     filtered.find((i) => i.id === selectedId) ?? filtered[0] ?? INTEGRATIONS[0];
+
+  // F1: estado REAL de Gmail (la única del catálogo con conexión
+  // por OAuth). Sin fila, sigue coming_soon; con fila 'connected'
+  // muestra Disponible con la cuenta; con fila 'error', el error.
+  const gmailConnection = connections.find((c) => c.provider === 'gmail');
+  const gmailConnected = gmailConnection?.status === 'connected';
+  const isAdmin = me?.user.role === 'admin';
+
+  const connectGmail = useCallback(async () => {
+    setConnectionAction(true);
+    setConnectionError(null);
+    try {
+      const res = await fetch('/api/connections/gmail/oauth/start', { method: 'POST' });
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const b = (data ?? {}) as { message?: unknown; error?: unknown };
+        throw new ApiError(
+          typeof b.message === 'string' ? b.message : typeof b.error === 'string' ? b.error : `Error ${res.status}`,
+          res.status,
+        );
+      }
+      const url = (data as { url?: unknown }).url;
+      if (typeof url === 'string') window.location.href = url;
+    } catch (e: unknown) {
+      setConnectionError(e instanceof ApiError ? e.message : 'No se pudo iniciar la conexión con Gmail.');
+    } finally {
+      setConnectionAction(false);
+    }
+  }, []);
+
+  const disconnectGmail = useCallback(async () => {
+    if (!gmailConnection) return;
+    setConnectionAction(true);
+    setConnectionError(null);
+    try {
+      const res = await fetch(`/api/connections/${encodeURIComponent(gmailConnection.id)}/disconnect`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data: unknown = await res.json().catch(() => ({}));
+        const b = (data ?? {}) as { message?: unknown; error?: unknown };
+        throw new ApiError(
+          typeof b.message === 'string' ? b.message : typeof b.error === 'string' ? b.error : `Error ${res.status}`,
+          res.status,
+        );
+      }
+      setReloadKey((k) => k + 1);
+    } catch (e: unknown) {
+      setConnectionError(e instanceof ApiError ? e.message : 'No se pudo desconectar Gmail.');
+    } finally {
+      setConnectionAction(false);
+    }
+  }, [gmailConnection]);
 
   // Cerrar la búsqueda limpia el texto y vuelve a mostrar todo.
   const closeSearch = useCallback(() => {
@@ -578,7 +674,8 @@ export function IntegrationsView() {
         </div>
       )}
       <p className="text-xs text-muted">
-        La única integración en funcionamiento hoy es el webhook de ingesta. El resto del catálogo
+        La única integración en funcionamiento hoy es el webhook de ingesta. Gmail se puede conectar
+        de verdad desde esta vista (OAuth, solo envío de borradores aprobados); el resto del catálogo
         está marcado como disponible próximamente: las conexiones reales llegarán proveedor por
         proveedor, sin estados ni sincronizaciones de ejemplo.
       </p>
@@ -616,6 +713,8 @@ export function IntegrationsView() {
                   {cards.map((i) => {
                     const { icon: Icon, pill } = { icon: i.icon, pill: i.pill };
                     const isSelected = i.id === selected.id;
+                    // F1: Gmail muestra su estado real, no el del catálogo.
+                    const cardAvailable = i.status === 'available' || (i.id === 'gmail' && gmailConnected);
                     return (
                       <button
                         key={i.id}
@@ -633,7 +732,7 @@ export function IntegrationsView() {
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="font-semibold">{i.name}</span>
-                              {i.status === 'available' ? (
+                              {cardAvailable ? (
                                 <Badge variant="info" compact>
                                   Disponible
                                 </Badge>
@@ -651,6 +750,14 @@ export function IntegrationsView() {
                                 {webhookData.last
                                   ? `Última recepción: ${formatDateTime(webhookData.last)}`
                                   : 'Sin recepciones todavía'}
+                              </span>
+                            ) : i.id === 'gmail' && gmailConnected ? (
+                              <span className="mt-1 block text-sm">
+                                Cuenta conectada: {gmailConnection?.display_account}
+                              </span>
+                            ) : i.id === 'gmail' && gmailConnection?.status === 'error' ? (
+                              <span className="mt-1 block text-sm text-secondary">
+                                Conexión con error: {gmailConnection.last_error ?? 'verificá la cuenta'}.
                               </span>
                             ) : (
                               <span className="mt-1 block text-sm text-secondary">
@@ -675,11 +782,11 @@ export function IntegrationsView() {
           variant="inline"
           wide
           title={`Integración: ${selected.name}`}
-          subtitle={`${selected.category} · ${selected.status === 'available' ? 'Disponible' : 'Disponible próximamente'}`}
+          subtitle={`${selected.category} · ${selected.id === 'gmail' && gmailConnected ? 'Disponible' : selected.status === 'available' ? 'Disponible' : 'Disponible próximamente'}`}
         >
           <div>
             <div className="flex flex-wrap gap-2">
-              {selected.status === 'available' ? (
+              {selected.status === 'available' || (selected.id === 'gmail' && gmailConnected) ? (
                 <Badge variant="info" compact>
                   Disponible
                 </Badge>
@@ -692,7 +799,51 @@ export function IntegrationsView() {
             <p className="mt-2 text-sm text-secondary">{selected.summary}</p>
           </div>
 
-          {selected.status === 'available' ? (
+          {selected.id === 'gmail' && gmailConnected ? (
+            <>
+              <div className={sectionClass}>
+                <h3 className="text-sm font-semibold">Estado</h3>
+                <p className="mt-1 text-sm">Cuenta conectada: {gmailConnection?.display_account}</p>
+                {gmailConnection?.last_verified_at && (
+                  <p className="mt-1 text-sm text-secondary">
+                    Verificada: {formatDateTime(gmailConnection.last_verified_at)}
+                  </p>
+                )}
+                <p className="mt-1 text-sm text-secondary">
+                  Al aprobar un borrador, el admin puede elegir enviarlo por esta cuenta. Sin canal
+                  elegido, aprobar no envía nada.
+                </p>
+              </div>
+
+              <div className={sectionClass}>
+                <h3 className="text-sm font-semibold">Capacidades</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {selected.capabilities.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className={sectionClass}>
+                <h3 className="text-sm font-semibold">Credenciales</h3>
+                <p className="mt-1 text-sm text-secondary">
+                  Las credenciales OAuth se guardan cifradas y ningún endpoint las devuelve. No hay
+                  botones para mostrar ni copiar secretos.
+                </p>
+              </div>
+
+              <div className={sectionClass}>
+                {isAdmin ? (
+                  <Button type="button" variant="secondary" disabled={connectionAction} onClick={() => void disconnectGmail()}>
+                    {connectionAction ? 'Desconectando…' : 'Desconectar'}
+                  </Button>
+                ) : (
+                  <p className="mt-1 text-sm text-secondary">Solo un admin puede desconectar esta cuenta.</p>
+                )}
+                {connectionError && <p className="mt-2"><Alert variant="error">{connectionError}</Alert></p>}
+              </div>
+            </>
+          ) : selected.status === 'available' ? (
             <>
               <div className={sectionClass}>
                 <h3 className="text-sm font-semibold">Salud de la conexión</h3>
@@ -788,12 +939,37 @@ export function IntegrationsView() {
               </div>
 
               <div className={sectionClass}>
-                <Button type="button" variant="secondary" disabled>
-                  Notificar
-                </Button>
-                <p className="mt-1 text-xs text-muted">
-                  El aviso de disponibilidad aún no está disponible.
-                </p>
+                {selected.id === 'gmail' ? (
+                  <>
+                    {isAdmin ? (
+                      <Button type="button" variant="primary" disabled={connectionAction} onClick={() => void connectGmail()}>
+                        {connectionAction ? 'Conectando…' : 'Conectar con Google'}
+                      </Button>
+                    ) : (
+                      <p className="mt-1 text-sm text-secondary">Solo un admin puede conectar esta cuenta.</p>
+                    )}
+                    <p className="mt-1 text-xs text-muted">
+                      Se abre el consentimiento de Google con alcance mínimo solo para enviar
+                      correos (gmail.send). Si el operador todavía no configuró Google, el servidor
+                      responde que no está disponible: no es un error de la cuenta.
+                    </p>
+                    {gmailConnection?.status === 'error' && (
+                      <p className="mt-1 text-sm text-secondary">
+                        Último error: {gmailConnection.last_error ?? 'verificá la cuenta y volvé a conectar.'}
+                      </p>
+                    )}
+                    {connectionError && <p className="mt-2"><Alert variant="error">{connectionError}</Alert></p>}
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="secondary" disabled>
+                      Notificar
+                    </Button>
+                    <p className="mt-1 text-xs text-muted">
+                      El aviso de disponibilidad aún no está disponible.
+                    </p>
+                  </>
+                )}
               </div>
             </>
           )}

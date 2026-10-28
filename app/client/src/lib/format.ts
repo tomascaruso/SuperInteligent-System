@@ -78,6 +78,9 @@ export function auditActionLabel(a: string): string {
       // H1: pausa de agentes.
       'agent.paused': 'Agente pausado',
       'agent.resumed': 'Agente reanudado',
+      // F1: envío por el agente tras aprobar.
+      'message.sent': 'Mensaje enviado',
+      'message.failed': 'Envío fallido',
     }[a] ?? a
   );
 }
@@ -93,6 +96,7 @@ export function auditEntityLabel(e: string): string {
       draft: 'borrador',
       execution: 'ejecución',
       agent: 'agente',
+      delivery: 'entrega',
     }[e] ?? e
   );
 }

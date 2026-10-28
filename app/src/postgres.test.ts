@@ -190,10 +190,11 @@ describe('Postgres (pg-mem) — C6: políticas, herramientas y reintento con ví
 
     const policies = await app.inject({ method: 'GET', url: '/api/policies', headers: auth });
     expect(policies.statusCode).toBe(200);
-    expect(policies.json().policies).toHaveLength(4);
+    // F1: 4 políticas C6 + 2 de reintento de envío; 6 pasos + send.
+    expect(policies.json().policies).toHaveLength(6);
     const tools = await app.inject({ method: 'GET', url: '/api/tools', headers: auth });
     expect(tools.statusCode).toBe(200);
-    expect(tools.json().tools).toHaveLength(6);
+    expect(tools.json().tools).toHaveLength(7);
 
     const failedId = 'exec-failed-c6';
     await db.exec(

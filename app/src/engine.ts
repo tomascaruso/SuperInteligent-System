@@ -58,6 +58,7 @@ export interface OpportunityRow {
   priority: string;
   score: number | null;
   dedup_key: string;
+  contact_phone: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -341,6 +342,7 @@ export async function runIntake(
         company: opp.company,
         message: opp.message,
         source: opp.source,
+        contactPhone: opp.contact_phone ?? '',
       });
       // A1, P1-1: el mensaje cambió y con él el puntaje. Se persiste
       // junto a la clasificación ya calculada. Categoría y prioridad
@@ -373,7 +375,7 @@ export async function runIntake(
     const oppId = newId();
     await exec(
       db,
-      'INSERT INTO opportunities (id, org_id, contact_name, contact_email, company, message, source, status, category, priority, score, dedup_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO opportunities (id, org_id, contact_name, contact_email, company, message, source, status, category, priority, score, dedup_key, contact_phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       oppId,
       orgId,
       normalized.contactName,
@@ -386,6 +388,7 @@ export async function runIntake(
       classification.priority,
       classification.score,
       key,
+      normalized.contactPhone === '' ? null : normalized.contactPhone,
       now,
       now,
     );

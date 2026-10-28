@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { audit, exec, newId, nowIso, queryAll, queryOne, todayUtc, type Db, type Param } from './db.js';
 import {
   acceptInvitationSchema,
+  draftApproveSchema,
   draftEditSchema,
   draftRejectSchema,
   invitationSchema,
@@ -13,6 +14,18 @@ import {
   taskPatchSchema,
   type OpportunityInput,
 } from './domain.js';
+import {
+  ConnectionKeyMissingError,
+  GmailMailProvider,
+  ProviderError,
+  buildGoogleAuthUrl,
+  decryptCredentials,
+  encryptCredentials,
+  signOAuthState,
+  verifyOAuthState,
+  type MailCredentials,
+  type MailProvider,
+} from './sending.js';
 import {
   authenticate,
   generateWebhookSecret,
@@ -51,6 +64,18 @@ export interface RouteOptions {
   // F3-DEMO: envío del formulario de contacto. Sin él, el contacto está
   // cerrado y el formulario no se muestra.
   contact?: ContactConfig;
+  // F1: proveedor de correo inyectable (tests usan un simulado; en
+  // producción es el adaptador real de Gmail). Sin él, se construye el
+  // real si hay OAuth de Google configurado; si no, no hay envío.
+  mailProvider?: MailProvider;
+  // F1: clave de cifrado de credenciales de conexión (variable de
+  // entorno del operador, sync:false). Sin ella, el módulo de envío
+  // queda cerrado (fail-closed).
+  connectionEncryptionKey?: string;
+  // F1: credenciales OAuth de Google del operador (cliente de la app
+  // de Google, no de un usuario). Sin ellas, el inicio de OAuth
+  // responde 503: nunca se finge una conexión.
+  googleOAuth?: { clientId: string; clientSecret: string; redirectUri: string };
 }
 
 interface OrgRow {
@@ -137,6 +162,57 @@ interface DraftRow {
 // borrador, para no filtrar el detalle de almacenamiento.
 function draftOut(d: DraftRow): Omit<DraftRow, 'edited'> & { edited: boolean } {
   return { ...d, edited: d.edited === 1 || (d.edited as unknown) === true };
+}
+
+// F0/F1: conexiones de envío por organización y entregas de mensajes.
+// La fila de conexión NUNCA sale con su secreto: la API pública de
+// conexiones devuelve solo provider, status, display_account y
+// verificación (ver connectionOut). La entrega es el registro de que
+// un borrador aprobado se envió (o falló) por un canal.
+interface ConnectionRow {
+  id: string;
+  org_id: string;
+  provider: string;
+  status: string;
+  display_account: string;
+  credentials_ciphertext: string | null;
+  last_verified_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function connectionOut(c: ConnectionRow): Omit<ConnectionRow, 'credentials_ciphertext'> {
+  const { credentials_ciphertext: _secret, ...rest } = c;
+  return rest;
+}
+
+interface DeliveryRow {
+  id: string;
+  org_id: string;
+  draft_id: string;
+  opportunity_id: string;
+  channel: string;
+  status: string;
+  attempts: number;
+  provider_message_id: string | null;
+  error_code: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Verificación de perfil a través del proveedor inyectado (real o
+// simulado). Un proveedor sin verifyProfile no puede verificar ni
+// conectar: fail-closed, nunca un «connected» inventado.
+async function providerVerifyProfile(
+  provider: MailProvider,
+  credentials: MailCredentials,
+): Promise<{ email: string; credentials: MailCredentials }> {
+  if (!provider.verifyProfile) {
+    throw new ProviderError('not_supported', 'Este proveedor no admite verificación de cuenta');
+  }
+  return provider.verifyProfile(credentials);
 }
 
 interface ExecutionRow {
@@ -792,10 +868,32 @@ export function registerRoutes(
   app.get('/api/drafts', { preHandler: auth }, async (request) => {
     const user = getUser(request);
     const expiryMs = draftExpiryMs(await loadPolicies());
-    const rows = await queryAll<DraftRow & { contact_name: string; company: string; opportunity_message: string; opportunity_source: string }>(
+    const rows = await queryAll<
+      DraftRow & {
+        contact_name: string;
+        company: string;
+        opportunity_message: string;
+        opportunity_source: string;
+        delivery_id: string | null;
+        delivery_channel: string | null;
+        delivery_status: string | null;
+        delivery_attempts: number | null;
+        delivery_provider_message_id: string | null;
+        delivery_error_code: string | null;
+        delivery_error: string | null;
+        delivery_created_at: string | null;
+        delivery_updated_at: string | null;
+      }
+    >(
       db,
-      `SELECT d.*, o.contact_name, o.company, o.message AS opportunity_message, o.source AS opportunity_source FROM drafts d
+      `SELECT d.*, o.contact_name, o.company, o.message AS opportunity_message, o.source AS opportunity_source,
+              md.id AS delivery_id, md.channel AS delivery_channel, md.status AS delivery_status,
+              md.attempts AS delivery_attempts, md.provider_message_id AS delivery_provider_message_id,
+              md.error_code AS delivery_error_code, md.error AS delivery_error,
+              md.created_at AS delivery_created_at, md.updated_at AS delivery_updated_at
+       FROM drafts d
        JOIN opportunities o ON o.id = d.opportunity_id
+       LEFT JOIN message_deliveries md ON md.draft_id = d.id
        WHERE d.org_id = ? ORDER BY d.created_at DESC`,
       user.orgId,
     );
@@ -804,14 +902,421 @@ export function registerRoutes(
         ...draftOut(d),
         expired: isDraftExpired(d, expiryMs),
         stale: isDraftStale(d, d.opportunity_message),
+        delivery: d.delivery_id
+          ? {
+              id: d.delivery_id,
+              channel: d.delivery_channel,
+              status: d.delivery_status,
+              attempts: d.delivery_attempts,
+              provider_message_id: d.delivery_provider_message_id,
+              error_code: d.delivery_error_code,
+              error: d.delivery_error,
+              created_at: d.delivery_created_at,
+              updated_at: d.delivery_updated_at,
+            }
+          : null,
       })),
     };
   });
+
+  // ---------- Conexiones de envío (F1) ----------
+  // Solo datos no secretos: ningún endpoint devuelve credenciales, ni
+  // siquiera al admin de la org (ver connectionOut).
+  app.get('/api/connections', { preHandler: auth }, async (request) => {
+    const user = getUser(request);
+    const rows = await queryAll<ConnectionRow>(
+      db,
+      'SELECT * FROM org_connections WHERE org_id = ? ORDER BY provider ASC',
+      user.orgId,
+    );
+    return { connections: rows.map(connectionOut) };
+  });
+
+  // Inicio de OAuth de Google (solo admin). Sin credenciales de
+  // operador configuradas responde 503: nunca se finge un flujo.
+  app.post('/api/connections/gmail/oauth/start', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
+    const user = getUser(request);
+    if (!opts.googleOAuth) {
+      await reply.code(503).send({
+        error: 'not_configured',
+        message: 'La conexión con Gmail no está configurada en el servidor',
+      });
+      return;
+    }
+    const state = signOAuthState(opts.jwtSecret, user.orgId, user.email);
+    await reply.send({
+      url: buildGoogleAuthUrl({
+        clientId: opts.googleOAuth.clientId,
+        redirectUri: opts.googleOAuth.redirectUri,
+        state,
+      }),
+    });
+  });
+
+  // Callback de OAuth de Google (lo llama el navegador tras consentir;
+  // el state firmado ata org, admin y vencimiento, así que no necesita
+  // sesión: se verifica la firma, el vencimiento y que el correo sea
+  // admin de esa org). Intercambia el código, verifica el perfil real
+  // y guarda los tokens cifrados. Redirige a la app: el estado real
+  // se consulta con GET /api/connections.
+  app.get('/api/connections/gmail/oauth/callback', async (request, reply) => {
+    const query = request.query as { code?: string; state?: string; error?: string };
+    const failRedirect = '/?connection=gmail&status=error';
+    if (query.error || !query.code || !query.state || !opts.googleOAuth) {
+      await reply.redirect(failRedirect);
+      return;
+    }
+    const verified = verifyOAuthState(opts.jwtSecret, query.state);
+    if (!verified) {
+      await reply.redirect(failRedirect);
+      return;
+    }
+    const admin = await queryOne<UserRow>(
+      db,
+      'SELECT * FROM users WHERE org_id = ? AND email = ? AND role = ?',
+      verified.orgId,
+      verified.email.toLowerCase(),
+      'admin',
+    );
+    if (!admin) {
+      await reply.redirect(failRedirect);
+      return;
+    }
+    try {
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: query.code,
+          client_id: opts.googleOAuth.clientId,
+          client_secret: opts.googleOAuth.clientSecret,
+          redirect_uri: opts.googleOAuth.redirectUri,
+          grant_type: 'authorization_code',
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!tokenRes.ok) {
+        await reply.redirect(failRedirect);
+        return;
+      }
+      const tokens = (await tokenRes.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+      };
+      if (!tokens.access_token) {
+        await reply.redirect(failRedirect);
+        return;
+      }
+      const credentials: MailCredentials = {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+      };
+      const provider = opts.mailProvider ?? new GmailMailProvider(opts.googleOAuth);
+      const { email: profileEmail, credentials: verifiedCredentials } =
+        await providerVerifyProfile(provider, credentials);
+      const now = nowIso();
+      const existing = await queryOne<ConnectionRow>(
+        db,
+        'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
+        verified.orgId,
+        'gmail',
+      );
+      const ciphertext = encryptCredentials(JSON.stringify(verifiedCredentials), opts.connectionEncryptionKey);
+      if (existing) {
+        await exec(
+          db,
+          'UPDATE org_connections SET status = ?, display_account = ?, credentials_ciphertext = ?, last_verified_at = ?, last_error = NULL, updated_at = ? WHERE id = ?',
+          'connected',
+          profileEmail,
+          ciphertext,
+          now,
+          now,
+          existing.id,
+        );
+      } else {
+        await exec(
+          db,
+          'INSERT INTO org_connections (id, org_id, provider, status, display_account, credentials_ciphertext, last_verified_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          newId(),
+          verified.orgId,
+          'gmail',
+          'connected',
+          profileEmail,
+          ciphertext,
+          now,
+          now,
+          now,
+        );
+      }
+      await reply.redirect('/?connection=gmail&status=connected');
+    } catch {
+      await reply.redirect(failRedirect);
+    }
+  });
+
+  // Re-verificación de una conexión (solo admin, solo Gmail en F1).
+  app.post('/api/connections/:id/verify', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const conn = await queryOne<ConnectionRow>(
+      db,
+      'SELECT * FROM org_connections WHERE id = ? AND org_id = ?',
+      id,
+      user.orgId,
+    );
+    if (!conn) {
+      await reply.code(404).send({ error: 'not_found', message: 'Conexión no encontrada' });
+      return;
+    }
+    if (conn.provider !== 'gmail' || !conn.credentials_ciphertext) {
+      await reply.code(409).send({ error: 'not_supported', message: 'Esta conexión no se puede verificar' });
+      return;
+    }
+    try {
+      const credentials = JSON.parse(
+        decryptCredentials(conn.credentials_ciphertext, opts.connectionEncryptionKey),
+      ) as MailCredentials;
+      const provider = opts.mailProvider ?? (opts.googleOAuth ? new GmailMailProvider(opts.googleOAuth) : undefined);
+      if (!provider) {
+        throw new ProviderError('connection_error', 'El envío por correo no está configurado en el servidor');
+      }
+      const { email, credentials: fresh } = await providerVerifyProfile(provider, credentials);
+      await exec(
+        db,
+        'UPDATE org_connections SET status = ?, display_account = ?, credentials_ciphertext = ?, last_verified_at = ?, last_error = NULL, updated_at = ? WHERE id = ?',
+        'connected',
+        email,
+        encryptCredentials(JSON.stringify(fresh), opts.connectionEncryptionKey),
+        nowIso(),
+        nowIso(),
+        conn.id,
+      );
+      await reply.send({ connection: connectionOut((await queryOne<ConnectionRow>(db, 'SELECT * FROM org_connections WHERE id = ?', id))!) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'La verificación falló';
+      await exec(
+        db,
+        'UPDATE org_connections SET status = ?, last_error = ?, updated_at = ? WHERE id = ?',
+        'error',
+        message.slice(0, 500),
+        nowIso(),
+        conn.id,
+      );
+      await reply.code(409).send({ error: 'connection_error', message });
+    }
+  });
+
+  // Desconexión (solo admin): borra el secreto y marca revocada. No
+  // borra las entregas ya registradas (la auditoría no se reescribe).
+  app.post('/api/connections/:id/disconnect', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const conn = await queryOne<ConnectionRow>(
+      db,
+      'SELECT * FROM org_connections WHERE id = ? AND org_id = ?',
+      id,
+      user.orgId,
+    );
+    if (!conn) {
+      await reply.code(404).send({ error: 'not_found', message: 'Conexión no encontrada' });
+      return;
+    }
+    await exec(
+      db,
+      'UPDATE org_connections SET status = ?, credentials_ciphertext = NULL, updated_at = ? WHERE id = ?',
+      'revoked',
+      nowIso(),
+      id,
+    );
+    await reply.send({ connection: connectionOut((await queryOne<ConnectionRow>(db, 'SELECT * FROM org_connections WHERE id = ?', id))!) });
+  });
+
+  // Reintento de una entrega fallida (solo admin, con tope por
+  // política send.retry.*). Nunca reenvía una entrega ya enviada.
+  app.post('/api/deliveries/:id/retry', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
+    const user = getUser(request);
+    const { id } = request.params as { id: string };
+    const delivery = await queryOne<DeliveryRow>(
+      db,
+      'SELECT * FROM message_deliveries WHERE id = ? AND org_id = ?',
+      id,
+      user.orgId,
+    );
+    if (!delivery) {
+      await reply.code(404).send({ error: 'not_found', message: 'Entrega no encontrada' });
+      return;
+    }
+    if (delivery.status !== 'failed') {
+      await reply.code(409).send({ error: 'conflict', message: 'Solo se pueden reintentar entregas fallidas' });
+      return;
+    }
+    const policies = await loadPolicies();
+    if (policies['send.retry.admin_only'] !== 'false' && user.role !== 'admin') {
+      await reply.code(403).send({ error: 'forbidden', message: 'Se requiere rol admin' });
+      return;
+    }
+    const maxRaw = Number(policies['send.retry.max_attempts'] ?? 3);
+    const maxAttempts = Number.isFinite(maxRaw) && maxRaw > 0 ? Math.floor(maxRaw) : 3;
+    if (delivery.attempts >= maxAttempts) {
+      await reply.code(409).send({
+        error: 'retry_limit',
+        message: `Esta entrega ya alcanzó el máximo de ${maxAttempts} reintentos`,
+      });
+      return;
+    }
+    const sender = await queryOne<{ paused: number | null }>(
+      db,
+      'SELECT paused FROM agents WHERE id = ?',
+      'response_proposal',
+    );
+    if (sender && Number(sender.paused ?? 0) === 1) {
+      await reply.code(409).send({
+        error: 'agent_paused',
+        message: 'El agente Respuesta y propuesta está en pausa; el envío quedó bloqueado hasta que se reanude.',
+      });
+      return;
+    }
+    const conn = await queryOne<ConnectionRow>(
+      db,
+      'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
+      user.orgId,
+      delivery.channel,
+    );
+    if (!conn || conn.status !== 'connected') {
+      await reply.code(409).send({
+        error: 'channel_unavailable',
+        message: 'La organización ya no tiene ese canal conectado',
+      });
+      return;
+    }
+    const opp = await queryOne<OpportunityRow>(db, 'SELECT * FROM opportunities WHERE id = ?', delivery.opportunity_id);
+    const org = (await queryOne<OrgRow>(db, 'SELECT * FROM organizations WHERE id = ?', user.orgId))!;
+    if (!opp) {
+      await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
+      return;
+    }
+    const draft = await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ?', delivery.draft_id);
+    if (!draft) {
+      await reply.code(404).send({ error: 'not_found', message: 'Borrador no encontrado' });
+      return;
+    }
+    const updated = await attemptDelivery(delivery, draft.body, opp, org);
+    await reply.send({ delivery: updated });
+  });
+
+  // F1: intento de envío de una entrega. La entrega ya existe en
+  // estado pending (creada antes de llamar al proveedor, así que un
+  // corte no la pierde: queda pending y el reintento la retoma). En
+  // plan gratis sin worker esto corre sincrónico dentro de aprobar;
+  // el registro es el mismo cuando haya worker. El destinatario va
+  // completo en el detalle de auditoría: la vista de Actividad lo
+  // enmascara por la clave `recipient` (ver lib/mask.ts); nunca se
+  // guarda el cuerpo del mensaje en el error, solo el código y un
+  // texto genérico del proveedor.
+  const attemptDelivery = async (
+    delivery: DeliveryRow,
+    body: string,
+    opp: { contact_email: string },
+    org: OrgRow,
+  ): Promise<DeliveryRow> => {
+    const fail = async (code: string, message: string): Promise<DeliveryRow> => {
+      await exec(
+        db,
+        'UPDATE message_deliveries SET status = ?, attempts = ?, error_code = ?, error = ?, updated_at = ? WHERE id = ?',
+        'failed',
+        delivery.attempts + 1,
+        code,
+        message.slice(0, 500),
+        nowIso(),
+        delivery.id,
+      );
+      await audit(db, delivery.org_id, 'agent:response_proposal', 'message.failed', 'delivery', delivery.id, {
+        channel: delivery.channel,
+        draftId: delivery.draft_id,
+        opportunityId: delivery.opportunity_id,
+        recipient: opp.contact_email,
+        errorCode: code,
+      });
+      return (await queryOne<DeliveryRow>(db, 'SELECT * FROM message_deliveries WHERE id = ?', delivery.id))!;
+    };
+    if (delivery.channel !== 'gmail') {
+      return fail('not_supported', 'El envío por este canal todavía no está disponible');
+    }
+    const conn = await queryOne<ConnectionRow>(
+      db,
+      'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
+      delivery.org_id,
+      delivery.channel,
+    );
+    if (!conn || conn.status !== 'connected' || !conn.credentials_ciphertext) {
+      return fail('connection_error', 'La organización no tiene Gmail conectado');
+    }
+    let credentials: MailCredentials;
+    try {
+      credentials = JSON.parse(
+        decryptCredentials(conn.credentials_ciphertext, opts.connectionEncryptionKey),
+      ) as MailCredentials;
+    } catch (err) {
+      return fail(
+        'connection_error',
+        err instanceof Error ? err.message : 'No se pudo leer la credencial de Gmail',
+      );
+    }
+    const provider = opts.mailProvider ?? (opts.googleOAuth ? new GmailMailProvider(opts.googleOAuth) : undefined);
+    if (!provider) {
+      return fail('connection_error', 'El envío por correo no está configurado en el servidor');
+    }
+    try {
+      const result = await provider.send({
+        to: opp.contact_email,
+        subject: `Respuesta de ${org.name}`,
+        body,
+        credentials,
+      });
+      if (result.refreshedCredentials) {
+        await exec(
+          db,
+          'UPDATE org_connections SET credentials_ciphertext = ?, updated_at = ? WHERE id = ?',
+          encryptCredentials(JSON.stringify(result.refreshedCredentials), opts.connectionEncryptionKey),
+          nowIso(),
+          conn.id,
+        );
+      }
+      await exec(
+        db,
+        'UPDATE message_deliveries SET status = ?, attempts = ?, provider_message_id = ?, error_code = NULL, error = NULL, updated_at = ? WHERE id = ?',
+        'sent',
+        delivery.attempts + 1,
+        result.providerMessageId,
+        nowIso(),
+        delivery.id,
+      );
+      await audit(db, delivery.org_id, 'agent:response_proposal', 'message.sent', 'delivery', delivery.id, {
+        channel: delivery.channel,
+        draftId: delivery.draft_id,
+        opportunityId: delivery.opportunity_id,
+        providerMessageId: result.providerMessageId,
+        recipient: opp.contact_email,
+      });
+      return (await queryOne<DeliveryRow>(db, 'SELECT * FROM message_deliveries WHERE id = ?', delivery.id))!;
+    } catch (err) {
+      const code =
+        err instanceof ProviderError
+          ? err.code
+          : err instanceof ConnectionKeyMissingError
+            ? 'connection_error'
+            : 'provider_error';
+      return fail(code, err instanceof Error ? err.message : 'El envío falló');
+    }
+  };
 
   const decideDraft = async (
     request: FastifyRequest,
     reply: FastifyReply,
     decision: 'approved' | 'rejected',
+    approveChannel?: 'gmail' | 'whatsapp' | null,
   ): Promise<void> => {
     const user = getUser(request);
     const { id } = request.params as { id: string };
@@ -827,12 +1332,15 @@ export function registerRoutes(
       await reply.code(409).send({ error: 'conflict', message: 'El borrador ya fue decidido' });
       return;
     }
+    // F1: la oportunidad completa se necesita para el envío (correo y
+    // teléfono del destinatario) además del mensaje para el chequeo
+    // de desactualización.
+    const opp = await queryOne<OpportunityRow>(
+      db,
+      'SELECT * FROM opportunities WHERE id = ?',
+      draft.opportunity_id,
+    );
     if (decision === 'approved') {
-      const opp = await queryOne<{ message: string }>(
-        db,
-        'SELECT message FROM opportunities WHERE id = ?',
-        draft.opportunity_id,
-      );
       if (!opp) {
         await reply.code(404).send({ error: 'not_found', message: 'Oportunidad no encontrada' });
         return;
@@ -852,6 +1360,47 @@ export function registerRoutes(
           message: 'El borrador quedó desactualizado: el mensaje de la oportunidad cambió desde que se creó y ya no se puede aprobar',
         });
         return;
+      }
+      if (approveChannel) {
+        // F1, variante explícita (decisión de Tomás 28-oct-2026: el
+        // admin elige el canal al aprobar). Pre-chequeo de pausa
+        // ANTES de decidir, mismo criterio H1 del intake: si el agente
+        // que envía está en pausa, no se decide nada y el borrador
+        // queda pendiente para cuando se reanude.
+        const sender = await queryOne<{ paused: number | null }>(
+          db,
+          'SELECT paused FROM agents WHERE id = ?',
+          'response_proposal',
+        );
+        if (sender && Number(sender.paused ?? 0) === 1) {
+          await reply.code(409).send({
+            error: 'agent_paused',
+            message: 'El agente Respuesta y propuesta está en pausa; el envío quedó bloqueado hasta que se reanude.',
+          });
+          return;
+        }
+        if (approveChannel === 'whatsapp') {
+          // F1 no implementa el envío por WhatsApp (fase 2): no se
+          // finge una conexión ni un envío.
+          await reply.code(409).send({
+            error: 'channel_unavailable',
+            message: 'El envío por WhatsApp todavía no está disponible en esta fase',
+          });
+          return;
+        }
+        const conn = await queryOne<ConnectionRow>(
+          db,
+          'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
+          user.orgId,
+          approveChannel,
+        );
+        if (!conn || conn.status !== 'connected') {
+          await reply.code(409).send({
+            error: 'channel_unavailable',
+            message: 'La organización no tiene Gmail conectado',
+          });
+          return;
+        }
       }
     }
     await exec(
@@ -874,9 +1423,11 @@ export function registerRoutes(
       note || null,
       nowIso(),
     );
-    // Sin aprobación no hay acción externa: aprobar mueve la oportunidad a
-    // seguimiento; rechazar la devuelve a nueva. El envío real es Fase 3 y
-    // requiere autorización y pruebas propias (ver SECURITY.md).
+    // F1 (decisión de Tomás 28-oct-2026): aprobar con canal elegido
+    // envía el borrador por ese canal a cargo del agente Respuesta y
+    // propuesta; sin canal, aprobar funciona exactamente como antes
+    // (la oportunidad pasa a seguimiento, sin envío). Rechazar
+    // devuelve la oportunidad a nueva, como siempre.
     await exec(
       db,
       'UPDATE opportunities SET status = ?, updated_at = ? WHERE id = ?',
@@ -887,11 +1438,43 @@ export function registerRoutes(
     await audit(db, user.orgId, user.email, `draft.${decision}`, 'draft', id, {
       opportunityId: draft.opportunity_id,
     });
-    await reply.send({ draft: draftOut((await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ?', id))!) });
+    let delivery: DeliveryRow | null = null;
+    if (decision === 'approved' && approveChannel && opp) {
+      const org = (await queryOne<OrgRow>(db, 'SELECT * FROM organizations WHERE id = ?', user.orgId))!;
+      const deliveryId = newId();
+      await exec(
+        db,
+        'INSERT INTO message_deliveries (id, org_id, draft_id, opportunity_id, channel, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        deliveryId,
+        user.orgId,
+        id,
+        draft.opportunity_id,
+        approveChannel,
+        'pending',
+        0,
+        nowIso(),
+        nowIso(),
+      );
+      const created = (await queryOne<DeliveryRow>(db, 'SELECT * FROM message_deliveries WHERE id = ?', deliveryId))!;
+      const decided = (await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ?', id))!;
+      delivery = await attemptDelivery(created, decided.body, opp, org);
+    }
+    await reply.send({
+      draft: draftOut((await queryOne<DraftRow>(db, 'SELECT * FROM drafts WHERE id = ?', id))!),
+      delivery,
+    });
   };
 
   app.post('/api/drafts/:id/approve', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
-    await decideDraft(request, reply, 'approved');
+    const parsed = draftApproveSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      await reply.code(400).send({
+        error: 'validation',
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      });
+      return;
+    }
+    await decideDraft(request, reply, 'approved', parsed.data.channel ?? null);
   });
 
   app.post('/api/drafts/:id/reject', { preHandler: [auth, requireAdmin] }, async (request, reply) => {

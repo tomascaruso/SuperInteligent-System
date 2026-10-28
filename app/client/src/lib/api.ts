@@ -354,6 +354,8 @@ export interface OpportunityDetail {
   category: string;
   priority: string;
   score: number;
+  // F0: teléfono opcional (null en filas viejas); la UI muestra —.
+  contact_phone: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -392,6 +394,43 @@ export interface DraftFull {
   opportunity_source: string;
   expired: boolean;
   stale: boolean;
+  // F1: entrega del borrador aprobado (null si no se eligió canal).
+  delivery: Delivery | null;
+}
+
+// F1: entrega de un borrador aprobado por un canal. Sin secretos.
+export interface Delivery {
+  id: string;
+  channel: string;
+  status: string;
+  attempts: number;
+  provider_message_id: string | null;
+  error_code: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// F1: conexión de envío por organización. Nunca trae secretos.
+export interface Connection {
+  id: string;
+  provider: string;
+  status: string;
+  display_account: string;
+  last_verified_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getConnections(): Promise<{ connections: Connection[] }> {
+  return request<{ connections: Connection[] }>('/api/connections');
+}
+
+export function retryDelivery(id: string): Promise<{ delivery: Delivery }> {
+  return request<{ delivery: Delivery }>(`/api/deliveries/${encodeURIComponent(id)}/retry`, {
+    method: 'POST',
+  });
 }
 
 export function getOpportunityList(): Promise<{ opportunities: OpportunityDetail[] }> {
@@ -424,6 +463,8 @@ export interface CreateOpportunityInput {
   contactEmail: string;
   company: string;
   message: string;
+  // F0: teléfono opcional.
+  contactPhone?: string;
 }
 
 export function createOpportunity(

@@ -33,6 +33,7 @@ import {
   type WorkflowDef,
 } from '../../lib/api';
 import { auditActionLabel, formatDateTime, localDate } from '../../lib/format';
+import { maskEmail, maskJsonValue, maskMessage, maskName } from '../../lib/mask';
 
 // R4 — Actividad y ejecuciones (vista real, reemplaza el aviso de
 // migración de la Fase 3). Sigue el patrón de Tareas/Aprobaciones:
@@ -165,42 +166,11 @@ function stepSentence(s: ExecutionStep): string {
 }
 
 // Máscara de presentación (decisión de la referencia, no dato
-// nuevo): solo se enmascaran los valores de los campos personales
-// de la entrada (nombre, correo, empresa, mensaje). El resto de
+// nuevo): vive en lib/mask.ts para poder probarse sin React. Solo
+// se enmascaran los valores de los campos personales; el resto de
 // las claves se muestra tal cual. El servidor guarda el texto
-// completo; la máscara vive solo en esta vista.
-function maskName(value: string): string {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => `${w.slice(0, 1)}***`)
-    .join(' ');
-}
-
-function maskEmail(value: string): string {
-  const at = value.indexOf('@');
-  if (at <= 0) return `${value.slice(0, 1)}***`;
-  return `${value.slice(0, 1)}***${value.slice(at)}`;
-}
-
-// R4b — Mensaje recortado (misma máscara que el JSON técnico).
-function maskMessage(value: string): string {
-  return value.length > 15 ? `${value.slice(0, 15)}… (enmascarado)` : '*** (enmascarado)';
-}
-
-function maskJsonValue(key: string, value: unknown): unknown {
-  if (Array.isArray(value)) return value.map((v) => maskJsonValue(key, v));
-  if (value !== null && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = maskJsonValue(k, v);
-    return out;
-  }
-  if (typeof value !== 'string') return value;
-  if (key === 'contactEmail') return maskEmail(value);
-  if (key === 'contactName' || key === 'company') return maskName(value);
-  if (key === 'message') return maskMessage(value);
-  return value;
-}
+// completo; la máscara vive solo en esta vista. F0/F1 agrega las
+// claves contactPhone y recipient (destinatario de un envío).
 
 function maskJson(text: string | null): string {
   const parsed = parseJson(text);
