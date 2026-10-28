@@ -23,6 +23,8 @@ export interface ServerOptions {
   whatsappProvider?: WhatsAppProvider;
   connectionEncryptionKey?: string;
   googleOAuth?: { clientId: string; clientSecret: string; redirectUri: string };
+  // Fase A: secretos de la app de Meta para el webhook de WhatsApp.
+  metaWebhook?: { appSecret: string; verifyToken: string };
 }
 
 export interface BuiltServer {
@@ -58,6 +60,7 @@ export async function buildServer(opts: ServerOptions): Promise<BuiltServer> {
     whatsappProvider: opts.whatsappProvider,
     connectionEncryptionKey: opts.connectionEncryptionKey,
     googleOAuth: opts.googleOAuth,
+    metaWebhook: opts.metaWebhook,
   });
   return { app, db };
 }

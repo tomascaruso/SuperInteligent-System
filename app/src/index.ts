@@ -19,6 +19,7 @@ async function main(): Promise<void> {
     contact: config.contact,
     connectionEncryptionKey: config.connectionEncryptionKey,
     googleOAuth: config.googleOAuth,
+    metaWebhook: config.metaWebhook,
   });
 
   const shutdown = async (signal: string): Promise<void> => {

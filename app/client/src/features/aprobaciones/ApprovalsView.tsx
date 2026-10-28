@@ -16,6 +16,7 @@ import {
   getDraftsDetail,
   getMe,
   getOpportunityList,
+  getWhatsappWindow,
   retryDelivery,
   type Connection,
   type Delivery,
@@ -186,6 +187,10 @@ export function ApprovalsView() {
   // antes). Se preselecciona Gmail si está conectado, si no
   // WhatsApp si está conectado, si no ninguno.
   const [approveChannel, setApproveChannel] = useState<'none' | 'gmail' | 'whatsapp'>('none');
+  // Fase A: ventana derivada para la oportunidad del borrador (solo
+  // sugerencia: nunca bloquea el envío; Meta sigue siendo la
+  // autoridad y 131047 sigue mapeándose a window_closed).
+  const [windowInfo, setWindowInfo] = useState<{ windowOpen: boolean; lastInboundAt: string | null } | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 
@@ -395,6 +400,27 @@ export function ApprovalsView() {
   const isAdmin = data.me.user.role === 'admin';
   const gmailConnection = (data.connections ?? []).find((c) => c.provider === 'gmail' && c.status === 'connected');
   const whatsappConnection = (data.connections ?? []).find((c) => c.provider === 'whatsapp' && c.status === 'connected');
+
+  // Fase A: al abrir el diálogo de aprobar, se consulta la ventana
+  // derivada de la oportunidad. Si falla, no se muestra nada: la
+  // sugerencia es opcional y nunca bloquea.
+  useEffect(() => {
+    if (!approveOpen || !selected || !whatsappConnection) {
+      setWindowInfo(null);
+      return;
+    }
+    let cancelled = false;
+    getWhatsappWindow(selected.opportunity_id)
+      .then((info) => {
+        if (!cancelled) setWindowInfo(info);
+      })
+      .catch(() => {
+        if (!cancelled) setWindowInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [approveOpen, selected, whatsappConnection]);
   const hasAnyConnection = (data.connections ?? []).some((c) => c.status === 'connected');
   const selectedBadge = selected ? draftBadge(selected) : null;
   const selectedPending = selected?.status === 'pending_approval';
@@ -753,6 +779,12 @@ export function ApprovalsView() {
                 : ' — sin conexión verificada; conectala desde Integraciones.'}
             </span>
           </label>
+          {windowInfo?.windowOpen && (
+            <p className="text-xs text-secondary">
+              Ventana abierta: el contacto respondió en las últimas 24 horas, así que el texto libre debería
+              ser aceptado por WhatsApp.
+            </p>
+          )}
         </fieldset>
         {!hasAnyConnection && (
           <p className="text-sm text-secondary">

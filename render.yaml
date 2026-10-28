@@ -57,3 +57,12 @@ services:
         sync: false
       - key: GOOGLE_OAUTH_REDIRECT_URI
         sync: false
+      # Fase A: webhook de WhatsApp (respuestas entrantes). Secretos
+      # de la app de Meta, de nivel aplicación (no por org): se
+      # cargan a mano en el dashboard; sin ellos, el endpoint
+      # responde cerrado (fail-closed). Nunca van en el código ni
+      # en la página, y ningún endpoint los devuelve.
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
