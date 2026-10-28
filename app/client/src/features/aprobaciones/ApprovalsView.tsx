@@ -381,25 +381,12 @@ export function ApprovalsView() {
     }
   }, [selected, editBody]);
 
-  if (state === 'loading') {
-    return <p className="text-ink">Cargando…</p>;
-  }
-
-  if (state === 'error' || !data) {
-    return (
-      <div className="space-y-4">
-        <h1 className="text-lg font-semibold">Aprobaciones</h1>
-        <Alert variant="error">{error || 'No se pudo cargar Aprobaciones.'}</Alert>
-        <Button type="button" variant="primary" onClick={() => setReloadKey((k) => k + 1)}>
-          Reintentar
-        </Button>
-      </div>
-    );
-  }
-
-  const isAdmin = data.me.user.role === 'admin';
-  const gmailConnection = (data.connections ?? []).find((c) => c.provider === 'gmail' && c.status === 'connected');
-  const whatsappConnection = (data.connections ?? []).find((c) => c.provider === 'whatsapp' && c.status === 'connected');
+  // Regla de hooks: este efecto y las conexiones que usa VAN ANTES
+  // de los retornos tempranos de abajo. La Fase A lo puso después y
+  // eso rompía la página (React #310: en el render con datos se
+  // ejecutaba un hook más que en el render de "Cargando…").
+  const gmailConnection = (data?.connections ?? []).find((c) => c.provider === 'gmail' && c.status === 'connected');
+  const whatsappConnection = (data?.connections ?? []).find((c) => c.provider === 'whatsapp' && c.status === 'connected');
 
   // Fase A: al abrir el diálogo de aprobar, se consulta la ventana
   // derivada de la oportunidad. Si falla, no se muestra nada: la
@@ -421,6 +408,24 @@ export function ApprovalsView() {
       cancelled = true;
     };
   }, [approveOpen, selected, whatsappConnection]);
+
+  if (state === 'loading') {
+    return <p className="text-ink">Cargando…</p>;
+  }
+
+  if (state === 'error' || !data) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-lg font-semibold">Aprobaciones</h1>
+        <Alert variant="error">{error || 'No se pudo cargar Aprobaciones.'}</Alert>
+        <Button type="button" variant="primary" onClick={() => setReloadKey((k) => k + 1)}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
+
+  const isAdmin = data.me.user.role === 'admin';
   const hasAnyConnection = (data.connections ?? []).some((c) => c.status === 'connected');
   const selectedBadge = selected ? draftBadge(selected) : null;
   const selectedPending = selected?.status === 'pending_approval';
