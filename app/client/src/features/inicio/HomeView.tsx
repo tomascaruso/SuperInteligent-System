@@ -356,10 +356,7 @@ export function HomeView() {
                 }}
                 className={isSelected ? 'bg-primary/20 cursor-pointer' : 'cursor-pointer'}
               >
-                <td className="px-1 py-1.5 break-words">
-                  {workflowName(p.workflow)}{' '}
-                  <span className="text-muted">#{p.id.slice(0, 8)}</span>
-                </td>
+                <td className="px-1 py-1.5 break-words">{workflowName(p.workflow)}</td>
                 <td className="px-1 py-1.5 break-words">
                   {p.opportunity ? p.opportunity.company || p.opportunity.contact_name : '—'}
                 </td>
@@ -457,7 +454,7 @@ export function HomeView() {
         {selectedDetail && selectedProcess ? (
           <div className="mt-3 space-y-3">
             <p className="text-sm text-secondary">
-              Proceso: {workflowName(selectedProcess.workflow)} #{selectedProcess.id.slice(0, 8)}
+              Proceso: {workflowName(selectedProcess.workflow)}
               {selectedDetail.opportunity
                 ? ` · ${selectedDetail.opportunity.company || selectedDetail.opportunity.contact_name}`
                 : ''}
@@ -511,6 +508,9 @@ export function HomeView() {
               {selectedDetail.opportunity
                 ? ` · ${selectedDetail.opportunity.contact_name}${selectedDetail.opportunity.company ? ` (${selectedDetail.opportunity.company})` : ''} · ${statusLabel(selectedDetail.opportunity.status)}`
                 : ' · sin oportunidad vinculada'}
+            </p>
+            <p className="text-xs text-muted break-all">
+              ID técnico (uso interno): {selectedProcess.id}
             </p>
             {selectedDetail.stages.map((s) => (
               <div key={s.id} className="space-y-1">

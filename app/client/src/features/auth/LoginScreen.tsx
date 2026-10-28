@@ -262,7 +262,7 @@ export function LoginScreen({
         <h1 className="mt-4 shrink-0 text-[clamp(1.75rem,2.4vw,2.5rem)] font-semibold leading-tight">
           Inteligencia artificial que trabaja para tu negocio
         </h1>
-        <p className="mt-2 shrink-0 text-secondary">
+        <p className="mt-2 shrink-0 text-ink">
           Coordina procesos, supervisa agentes especializados y transforma tareas operativas en flujos de trabajo
           inteligentes.
         </p>
@@ -272,7 +272,7 @@ export function LoginScreen({
               <Icon size={24} className="shrink-0 text-primary" aria-hidden="true" />
               <span>
                 <strong className="block text-[14px] leading-snug">{title}</strong>
-                <span className="block text-xs leading-snug text-secondary">{text}</span>
+                <span className="block text-xs leading-snug text-ink">{text}</span>
               </span>
             </li>
           ))}
@@ -280,7 +280,7 @@ export function LoginScreen({
         <div className="mt-5 flex min-h-0 flex-1 items-center">
           <AbstractIllustration />
         </div>
-        <p className="mt-3 shrink-0 text-secondary">Tecnología sofisticada explicada con simplicidad empresarial.</p>
+        <p className="mt-3 shrink-0 text-ink">Tecnología sofisticada explicada con simplicidad empresarial.</p>
         <p className="mt-1 shrink-0 font-medium text-primary">Menos tareas. Más sistema.</p>
       </section>
 
