@@ -16,7 +16,7 @@ import { ApiError, getMe, type MeResponse } from './lib/api';
 // Fase 2; con sesión, se muestra el layout principal con las 6
 // secciones reales (cuyas vistas con datos son la Fase 4). Tras
 // un login o una invitación exitosa ya NO se redirige a /: se
-// queda en /v2/ (ruta /#/inicio). 401 = sin sesión: pantalla de
+// queda en / (ruta /#/inicio). 401 = sin sesión: pantalla de
 // acceso, igual que el vanilla.
 function AccessGate() {
   const navigate = useNavigate();

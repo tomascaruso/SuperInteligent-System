@@ -303,33 +303,16 @@ export function registerRoutes(
     await reply.send({ ok: true });
   });
 
-  // ---------- Interfaz web mínima (sin framework) ----------
+  // ---------- Interfaz web ----------
+  // FLIP (cierre de la migración React): la app React pasa a ser la
+  // principal en / (antes vivía en /v2/) y la app vanilla NO se
+  // borra: queda en /vanilla/ con el mismo contenido de hoy, sin
+  // cambios. Las rutas históricas /app.js y /styles/* siguen
+  // sirviendo los archivos vanilla (compatibilidad: la vanilla de
+  // /vanilla/ los referencia con rutas absolutas), y /v2 y /v2/*
+  // redirigen a sus equivalentes en / para no romper marcadores.
+  // No es un cambio de API: solo serving de archivos estáticos.
   const publicDir = new URL('../public/', import.meta.url);
-  app.get('/', async (_req, reply) => {
-    void reply.type('text/html').send(readFileSync(new URL('index.html', publicDir)));
-  });
-  app.get('/app.js', async (_req, reply) => {
-    void reply.type('application/javascript').send(readFileSync(new URL('app.js', publicDir)));
-  });
-  // Hojas del sistema de diseño. Solo se sirven los archivos de la lista blanca;
-  // cualquier otro nombre (incluidos intentos de salir del directorio) da 404.
-  // No es un cambio de API: solo serving de archivos estáticos del frontend.
-  const STYLE_FILES = new Set(['tokens.css', 'base.css', 'components.css', 'layout.css']);
-  app.get('/styles/:file', async (request, reply) => {
-    const { file } = request.params as { file: string };
-    if (!STYLE_FILES.has(file)) {
-      void reply.code(404).send({ error: 'No encontrado' });
-      return;
-    }
-    void reply.type('text/css').send(readFileSync(new URL(`styles/${file}`, publicDir)));
-  });
-
-  // Fase 2 — Cliente React en /v2/ (convivencia): el vanilla sigue
-  // en /. El build de Vite vive en client/dist (gitignorado); si
-  // no está construido, /v2/ responde 404 en vez de servir algo
-  // a medias. Solo assets con extensión permitida; cualquier
-  // otro nombre (incluidos intentos de salir del directorio) da
-  // 404. No es un cambio de API: solo serving aditivo.
   const clientDir = new URL('../client/dist/', import.meta.url);
   const CLIENT_EXTS = new Set(['js', 'css', 'svg', 'png', 'ico']);
   const CLIENT_TYPES: Record<string, string> = {
@@ -339,18 +322,20 @@ export function registerRoutes(
     png: 'image/png',
     ico: 'image/x-icon',
   };
-  // Fase 3 — /v2 sin barra final redirige a /v2/ (antes daba 404).
-  app.get('/v2', async (_req, reply) => {
-    void reply.redirect('/v2/', 302);
-  });
-  app.get('/v2/', async (_req, reply) => {
+  // Hojas del sistema de diseño. Solo se sirven los archivos de la lista blanca;
+  // cualquier otro nombre (incluidos intentos de salir del directorio) da 404.
+  const STYLE_FILES = new Set(['tokens.css', 'base.css', 'components.css', 'layout.css']);
+  // App React (principal). El build de Vite vive en client/dist
+  // (gitignorado); si no está construido, / responde 404 en vez
+  // de servir algo a medias.
+  app.get('/', async (_req, reply) => {
     try {
       void reply.type('text/html').send(readFileSync(new URL('index.html', clientDir)));
     } catch {
       void reply.code(404).send({ error: 'No encontrado' });
     }
   });
-  app.get('/v2/*', async (request, reply) => {
+  app.get('/assets/*', async (request, reply) => {
     const rest = (request.params as { '*': string })['*'] ?? '';
     const file = rest.split('/').filter(Boolean).pop() ?? '';
     const ext = file.includes('.') ? file.split('.').pop()! : '';
@@ -359,10 +344,56 @@ export function registerRoutes(
       return;
     }
     try {
-      void reply.type(CLIENT_TYPES[ext]).send(readFileSync(new URL(rest, clientDir)));
+      void reply.type(CLIENT_TYPES[ext]).send(readFileSync(new URL(`assets/${rest}`, clientDir)));
     } catch {
       void reply.code(404).send({ error: 'No encontrado' });
     }
+  });
+  // App vanilla (respaldo, contenido intacto).
+  app.get('/vanilla', async (_req, reply) => {
+    void reply.redirect('/vanilla/', 302);
+  });
+  app.get('/vanilla/', async (_req, reply) => {
+    void reply.type('text/html').send(readFileSync(new URL('index.html', publicDir)));
+  });
+  app.get('/vanilla/app.js', async (_req, reply) => {
+    void reply.type('application/javascript').send(readFileSync(new URL('app.js', publicDir)));
+  });
+  app.get('/vanilla/styles/:file', async (request, reply) => {
+    const { file } = request.params as { file: string };
+    if (!STYLE_FILES.has(file)) {
+      void reply.code(404).send({ error: 'No encontrado' });
+      return;
+    }
+    void reply.type('text/css').send(readFileSync(new URL(`styles/${file}`, publicDir)));
+  });
+  // Rutas históricas vanilla (compatibilidad; la vanilla de
+  // /vanilla/ las referencia con rutas absolutas).
+  app.get('/app.js', async (_req, reply) => {
+    void reply.type('application/javascript').send(readFileSync(new URL('app.js', publicDir)));
+  });
+  app.get('/styles/:file', async (request, reply) => {
+    const { file } = request.params as { file: string };
+    if (!STYLE_FILES.has(file)) {
+      void reply.code(404).send({ error: 'No encontrado' });
+      return;
+    }
+    void reply.type('text/css').send(readFileSync(new URL(`styles/${file}`, publicDir)));
+  });
+  // Redirecciones desde la antigua convivencia en /v2/.
+  app.get('/v2', async (_req, reply) => {
+    void reply.redirect('/', 302);
+  });
+  app.get('/v2/', async (_req, reply) => {
+    void reply.redirect('/', 302);
+  });
+  app.get('/v2/*', async (request, reply) => {
+    const rest = (request.params as { '*': string })['*'] ?? '';
+    if (rest.includes('..')) {
+      void reply.redirect('/', 302);
+      return;
+    }
+    void reply.redirect(`/${rest}`, 302);
   });
 
   // ---------- Auth ----------
