@@ -57,6 +57,24 @@ export const draftApproveSchema = z.object({
   channel: z.enum(['gmail', 'whatsapp']).nullable().optional(),
 });
 
+// F2: registro de la conexión WhatsApp Business por org (solo admin).
+// El número se valida con la misma regla que el teléfono del contacto
+// (7 a 15 dígitos, `+` opcional); el ID de número y el token son
+// opacos de Meta y solo se exige que no vengan vacíos. El token NUNCA
+// se devuelve por ninguna API ni se muestra en la UI: se guarda
+// cifrado en org_connections.
+export const whatsappConnectionSchema = z.object({
+  phoneNumber: z
+    .string()
+    .trim()
+    .max(30)
+    .refine((v) => /^\+?\d{7,15}$/.test(v.replace(/[\s\-()]/g, '')), {
+      message: 'El número debe tener entre 7 y 15 dígitos',
+    }),
+  phoneNumberId: z.string().trim().min(1).max(100),
+  token: z.string().trim().min(1).max(1000),
+});
+
 // R3b: edición del borrador por un humano. Mismo estilo que el
 // rechazo: cuerpo validado, nota no aplica acá. El máximo (5000)
 // cubre con holgura un mensaje comercial y evita cuerpos absurdos.

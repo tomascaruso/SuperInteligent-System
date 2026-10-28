@@ -74,6 +74,15 @@
 // así que Comunicación pasa a 5 tarjetas y el total a 21,
 // rompiendo la regla R5d de 4 por categoría (registrado en
 // docs/F0F1-GMAIL-REPORTE.md).
+//
+// F2 (28-oct-2026): WhatsApp SIGUE el mismo criterio que Gmail:
+// se conecta de verdad desde esta vista (número Business + ID de
+// número + token de sistema, guardados cifrados, con verificación
+// real contra la Graph API de Meta). Sin conexión sigue
+// 'coming_soon'; con conexión verificada muestra «Disponible»
+// con el número conectado. El token nunca se muestra ni se
+// devuelve: el formulario lo pide como contraseña y se limpia
+// al conectar.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
@@ -245,13 +254,13 @@ const INTEGRATIONS: IntegrationDef[] = [
     icon: Send,
     pill: 'bg-slate-100 text-slate-700',
     status: 'coming_soon',
-    summary: 'Mensajería instantánea. Conexión real aún no disponible.',
+    summary: 'Mensajería instantánea. Se conecta desde esta vista (solo envío).',
     capabilities: [
       'Enviar mensajes por WhatsApp Business desde SIS',
       'Enviar el borrador aprobado por el canal elegido',
     ],
     oauthNote:
-      'Requerirá una cuenta de WhatsApp Business y un número verificado cuando se construya.',
+      'Número de WhatsApp Business + ID de número + token de sistema por cuenta; se guardan cifrados y ningún endpoint los devuelve. La conexión solo queda verificada si Meta responde bien a la lectura del número.',
   },
   {
     id: 'salesforce',
@@ -474,12 +483,18 @@ export function IntegrationsView() {
   const [error, setError] = useState<string | null>(null);
   const [opportunities, setOpportunities] = useState<OpportunityDetail[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
-  // F1: conexiones reales de envío + quién mira (solo admin
-  // conecta/desconecta). Sin conexión, Gmail sigue coming_soon.
+  // F1/F2: conexiones reales de envío + quién mira (solo admin
+  // conecta/desconecta). Sin conexión, Gmail y WhatsApp siguen
+  // coming_soon.
   const [connections, setConnections] = useState<Connection[]>([]);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [connectionAction, setConnectionAction] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  // F2: formulario de WhatsApp (el token vive solo en este estado
+  // local y se limpia al conectar; nunca se muestra en la vista).
+  const [waPhoneNumber, setWaPhoneNumber] = useState('');
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState('');
+  const [waToken, setWaToken] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -550,11 +565,14 @@ export function IntegrationsView() {
   const selected =
     filtered.find((i) => i.id === selectedId) ?? filtered[0] ?? INTEGRATIONS[0];
 
-  // F1: estado REAL de Gmail (la única del catálogo con conexión
-  // por OAuth). Sin fila, sigue coming_soon; con fila 'connected'
-  // muestra Disponible con la cuenta; con fila 'error', el error.
+  // F1/F2: estado REAL de Gmail y WhatsApp (las únicas del
+  // catálogo con conexión). Sin fila, siguen coming_soon; con fila
+  // 'connected' muestran Disponible con la cuenta; con fila
+  // 'error', el error.
   const gmailConnection = connections.find((c) => c.provider === 'gmail');
   const gmailConnected = gmailConnection?.status === 'connected';
+  const whatsappConnection = connections.find((c) => c.provider === 'whatsapp');
+  const whatsappConnected = whatsappConnection?.status === 'connected';
   const isAdmin = me?.user.role === 'admin';
 
   const connectGmail = useCallback(async () => {
@@ -602,6 +620,68 @@ export function IntegrationsView() {
       setConnectionAction(false);
     }
   }, [gmailConnection]);
+
+  // F2: registro de WhatsApp Business. El servidor verifica el
+  // número contra Meta: con 200 queda conectada; con 409 la fila
+  // quedó en 'error' y se recarga para mostrar el motivo. El token
+  // se limpia al conectar; si falla, los campos quedan para
+  // corregir sin reescribir el token.
+  const connectWhatsApp = useCallback(async () => {
+    setConnectionAction(true);
+    setConnectionError(null);
+    try {
+      const res = await fetch('/api/connections/whatsapp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber: waPhoneNumber,
+          phoneNumberId: waPhoneNumberId,
+          token: waToken,
+        }),
+      });
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const b = (data ?? {}) as { message?: unknown; error?: unknown };
+        throw new ApiError(
+          typeof b.message === 'string' ? b.message : typeof b.error === 'string' ? b.error : `Error ${res.status}`,
+          res.status,
+        );
+      }
+      setWaPhoneNumber('');
+      setWaPhoneNumberId('');
+      setWaToken('');
+      setReloadKey((k) => k + 1);
+    } catch (e: unknown) {
+      setConnectionError(e instanceof ApiError ? e.message : 'No se pudo conectar WhatsApp.');
+      setReloadKey((k) => k + 1);
+    } finally {
+      setConnectionAction(false);
+    }
+  }, [waPhoneNumber, waPhoneNumberId, waToken]);
+
+  const disconnectWhatsApp = useCallback(async () => {
+    if (!whatsappConnection) return;
+    setConnectionAction(true);
+    setConnectionError(null);
+    try {
+      const res = await fetch(`/api/connections/${encodeURIComponent(whatsappConnection.id)}/disconnect`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data: unknown = await res.json().catch(() => ({}));
+        const b = (data ?? {}) as { message?: unknown; error?: unknown };
+        throw new ApiError(
+          typeof b.message === 'string' ? b.message : typeof b.error === 'string' ? b.error : `Error ${res.status}`,
+          res.status,
+        );
+      }
+      setReloadKey((k) => k + 1);
+    } catch (e: unknown) {
+      setConnectionError(e instanceof ApiError ? e.message : 'No se pudo desconectar WhatsApp.');
+    } finally {
+      setConnectionAction(false);
+    }
+  }, [whatsappConnection]);
 
   // Cerrar la búsqueda limpia el texto y vuelve a mostrar todo.
   const closeSearch = useCallback(() => {
@@ -674,10 +754,10 @@ export function IntegrationsView() {
         </div>
       )}
       <p className="text-xs text-muted">
-        La única integración en funcionamiento hoy es el webhook de ingesta. Gmail se puede conectar
-        de verdad desde esta vista (OAuth, solo envío de borradores aprobados); el resto del catálogo
-        está marcado como disponible próximamente: las conexiones reales llegarán proveedor por
-        proveedor, sin estados ni sincronizaciones de ejemplo.
+        La única integración en funcionamiento hoy es el webhook de ingesta. Gmail y WhatsApp se
+        pueden conectar de verdad desde esta vista (solo envío de borradores aprobados); el resto
+        del catálogo está marcado como disponible próximamente: las conexiones reales llegarán
+        proveedor por proveedor, sin estados ni sincronizaciones de ejemplo.
       </p>
 
       <nav aria-label="Índice por funcionalidad" className="flex flex-wrap gap-2">
@@ -713,8 +793,12 @@ export function IntegrationsView() {
                   {cards.map((i) => {
                     const { icon: Icon, pill } = { icon: i.icon, pill: i.pill };
                     const isSelected = i.id === selected.id;
-                    // F1: Gmail muestra su estado real, no el del catálogo.
-                    const cardAvailable = i.status === 'available' || (i.id === 'gmail' && gmailConnected);
+                    // F1/F2: Gmail y WhatsApp muestran su estado real,
+                    // no el del catálogo.
+                    const cardAvailable =
+                      i.status === 'available' ||
+                      (i.id === 'gmail' && gmailConnected) ||
+                      (i.id === 'whatsapp' && whatsappConnected);
                     return (
                       <button
                         key={i.id}
@@ -759,6 +843,14 @@ export function IntegrationsView() {
                               <span className="mt-1 block text-sm text-secondary">
                                 Conexión con error: {gmailConnection.last_error ?? 'verificá la cuenta'}.
                               </span>
+                            ) : i.id === 'whatsapp' && whatsappConnected ? (
+                              <span className="mt-1 block text-sm">
+                                Número conectado: {whatsappConnection?.display_account}
+                              </span>
+                            ) : i.id === 'whatsapp' && whatsappConnection?.status === 'error' ? (
+                              <span className="mt-1 block text-sm text-secondary">
+                                Conexión con error: {whatsappConnection.last_error ?? 'verificá el número'}.
+                              </span>
                             ) : (
                               <span className="mt-1 block text-sm text-secondary">
                                 Conexión real aún no disponible.
@@ -782,11 +874,13 @@ export function IntegrationsView() {
           variant="inline"
           wide
           title={`Integración: ${selected.name}`}
-          subtitle={`${selected.category} · ${selected.id === 'gmail' && gmailConnected ? 'Disponible' : selected.status === 'available' ? 'Disponible' : 'Disponible próximamente'}`}
+          subtitle={`${selected.category} · ${selected.id === 'gmail' && gmailConnected ? 'Disponible' : selected.id === 'whatsapp' && whatsappConnected ? 'Disponible' : selected.status === 'available' ? 'Disponible' : 'Disponible próximamente'}`}
         >
           <div>
             <div className="flex flex-wrap gap-2">
-              {selected.status === 'available' || (selected.id === 'gmail' && gmailConnected) ? (
+              {selected.status === 'available' ||
+              (selected.id === 'gmail' && gmailConnected) ||
+              (selected.id === 'whatsapp' && whatsappConnected) ? (
                 <Badge variant="info" compact>
                   Disponible
                 </Badge>
@@ -835,6 +929,51 @@ export function IntegrationsView() {
               <div className={sectionClass}>
                 {isAdmin ? (
                   <Button type="button" variant="secondary" disabled={connectionAction} onClick={() => void disconnectGmail()}>
+                    {connectionAction ? 'Desconectando…' : 'Desconectar'}
+                  </Button>
+                ) : (
+                  <p className="mt-1 text-sm text-secondary">Solo un admin puede desconectar esta cuenta.</p>
+                )}
+                {connectionError && <p className="mt-2"><Alert variant="error">{connectionError}</Alert></p>}
+              </div>
+            </>
+          ) : selected.id === 'whatsapp' && whatsappConnected ? (
+            <>
+              <div className={sectionClass}>
+                <h3 className="text-sm font-semibold">Estado</h3>
+                <p className="mt-1 text-sm">Número conectado: {whatsappConnection?.display_account}</p>
+                {whatsappConnection?.last_verified_at && (
+                  <p className="mt-1 text-sm text-secondary">
+                    Verificado: {formatDateTime(whatsappConnection.last_verified_at)}
+                  </p>
+                )}
+                <p className="mt-1 text-sm text-secondary">
+                  Al aprobar un borrador, el admin puede elegir enviarlo por este número. Sin canal
+                  elegido, aprobar no envía nada. Fuera de la ventana de 24 horas de WhatsApp, el
+                  texto libre falla y la vista sugiere contactar por Gmail manualmente.
+                </p>
+              </div>
+
+              <div className={sectionClass}>
+                <h3 className="text-sm font-semibold">Capacidades</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {selected.capabilities.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className={sectionClass}>
+                <h3 className="text-sm font-semibold">Credenciales</h3>
+                <p className="mt-1 text-sm text-secondary">
+                  El número, el ID y el token se guardan cifrados y ningún endpoint los devuelve. No
+                  hay botones para mostrar ni copiar secretos.
+                </p>
+              </div>
+
+              <div className={sectionClass}>
+                {isAdmin ? (
+                  <Button type="button" variant="secondary" disabled={connectionAction} onClick={() => void disconnectWhatsApp()}>
                     {connectionAction ? 'Desconectando…' : 'Desconectar'}
                   </Button>
                 ) : (
@@ -956,6 +1095,75 @@ export function IntegrationsView() {
                     {gmailConnection?.status === 'error' && (
                       <p className="mt-1 text-sm text-secondary">
                         Último error: {gmailConnection.last_error ?? 'verificá la cuenta y volvé a conectar.'}
+                      </p>
+                    )}
+                    {connectionError && <p className="mt-2"><Alert variant="error">{connectionError}</Alert></p>}
+                  </>
+                ) : selected.id === 'whatsapp' ? (
+                  <>
+                    {isAdmin ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium" htmlFor="wa-phone-number">
+                            Número de WhatsApp Business
+                          </label>
+                          <Input
+                            id="wa-phone-number"
+                            type="tel"
+                            placeholder="+54 11 1234-5678"
+                            value={waPhoneNumber}
+                            onChange={(e) => setWaPhoneNumber(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium" htmlFor="wa-phone-number-id">
+                            ID de número
+                          </label>
+                          <Input
+                            id="wa-phone-number-id"
+                            placeholder="ID de número de teléfono de Meta"
+                            value={waPhoneNumberId}
+                            onChange={(e) => setWaPhoneNumberId(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium" htmlFor="wa-token">
+                            Token de sistema
+                          </label>
+                          <Input
+                            id="wa-token"
+                            type="password"
+                            placeholder="Token de sistema de la cuenta"
+                            value={waToken}
+                            onChange={(e) => setWaToken(e.target.value)}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          disabled={
+                            connectionAction ||
+                            waPhoneNumber.trim() === '' ||
+                            waPhoneNumberId.trim() === '' ||
+                            waToken.trim() === ''
+                          }
+                          onClick={() => void connectWhatsApp()}
+                        >
+                          {connectionAction ? 'Conectando…' : 'Conectar WhatsApp'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-sm text-secondary">Solo un admin puede conectar esta cuenta.</p>
+                    )}
+                    <p className="mt-1 text-xs text-muted">
+                      El servidor verifica el número contra la Graph API de Meta: la conexión solo
+                      queda verificada si responde bien. Los datos se guardan cifrados y ningún
+                      endpoint devuelve el token. Sin clave de cifrado en el servidor, el registro
+                      responde que no está disponible: no es un error de la cuenta.
+                    </p>
+                    {whatsappConnection?.status === 'error' && (
+                      <p className="mt-1 text-sm text-secondary">
+                        Último error: {whatsappConnection.last_error ?? 'verificá el número y volvé a conectar.'}
                       </p>
                     )}
                     {connectionError && <p className="mt-2"><Alert variant="error">{connectionError}</Alert></p>}

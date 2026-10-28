@@ -3,7 +3,7 @@ import type { ContactConfig } from './contact.js';
 import { openDatabase, type Db } from './db.js';
 import { reconcileOrphans } from './engine.js';
 import { registerRoutes } from './routes.js';
-import { GmailMailProvider, type MailProvider } from './sending.js';
+import type { MailProvider, WhatsAppProvider } from './sending.js';
 
 export const SERVICE_VERSION = '0.1.0';
 
@@ -18,6 +18,9 @@ export interface ServerOptions {
   // conexiones. Sin mailProvider explícito se usa el adaptador real
   // de Gmail (que solo actúa con credenciales de operador).
   mailProvider?: MailProvider;
+  // F2: proveedor de WhatsApp inyectable (tests). Sin él se usa el
+  // adaptador real de la Cloud API de Meta.
+  whatsappProvider?: WhatsAppProvider;
   connectionEncryptionKey?: string;
   googleOAuth?: { clientId: string; clientSecret: string; redirectUri: string };
 }
@@ -52,6 +55,7 @@ export async function buildServer(opts: ServerOptions): Promise<BuiltServer> {
     operatorToken: opts.operatorToken,
     contact: opts.contact,
     mailProvider: opts.mailProvider,
+    whatsappProvider: opts.whatsappProvider,
     connectionEncryptionKey: opts.connectionEncryptionKey,
     googleOAuth: opts.googleOAuth,
   });
