@@ -12,12 +12,14 @@ import {
   loginSchema,
   opportunityInputSchema,
   taskPatchSchema,
+  whatsappConnectionSchema,
   type OpportunityInput,
 } from './domain.js';
 import {
   ConnectionKeyMissingError,
   GmailMailProvider,
   ProviderError,
+  WhatsAppCloudProvider,
   buildGoogleAuthUrl,
   decryptCredentials,
   encryptCredentials,
@@ -25,6 +27,8 @@ import {
   verifyOAuthState,
   type MailCredentials,
   type MailProvider,
+  type WhatsAppCredentials,
+  type WhatsAppProvider,
 } from './sending.js';
 import {
   authenticate,
@@ -68,6 +72,11 @@ export interface RouteOptions {
   // producción es el adaptador real de Gmail). Sin él, se construye el
   // real si hay OAuth de Google configurado; si no, no hay envío.
   mailProvider?: MailProvider;
+  // F2: proveedor de WhatsApp inyectable (tests usan un simulado; en
+  // producción es el adaptador real de la Cloud API de Meta). Las
+  // credenciales son por org y viven cifradas en org_connections:
+  // no hay variables globales nuevas para WhatsApp.
+  whatsappProvider?: WhatsAppProvider;
   // F1: clave de cifrado de credenciales de conexión (variable de
   // entorno del operador, sync:false). Sin ella, el módulo de envío
   // queda cerrado (fail-closed).
@@ -1056,7 +1065,100 @@ export function registerRoutes(
     }
   });
 
-  // Re-verificación de una conexión (solo admin, solo Gmail en F1).
+  // F2: registro de la conexión WhatsApp Business por org (solo
+  // admin). A diferencia de Gmail no hay OAuth de navegador: el
+  // operador carga número Business + ID de número + token de
+  // sistema de la cuenta, y el servidor verifica de verdad contra
+  // la Graph API de Meta antes de marcar 'connected'. Sin clave de
+  // cifrado el módulo está cerrado (503, fail-closed). Si la
+  // verificación falla, la fila queda en 'error' con el motivo (sin
+  // secretos) y se responde 409: el admin la puede re-verificar
+  // tras corregir los datos en Meta. El token nunca sale en la
+  // respuesta (ver connectionOut).
+  app.post('/api/connections/whatsapp', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
+    const user = getUser(request);
+    const parsed = whatsappConnectionSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      await reply.code(400).send({
+        error: 'validation',
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      });
+      return;
+    }
+    if (!opts.connectionEncryptionKey) {
+      await reply.code(503).send({
+        error: 'not_configured',
+        message: 'La conexión con WhatsApp no está configurada en el servidor',
+      });
+      return;
+    }
+    const credentials: WhatsAppCredentials = {
+      phone_number_id: parsed.data.phoneNumberId,
+      token: parsed.data.token,
+    };
+    const provider = opts.whatsappProvider ?? new WhatsAppCloudProvider();
+    const now = nowIso();
+    const existing = await queryOne<ConnectionRow>(
+      db,
+      'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
+      user.orgId,
+      'whatsapp',
+    );
+    const ciphertext = encryptCredentials(JSON.stringify(credentials), opts.connectionEncryptionKey);
+    const upsert = async (status: string, displayAccount: string, lastError: string | null) => {
+      if (existing) {
+        await exec(
+          db,
+          'UPDATE org_connections SET status = ?, display_account = ?, credentials_ciphertext = ?, last_verified_at = ?, last_error = ?, updated_at = ? WHERE id = ?',
+          status,
+          displayAccount,
+          ciphertext,
+          status === 'connected' ? now : existing.last_verified_at,
+          lastError,
+          now,
+          existing.id,
+        );
+      } else {
+        await exec(
+          db,
+          'INSERT INTO org_connections (id, org_id, provider, status, display_account, credentials_ciphertext, last_verified_at, last_error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          newId(),
+          user.orgId,
+          'whatsapp',
+          status,
+          displayAccount,
+          ciphertext,
+          status === 'connected' ? now : null,
+          lastError,
+          now,
+          now,
+        );
+      }
+      return (await queryOne<ConnectionRow>(
+        db,
+        'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
+        user.orgId,
+        'whatsapp',
+      ))!;
+    };
+    try {
+      const { displayPhoneNumber } = await provider.verify(credentials);
+      const saved = await upsert('connected', displayPhoneNumber, null);
+      await reply.send({ connection: connectionOut(saved) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'La verificación falló';
+      const saved = await upsert('error', parsed.data.phoneNumber, message.slice(0, 500));
+      await reply.code(409).send({
+        error: 'connection_error',
+        message,
+        connection: connectionOut(saved),
+      });
+    }
+  });
+
+  // Re-verificación de una conexión (solo admin; Gmail en F1,
+  // WhatsApp en F2). Vuelve a verificar contra el proveedor real y
+  // actualiza el estado: nunca un «connected» inventado.
   app.post('/api/connections/:id/verify', { preHandler: [auth, requireAdmin] }, async (request, reply) => {
     const user = getUser(request);
     const { id } = request.params as { id: string };
@@ -1070,8 +1172,39 @@ export function registerRoutes(
       await reply.code(404).send({ error: 'not_found', message: 'Conexión no encontrada' });
       return;
     }
-    if (conn.provider !== 'gmail' || !conn.credentials_ciphertext) {
+    if ((conn.provider !== 'gmail' && conn.provider !== 'whatsapp') || !conn.credentials_ciphertext) {
       await reply.code(409).send({ error: 'not_supported', message: 'Esta conexión no se puede verificar' });
+      return;
+    }
+    if (conn.provider === 'whatsapp') {
+      try {
+        const credentials = JSON.parse(
+          decryptCredentials(conn.credentials_ciphertext, opts.connectionEncryptionKey),
+        ) as WhatsAppCredentials;
+        const provider = opts.whatsappProvider ?? new WhatsAppCloudProvider();
+        const { displayPhoneNumber } = await provider.verify(credentials);
+        await exec(
+          db,
+          'UPDATE org_connections SET status = ?, display_account = ?, last_verified_at = ?, last_error = NULL, updated_at = ? WHERE id = ?',
+          'connected',
+          displayPhoneNumber,
+          nowIso(),
+          nowIso(),
+          conn.id,
+        );
+        await reply.send({ connection: connectionOut((await queryOne<ConnectionRow>(db, 'SELECT * FROM org_connections WHERE id = ?', id))!) });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'La verificación falló';
+        await exec(
+          db,
+          'UPDATE org_connections SET status = ?, last_error = ?, updated_at = ? WHERE id = ?',
+          'error',
+          message.slice(0, 500),
+          nowIso(),
+          conn.id,
+        );
+        await reply.code(409).send({ error: 'connection_error', message });
+      }
       return;
     }
     try {
@@ -1218,9 +1351,13 @@ export function registerRoutes(
   const attemptDelivery = async (
     delivery: DeliveryRow,
     body: string,
-    opp: { contact_email: string },
+    opp: { contact_email: string; contact_phone: string | null },
     org: OrgRow,
   ): Promise<DeliveryRow> => {
+    // El destinatario del evento va completo en auditoría (la vista
+    // de Actividad lo enmascara por la clave `recipient`): correo
+    // para Gmail, teléfono para WhatsApp.
+    const recipient = delivery.channel === 'whatsapp' ? (opp.contact_phone ?? '') : opp.contact_email;
     const fail = async (code: string, message: string): Promise<DeliveryRow> => {
       await exec(
         db,
@@ -1236,60 +1373,18 @@ export function registerRoutes(
         channel: delivery.channel,
         draftId: delivery.draft_id,
         opportunityId: delivery.opportunity_id,
-        recipient: opp.contact_email,
+        recipient,
         errorCode: code,
       });
       return (await queryOne<DeliveryRow>(db, 'SELECT * FROM message_deliveries WHERE id = ?', delivery.id))!;
     };
-    if (delivery.channel !== 'gmail') {
-      return fail('not_supported', 'El envío por este canal todavía no está disponible');
-    }
-    const conn = await queryOne<ConnectionRow>(
-      db,
-      'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
-      delivery.org_id,
-      delivery.channel,
-    );
-    if (!conn || conn.status !== 'connected' || !conn.credentials_ciphertext) {
-      return fail('connection_error', 'La organización no tiene Gmail conectado');
-    }
-    let credentials: MailCredentials;
-    try {
-      credentials = JSON.parse(
-        decryptCredentials(conn.credentials_ciphertext, opts.connectionEncryptionKey),
-      ) as MailCredentials;
-    } catch (err) {
-      return fail(
-        'connection_error',
-        err instanceof Error ? err.message : 'No se pudo leer la credencial de Gmail',
-      );
-    }
-    const provider = opts.mailProvider ?? (opts.googleOAuth ? new GmailMailProvider(opts.googleOAuth) : undefined);
-    if (!provider) {
-      return fail('connection_error', 'El envío por correo no está configurado en el servidor');
-    }
-    try {
-      const result = await provider.send({
-        to: opp.contact_email,
-        subject: `Respuesta de ${org.name}`,
-        body,
-        credentials,
-      });
-      if (result.refreshedCredentials) {
-        await exec(
-          db,
-          'UPDATE org_connections SET credentials_ciphertext = ?, updated_at = ? WHERE id = ?',
-          encryptCredentials(JSON.stringify(result.refreshedCredentials), opts.connectionEncryptionKey),
-          nowIso(),
-          conn.id,
-        );
-      }
+    const markSent = async (providerMessageId: string): Promise<DeliveryRow> => {
       await exec(
         db,
         'UPDATE message_deliveries SET status = ?, attempts = ?, provider_message_id = ?, error_code = NULL, error = NULL, updated_at = ? WHERE id = ?',
         'sent',
         delivery.attempts + 1,
-        result.providerMessageId,
+        providerMessageId,
         nowIso(),
         delivery.id,
       );
@@ -1297,19 +1392,107 @@ export function registerRoutes(
         channel: delivery.channel,
         draftId: delivery.draft_id,
         opportunityId: delivery.opportunity_id,
-        providerMessageId: result.providerMessageId,
-        recipient: opp.contact_email,
+        providerMessageId,
+        recipient,
       });
       return (await queryOne<DeliveryRow>(db, 'SELECT * FROM message_deliveries WHERE id = ?', delivery.id))!;
-    } catch (err) {
-      const code =
-        err instanceof ProviderError
-          ? err.code
-          : err instanceof ConnectionKeyMissingError
-            ? 'connection_error'
-            : 'provider_error';
-      return fail(code, err instanceof Error ? err.message : 'El envío falló');
+    };
+    const conn = await queryOne<ConnectionRow>(
+      db,
+      'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
+      delivery.org_id,
+      delivery.channel,
+    );
+    if (!conn || conn.status !== 'connected' || !conn.credentials_ciphertext) {
+      return fail(
+        'connection_error',
+        delivery.channel === 'whatsapp'
+          ? 'La organización no tiene WhatsApp conectado'
+          : 'La organización no tiene Gmail conectado',
+      );
     }
+    if (delivery.channel === 'gmail') {
+      let credentials: MailCredentials;
+      try {
+        credentials = JSON.parse(
+          decryptCredentials(conn.credentials_ciphertext, opts.connectionEncryptionKey),
+        ) as MailCredentials;
+      } catch (err) {
+        return fail(
+          'connection_error',
+          err instanceof Error ? err.message : 'No se pudo leer la credencial de Gmail',
+        );
+      }
+      const provider = opts.mailProvider ?? (opts.googleOAuth ? new GmailMailProvider(opts.googleOAuth) : undefined);
+      if (!provider) {
+        return fail('connection_error', 'El envío por correo no está configurado en el servidor');
+      }
+      try {
+        const result = await provider.send({
+          to: opp.contact_email,
+          subject: `Respuesta de ${org.name}`,
+          body,
+          credentials,
+        });
+        if (result.refreshedCredentials) {
+          await exec(
+            db,
+            'UPDATE org_connections SET credentials_ciphertext = ?, updated_at = ? WHERE id = ?',
+            encryptCredentials(JSON.stringify(result.refreshedCredentials), opts.connectionEncryptionKey),
+            nowIso(),
+            conn.id,
+          );
+        }
+        return await markSent(result.providerMessageId);
+      } catch (err) {
+        const code =
+          err instanceof ProviderError
+            ? err.code
+            : err instanceof ConnectionKeyMissingError
+              ? 'connection_error'
+              : 'provider_error';
+        return fail(code, err instanceof Error ? err.message : 'El envío falló');
+      }
+    }
+    if (delivery.channel === 'whatsapp') {
+      // F2: el cuerpo enviado es el borrador aprobado vigente, ni más
+      // ni menos (igual que Gmail). Sin teléfono no hay destinatario:
+      // eso ya se bloquea al aprobar, pero el reintento lo vuelve a
+      // verificar por si el dato cambió.
+      if (!opp.contact_phone) {
+        return fail('connection_error', 'La oportunidad no tiene teléfono para WhatsApp');
+      }
+      let credentials: WhatsAppCredentials;
+      try {
+        credentials = JSON.parse(
+          decryptCredentials(conn.credentials_ciphertext, opts.connectionEncryptionKey),
+        ) as WhatsAppCredentials;
+      } catch (err) {
+        return fail(
+          'connection_error',
+          err instanceof Error ? err.message : 'No se pudo leer la credencial de WhatsApp',
+        );
+      }
+      const provider = opts.whatsappProvider ?? new WhatsAppCloudProvider();
+      try {
+        const result = await provider.send({
+          to: opp.contact_phone,
+          phoneNumberId: credentials.phone_number_id,
+          body,
+          credentials,
+        });
+        return await markSent(result.providerMessageId);
+      } catch (err) {
+        const code =
+          err instanceof ProviderError
+            ? err.code
+            : err instanceof ConnectionKeyMissingError
+              ? 'connection_error'
+              : 'provider_error';
+        return fail(code, err instanceof Error ? err.message : 'El envío falló');
+      }
+    }
+    return fail('not_supported', 'El envío por este canal todavía no está disponible');
   };
 
   const decideDraft = async (
@@ -1379,15 +1562,6 @@ export function registerRoutes(
           });
           return;
         }
-        if (approveChannel === 'whatsapp') {
-          // F1 no implementa el envío por WhatsApp (fase 2): no se
-          // finge una conexión ni un envío.
-          await reply.code(409).send({
-            error: 'channel_unavailable',
-            message: 'El envío por WhatsApp todavía no está disponible en esta fase',
-          });
-          return;
-        }
         const conn = await queryOne<ConnectionRow>(
           db,
           'SELECT * FROM org_connections WHERE org_id = ? AND provider = ?',
@@ -1397,7 +1571,20 @@ export function registerRoutes(
         if (!conn || conn.status !== 'connected') {
           await reply.code(409).send({
             error: 'channel_unavailable',
-            message: 'La organización no tiene Gmail conectado',
+            message:
+              approveChannel === 'whatsapp'
+                ? 'La organización no tiene WhatsApp conectado'
+                : 'La organización no tiene Gmail conectado',
+          });
+          return;
+        }
+        if (approveChannel === 'whatsapp' && !opp.contact_phone) {
+          // F2: sin teléfono no hay destinatario. Se bloquea ANTES
+          // de decidir, como el resto del pre-chequeo: el borrador
+          // queda pendiente y el admin corrige y reintenta.
+          await reply.code(409).send({
+            error: 'channel_unavailable',
+            message: 'La oportunidad no tiene teléfono para WhatsApp',
           });
           return;
         }

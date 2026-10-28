@@ -1,18 +1,28 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-// ---------- Envío por agente (F0/F1, diseño de Gmail + WhatsApp) ----------
+// ---------- Envío por agente (F0/F1/F2, diseño de Gmail + WhatsApp) ----------
 //
 // El envío saliente vive acá, separado de las rutas: los adaptadores de
 // proveedor no conocen la base de datos y las rutas no conocen HTTP de
 // terceros. En tests se inyecta un proveedor simulado (ver
-// RouteOptions.mailProvider); en producción se usa el adaptador real de
-// Gmail. NUNCA se hacen envíos reales en tests ni en smokes: el
-// proveedor real solo corre con credenciales de operador configuradas
-// y cuentas de prueba autorizadas expresamente por Tomás.
+// RouteOptions.mailProvider y RouteOptions.whatsappProvider); en
+// producción se usan los adaptadores reales de Gmail y WhatsApp.
+// NUNCA se hacen envíos reales en tests ni en smokes: los
+// proveedores reales solo corren con credenciales de operador
+// configuradas y cuentas de prueba autorizadas expresamente por Tomás.
 
 export const SEND_TIMEOUT_MS = 15000;
 
-export type SendErrorCode = 'connection_error' | 'provider_error' | 'timeout' | 'not_supported';
+export type SendErrorCode =
+  | 'connection_error'
+  | 'provider_error'
+  | 'timeout'
+  | 'not_supported'
+  // F2: Meta rechazó el texto libre porque pasaron más de 24 horas
+  // desde la última respuesta del interesado (error 131047 de la
+  // Graph API). No se reintenta con otro canal: UNIQUE(draft_id)
+  // impide un segundo envío para el mismo borrador (ver reporte F2).
+  | 'window_closed';
 
 export class ProviderError extends Error {
   code: SendErrorCode;
@@ -177,6 +187,123 @@ export class GmailMailProvider implements MailProvider {
       throw new ProviderError('provider_error', 'Gmail no devolvió la cuenta del perfil');
     }
     return { email: data.emailAddress, credentials: refreshed ?? creds };
+  }
+}
+
+// ---------- WhatsApp Business (F2) ----------
+//
+// Adaptador real de la Cloud API de Meta (Graph API, sin
+// dependencias nuevas: fetch de Node 24). El remitente es un número
+// de WhatsApp Business de la organización; el token es de sistema
+// por cuenta y vive cifrado en org_connections (nunca en variables
+// globales: las variables son globales, las credenciales son por
+// org). Solo se envía texto libre: fuera de la ventana de 24 horas
+// Meta lo rechaza con el error 131047 y eso se mapea a
+// 'window_closed' (las plantillas aprobadas son fase posterior, no
+// se diseñan acá). La versión de la Graph API es una constante para
+// poder subirla sin tocar cada llamada.
+
+export const WHATSAPP_GRAPH_API_VERSION = 'v26.0';
+
+export interface WhatsAppCredentials {
+  phone_number_id: string;
+  token: string;
+}
+
+export interface WhatsAppSendResult {
+  providerMessageId: string;
+}
+
+export interface WhatsAppProvider {
+  // Verificación real contra el proveedor (lectura del número en la
+  // Graph API). Sin verificación no hay 'connected': fail-closed,
+  // igual que el perfil de Gmail en F1.
+  verify(credentials: WhatsAppCredentials): Promise<{ displayPhoneNumber: string }>;
+  send(input: {
+    to: string;
+    phoneNumberId: string;
+    body: string;
+    credentials: WhatsAppCredentials;
+  }): Promise<WhatsAppSendResult>;
+}
+
+// Error de Meta con su código numérico: 131047 es la ventana de 24 h
+// cerrada; el resto se clasifica como error del proveedor (salvo
+// 401/403, que son credencial rechazada).
+function mapMetaError(status: number, data: unknown): ProviderError {
+  const code = (data as { error?: { code?: unknown } } | null)?.error?.code;
+  if (status === 401 || status === 403) {
+    return new ProviderError('connection_error', `Meta rechazó la credencial de WhatsApp (${status})`);
+  }
+  if (code === 131047) {
+    return new ProviderError(
+      'window_closed',
+      'La ventana de 24 horas de WhatsApp está cerrada: fuera de ella solo se aceptan plantillas aprobadas',
+    );
+  }
+  return new ProviderError('provider_error', `Meta respondió ${status}`);
+}
+
+export class WhatsAppCloudProvider implements WhatsAppProvider {
+  private base(phoneNumberId: string): string {
+    return `https://graph.facebook.com/${WHATSAPP_GRAPH_API_VERSION}/${phoneNumberId}`;
+  }
+
+  async verify(credentials: WhatsAppCredentials): Promise<{ displayPhoneNumber: string }> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.base(credentials.phone_number_id)}?fields=display_phone_number`, {
+        headers: { Authorization: `Bearer ${credentials.token}` },
+        signal: toTimeoutSignal(),
+      });
+    } catch (err) {
+      throw mapFetchError(err);
+    }
+    if (!res.ok) {
+      throw mapMetaError(res.status, await res.json().catch(() => null));
+    }
+    const data = (await res.json()) as { display_phone_number?: string };
+    if (!data.display_phone_number) {
+      throw new ProviderError('provider_error', 'Meta no devolvió el número verificado');
+    }
+    return { displayPhoneNumber: data.display_phone_number };
+  }
+
+  async send(input: {
+    to: string;
+    phoneNumberId: string;
+    body: string;
+    credentials: WhatsAppCredentials;
+  }): Promise<WhatsAppSendResult> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.base(input.phoneNumberId)}/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${input.credentials.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: input.to,
+          type: 'text',
+          text: { preview_url: false, body: input.body },
+        }),
+        signal: toTimeoutSignal(),
+      });
+    } catch (err) {
+      throw mapFetchError(err);
+    }
+    if (!res.ok) {
+      throw mapMetaError(res.status, await res.json().catch(() => null));
+    }
+    const data = (await res.json()) as { messages?: Array<{ id?: string }> };
+    const id = data.messages?.[0]?.id;
+    if (!id) {
+      throw new ProviderError('provider_error', 'Meta no devolvió un identificador de mensaje');
+    }
+    return { providerMessageId: id };
   }
 }
 

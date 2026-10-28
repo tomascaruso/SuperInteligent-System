@@ -47,8 +47,8 @@ import {
 // - Aprobar NO acepta nota en el servidor (decideDraft la ignora
 //   para approved): el diálogo de aprobar NO tiene campo de nota,
 //   para no prometer algo que no se guarda.
-// - F1: aprobar PUEDE enviar el mensaje por el canal elegido
-//   (Gmail si hay una conexión verificada; WhatsApp todavía no).
+// - F1/F2: aprobar PUEDE enviar el mensaje por el canal elegido
+//   (Gmail o WhatsApp, solo si hay una conexión verificada).
 //   Sin canal elegido, aprobar se comporta como antes: solo mueve
 //   la oportunidad a seguimiento (o a nueva, al rechazar).
 // - R3b: el borrador se puede EDITAR (PATCH, solo admin, solo
@@ -132,13 +132,14 @@ interface ApprovalsData {
   connections: Connection[];
 }
 
-// F1: aprobar acepta un canal ('gmail' | null); rechazar no envía.
-// Devuelve la entrega creada (null sin canal) para el feedback.
+// F1/F2: aprobar acepta un canal ('gmail' | 'whatsapp' | null);
+// rechazar no envía. Devuelve la entrega creada (null sin canal)
+// para el feedback.
 async function decideDraft(
   id: string,
   decision: 'approve' | 'reject',
   note: string,
-  channel: 'gmail' | null,
+  channel: 'gmail' | 'whatsapp' | null,
 ): Promise<{ delivery: Delivery | null }> {
   const res = await fetch(`/api/drafts/${encodeURIComponent(id)}/${decision}`, {
     method: 'POST',
@@ -181,9 +182,9 @@ export function ApprovalsView() {
   const [decideError, setDecideError] = useState<string | null>(null);
   const [viewFeedback, setViewFeedback] = useState<string | null>(null);
 
-  // F1: canal elegido al aprobar ('none' = no se envía, como
-  // antes). Gmail se preselecciona solo si hay una conexión
-  // verificada; WhatsApp todavía no envía (deshabilitado).
+  // F1/F2: canal elegido al aprobar ('none' = no se envía, como
+  // antes). Se preselecciona Gmail si está conectado, si no
+  // WhatsApp si está conectado, si no ninguno.
   const [approveChannel, setApproveChannel] = useState<'none' | 'gmail' | 'whatsapp'>('none');
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -282,14 +283,27 @@ export function ApprovalsView() {
       setDeciding(true);
       setDecideError(null);
       try {
-        const channel = decision === 'approve' && approveChannel === 'gmail' ? 'gmail' : null;
+        const channel =
+          decision === 'approve'
+            ? approveChannel === 'gmail'
+              ? 'gmail'
+              : approveChannel === 'whatsapp'
+                ? 'whatsapp'
+                : null
+            : null;
         const { delivery } = await decideDraft(selected.id, decision, rejectNote, channel);
         if (decision === 'reject') {
           setViewFeedback('Borrador rechazado.');
         } else if (!delivery) {
           setViewFeedback('Borrador aprobado. No se envió ningún mensaje.');
         } else if (delivery.status === 'sent') {
-          setViewFeedback(`Borrador aprobado. Correo enviado por Gmail.`);
+          setViewFeedback(
+            `Borrador aprobado. ${delivery.channel === 'whatsapp' ? 'Mensaje enviado por WhatsApp.' : 'Correo enviado por Gmail.'}`,
+          );
+        } else if (delivery.error_code === 'window_closed') {
+          setViewFeedback(
+            'Borrador aprobado. El envío por WhatsApp falló: la ventana de 24 horas está cerrada. Contactá al interesado por Gmail manualmente.',
+          );
         } else {
           setViewFeedback(`Borrador aprobado. El envío falló (${delivery.error_code ?? 'error'}); podés reintentarlo desde el detalle.`);
         }
@@ -314,8 +328,12 @@ export function ApprovalsView() {
       const { delivery } = await retryDelivery(selected.delivery.id);
       setViewFeedback(
         delivery.status === 'sent'
-          ? 'Correo enviado por Gmail.'
-          : `El reintento falló (${delivery.error_code ?? 'error'}).`,
+          ? delivery.channel === 'whatsapp'
+            ? 'Mensaje enviado por WhatsApp.'
+            : 'Correo enviado por Gmail.'
+          : delivery.error_code === 'window_closed'
+            ? 'El reintento falló: la ventana de 24 horas está cerrada. Contactá al interesado por Gmail manualmente.'
+            : `El reintento falló (${delivery.error_code ?? 'error'}).`,
       );
       setReloadKey((k) => k + 1);
     } catch (e: unknown) {
@@ -376,6 +394,7 @@ export function ApprovalsView() {
 
   const isAdmin = data.me.user.role === 'admin';
   const gmailConnection = (data.connections ?? []).find((c) => c.provider === 'gmail' && c.status === 'connected');
+  const whatsappConnection = (data.connections ?? []).find((c) => c.provider === 'whatsapp' && c.status === 'connected');
   const hasAnyConnection = (data.connections ?? []).some((c) => c.status === 'connected');
   const selectedBadge = selected ? draftBadge(selected) : null;
   const selectedPending = selected?.status === 'pending_approval';
@@ -534,7 +553,7 @@ export function ApprovalsView() {
                     disabled={selectedBlocked}
                     onClick={() => {
                       setDecideError(null);
-                      setApproveChannel(gmailConnection ? 'gmail' : 'none');
+                      setApproveChannel(gmailConnection ? 'gmail' : whatsappConnection ? 'whatsapp' : 'none');
                       setApproveOpen(true);
                     }}
                   >
@@ -616,6 +635,13 @@ export function ApprovalsView() {
                       Envío fallido: {selected.delivery.error_code ?? 'error'}
                       {selected.delivery.error ? ` · ${selected.delivery.error}` : ''}.
                     </p>
+                    {selected.delivery.error_code === 'window_closed' && (
+                      <p className="mt-2 text-sm text-secondary">
+                        La ventana de 24 horas de WhatsApp está cerrada: fuera de ella Meta solo
+                        acepta plantillas aprobadas. Contactá al interesado por Gmail manualmente
+                        desde sus datos: esta entrega no puede reenviarse por otro canal.
+                      </p>
+                    )}
                     {isAdmin && (
                       <div className="mt-2">
                         <Button type="button" variant="secondary" disabled={retrying} onClick={() => void retrySend()}>
@@ -712,8 +738,20 @@ export function ApprovalsView() {
             </span>
           </label>
           <label className="flex items-start gap-2 text-sm">
-            <input type="radio" name="approve-channel" value="whatsapp" disabled />
-            <span>WhatsApp — Disponible próximamente.</span>
+            <input
+              type="radio"
+              name="approve-channel"
+              value="whatsapp"
+              checked={approveChannel === 'whatsapp'}
+              disabled={!whatsappConnection}
+              onChange={() => setApproveChannel('whatsapp')}
+            />
+            <span>
+              WhatsApp
+              {whatsappConnection
+                ? ` (al ${whatsappConnection.display_account})`
+                : ' — sin conexión verificada; conectala desde Integraciones.'}
+            </span>
           </label>
         </fieldset>
         {!hasAnyConnection && (
