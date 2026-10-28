@@ -48,7 +48,7 @@ import sisMark from '../../assets/sis-mark.png';
 // el segundo toque nunca pueda percibirse como otro formulario.
 // La invitación se verificó igual (un solo condicional y
 // alternancia) y NO se tocó. Sin botón Google. Tras un login o una invitación exitosa, se
-// avisa al padre con onAuthenticated (la App se queda en /v2/,
+// avisa al padre con onAuthenticated (la App se queda en /,
 // ruta /#/inicio); sin ese callback, se mantiene el puente
 // original a / (la app vanilla).
 
@@ -193,7 +193,7 @@ export function LoginScreen({
     setLoginLoading(true);
     try {
       await login(email, password);
-      // Fase 3: quedarse en /v2/ (el padre navega a /#/inicio).
+      // Fase 3: quedarse en / (el padre navega a /#/inicio).
       if (onAuthenticated) onAuthenticated();
       else window.location.href = '/';
     } catch (err) {

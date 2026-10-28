@@ -75,9 +75,9 @@ describe('estilos del sistema (Fase 1)', () => {
 });
 
 describe('oportunidades y tareas (Fase 3)', () => {
-  it('GET / sirve las zonas de feedback por sección', async () => {
+  it('GET /vanilla/ sirve las zonas de feedback por sección', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/' });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('opp-feedback');
     expect(res.body).toContain('task-feedback');
@@ -115,9 +115,9 @@ describe('oportunidades y tareas (Fase 3)', () => {
 });
 
 describe('centro de aprobaciones (Fase 4)', () => {
-  it('GET / sirve el panel de aprobaciones y el diálogo de confirmación', async () => {
+  it('GET /vanilla/ sirve el panel de aprobaciones y el diálogo de confirmación', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/' });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('draft-feedback');
     expect(res.body).toContain('Borradores decididos');
@@ -163,9 +163,9 @@ describe('centro de aprobaciones (Fase 4)', () => {
 });
 
 describe('actividad y ejecuciones (Fase 5)', () => {
-  it('GET / sirve la zona de feedback y los estados de carga de actividad', async () => {
+  it('GET /vanilla/ sirve la zona de feedback y los estados de carga de actividad', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/' });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('activity-feedback');
     expect(res.body).toContain('Cargando actividad');
@@ -187,9 +187,9 @@ describe('actividad y ejecuciones (Fase 5)', () => {
 });
 
 describe('navegación (Fase 2)', () => {
-  it('GET / sirve la navegación y el enlace a layout.css', async () => {
+  it('GET /vanilla/ sirve la navegación y el enlace a layout.css', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/' });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('/styles/layout.css');
     expect(res.body).toContain('Aprobaciones');
@@ -223,9 +223,9 @@ describe('trazabilidad (C2)', () => {
 });
 
 describe('procesos (C3)', () => {
-  it('GET / sirve la tarjeta de procesos y /app.js sirve su lista', async () => {
+  it('GET /vanilla/ sirve la tarjeta de procesos y /app.js sirve su lista', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const html = await app.inject({ method: 'GET', url: '/' });
+    const html = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(html.statusCode).toBe(200);
     expect(html.body).toContain('<h3>Procesos</h3>');
     expect(html.body).toContain('Cargando procesos…');
@@ -271,9 +271,9 @@ describe('agentes (C4)', () => {
   });
 
   // F3-DEMO: recorrido guiado dentro de la demo (panel de pasos).
-  it('GET / sirve el botón y el panel del recorrido; GET /app.js trae sus pasos', async () => {
+  it('GET /vanilla/ sirve el botón y el panel del recorrido; GET /app.js trae sus pasos', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const page = await app.inject({ method: 'GET', url: '/' });
+    const page = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('id="btn-tour"');
     expect(page.body).toContain('Recorrido guiado');
@@ -296,9 +296,9 @@ describe('agentes (C4)', () => {
   });
 
   // F3-DEMO: sección visible de agentes (vista nueva, no solo etiqueta).
-  it('GET / sirve la vista Agentes y GET /app.js la describe en negocio', async () => {
+  it('GET /vanilla/ sirve la vista Agentes y GET /app.js la describe en negocio', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const page = await app.inject({ method: 'GET', url: '/' });
+    const page = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('data-view="agentes"');
     expect(page.body).toContain('id="view-agentes"');
@@ -554,9 +554,9 @@ describe('alta por invitación (C8)', () => {
     await app.close();
   });
 
-  it('la UI ya no ofrece registro público y sí aceptación de invitación', async () => {
+  it('la UI vanilla ya no ofrece registro público y sí aceptación de invitación', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const index = await app.inject({ method: 'GET', url: '/' });
+    const index = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(index.body).toContain('Tengo una invitación');
     expect(index.body).not.toContain('btn-register');
     const js = await app.inject({ method: 'GET', url: '/app.js' });
@@ -567,9 +567,9 @@ describe('alta por invitación (C8)', () => {
 });
 
 describe('Fase 6 — QA y cierre', () => {
-  it('la pantalla de acceso anuncia errores y los mensajes de sección son en vivo', async () => {
+  it('la pantalla de acceso vanilla anuncia errores y los mensajes de sección son en vivo', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const index = await app.inject({ method: 'GET', url: '/' });
+    const index = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(index.body).toContain('id="error" class="alert alert-error" role="alert"');
     for (const id of ['opp-feedback', 'task-feedback', 'draft-feedback', 'activity-feedback']) {
       expect(index.body).toContain(`id="${id}" class="alert" aria-live="polite"`);
@@ -599,9 +599,9 @@ describe('Fase 6 — QA y cierre', () => {
 });
 
 describe('paso 1 composición (referencia visual)', () => {
-  it('GET / sirve el chip de usuario y el indicador de sistema', async () => {
+  it('GET /vanilla/ sirve el chip de usuario y el indicador de sistema', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/' });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('id="user-chip"');
     expect(res.body).toContain('id="system-status"');
@@ -630,9 +630,9 @@ describe('paso 1 composición (referencia visual)', () => {
 });
 
 describe('pantalla de acceso (diagnóstico login)', () => {
-  it('GET / sirve los dos paneles, la vista ilustrativa y el formulario real', async () => {
+  it('GET /vanilla/ sirve los dos paneles, la vista ilustrativa y el formulario real', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/' });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('login-layout');
     expect(res.body).toContain('login-brand');
@@ -671,26 +671,26 @@ describe('pantalla de acceso (diagnóstico login)', () => {
   });
 });
 
-describe('cliente react /v2/ (fase 2)', () => {
+describe('cliente react / (fase 2)', () => {
   // El build del cliente lo genera el pretest (npm run build:client);
   // el test lee el HTML construido para no hardcodear hashes.
   function clientAsset(ext: string): string {
     const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
-    const match = html.match(new RegExp(`/v2/assets/[^"']+\\.${ext}`));
+    const match = html.match(new RegExp(`/assets/[^"']+\\.${ext}`));
     if (!match) throw new Error(`sin asset .${ext} en el build del cliente`);
     return match[0];
   }
 
-  it('GET /v2/ sirve el HTML del cliente React con base /v2/', async () => {
+  it('GET / sirve el HTML del cliente React con base /', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/v2/' });
+    const res = await app.inject({ method: 'GET', url: '/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<div id="root"');
-    expect(res.body).toContain('/v2/assets/');
+    expect(res.body).toContain('/assets/');
     await app.close();
   });
 
-  it('GET /v2/assets sirve el JS y el CSS del build', async () => {
+  it('GET /assets sirve el JS y el CSS del build', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
     for (const ext of ['js', 'css']) {
       const res = await app.inject({ method: 'GET', url: clientAsset(ext) });
@@ -699,9 +699,9 @@ describe('cliente react /v2/ (fase 2)', () => {
     await app.close();
   });
 
-  it('GET /v2/* rechaza extensiones no permitidas y traversal', async () => {
+  it('GET /assets/* rechaza extensiones no permitidas y traversal', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    for (const url of ['/v2/notas.txt', '/v2/../secret', '/v2/assets/../../x.js']) {
+    for (const url of ['/assets/notas.txt', '/assets/../secret', '/assets/../../x.js']) {
       const res = await app.inject({ method: 'GET', url });
       expect(res.statusCode).toBe(404);
     }
@@ -709,21 +709,21 @@ describe('cliente react /v2/ (fase 2)', () => {
   });
 });
 
-describe('cliente react /v2/ (fase 3)', () => {
-  it('GET /v2 redirige (302) a /v2/', async () => {
+describe('cliente react / (fase 3)', () => {
+  it('GET /v2 redirige (302) a /', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
     const res = await app.inject({ method: 'GET', url: '/v2' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers.location).toBe('/v2/');
+    expect(res.headers.location).toBe('/');
     await app.close();
   });
 
-  it('GET /v2/ sigue sirviendo el HTML del cliente React', async () => {
+  it('GET / sigue sirviendo el HTML del cliente React', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/v2/' });
+    const res = await app.inject({ method: 'GET', url: '/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<div id="root"');
-    expect(res.body).toContain('/v2/assets/');
+    expect(res.body).toContain('/assets/');
     await app.close();
   });
 
@@ -731,23 +731,23 @@ describe('cliente react /v2/ (fase 3)', () => {
     // Las rutas viven en el bundle (HashRouter), no en el HTML: se
     // verifica que el JS construido las contenga como literales.
     const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
-    const match = html.match(/\/v2\/assets\/[^"']+\.js/);
+    const match = html.match(/\/assets\/[^"']+\.js/);
     if (!match) throw new Error('sin asset JS en el build del cliente');
-    const js = readFileSync(new URL(`../client/dist/${match[0].replace('/v2/', '')}`, import.meta.url), 'utf8');
+    const js = readFileSync(new URL(`../client/dist/${match[0].replace(/^\//, '')}`, import.meta.url), 'utf8');
     for (const path of ['/inicio', '/oportunidades', '/tareas', '/aprobaciones', '/actividad', '/agentes']) {
       expect(js).toContain(path);
     }
   });
 });
 
-describe('cliente react /v2/ (fase 4: inicio)', () => {
+describe('cliente react / (fase 4: inicio)', () => {
   function clientJs(): string {
     // El build del cliente lo genera el pretest; se lee el JS
     // construido para no hardcodear hashes.
     const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
-    const match = html.match(/\/v2\/assets\/[^"']+\.js/);
+    const match = html.match(/\/assets\/[^"']+\.js/);
     if (!match) throw new Error('sin asset JS en el build del cliente');
-    return readFileSync(new URL(`../client/dist/${match[0].replace('/v2/', '')}`, import.meta.url), 'utf8');
+    return readFileSync(new URL(`../client/dist/${match[0].replace(/^\//, '')}`, import.meta.url), 'utf8');
   }
 
   // H1: la vista Inicio ya no usa /api/tasks, /api/drafts ni
@@ -779,25 +779,25 @@ describe('cliente react /v2/ (fase 4: inicio)', () => {
     }
   });
 
-  it('GET /v2/ sigue sirviendo el HTML del cliente React', async () => {
+  it('GET / sigue sirviendo el HTML del cliente React', async () => {
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
-    const res = await app.inject({ method: 'GET', url: '/v2/' });
+    const res = await app.inject({ method: 'GET', url: '/' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<div id="root"');
-    expect(res.body).toContain('/v2/assets/');
+    expect(res.body).toContain('/assets/');
     await app.close();
   });
 });
 
-describe('cliente react /v2/ (r1: oportunidades + logo)', () => {
+describe('cliente react / (r1: oportunidades + logo)', () => {
   function clientJs(): string {
     // Igual que el bloque de la Fase 4: el build del cliente lo
     // genera el pretest; se lee el JS construido para no
     // hardcodear hashes.
     const html = readFileSync(new URL('../client/dist/index.html', import.meta.url), 'utf8');
-    const match = html.match(/\/v2\/assets\/[^"']+\.js/);
+    const match = html.match(/\/assets\/[^"']+\.js/);
     if (!match) throw new Error('sin asset JS en el build del cliente');
-    return readFileSync(new URL(`../client/dist/${match[0].replace('/v2/', '')}`, import.meta.url), 'utf8');
+    return readFileSync(new URL(`../client/dist/${match[0].replace(/^\//, '')}`, import.meta.url), 'utf8');
   }
 
   it('el JS del cliente referencia los assets del logo', () => {
@@ -832,13 +832,73 @@ describe('cliente react /v2/ (r1: oportunidades + logo)', () => {
     }
   });
 
-  it('GET /v2/assets sirve el PNG del logo', async () => {
+  it('GET /assets sirve el PNG del logo', async () => {
+    const assets = readdirSync(new URL('../client/dist/assets', import.meta.url));
+    const logo = assets.find((f) => f.startsWith('sis-logo-') && f.endsWith('.png'));
+    if (!logo) throw new Error('sin asset sis-logo en el build del cliente');
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: `/assets/${logo}` });
+    expect(res.statusCode).toBe(200);
+    await app.close();
+  });
+});
+
+describe('flip: React en / y vanilla en /vanilla/', () => {
+  it('GET /vanilla/ sirve la interfaz vanilla intacta', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('SuperInteligent System — Demo');
+    expect(res.body).toContain('/app.js');
+    expect(res.body).toContain('/styles/tokens.css');
+    await app.close();
+  });
+
+  it('GET /vanilla/app.js sirve el app.js vanilla sin cambios', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/vanilla/app.js' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe(readFileSync(new URL('../public/app.js', import.meta.url), 'utf8'));
+    await app.close();
+  });
+
+  it('GET /vanilla redirige (302) a /vanilla/', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const res = await app.inject({ method: 'GET', url: '/vanilla' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe('/vanilla/');
+    await app.close();
+  });
+
+  it('GET /v2 y /v2/ redirigen (302) a /', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    for (const url of ['/v2', '/v2/']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toBe('/');
+    }
+    await app.close();
+  });
+
+  it('GET /v2/assets/<logo> redirige (302) a /assets/<logo>', async () => {
     const assets = readdirSync(new URL('../client/dist/assets', import.meta.url));
     const logo = assets.find((f) => f.startsWith('sis-logo-') && f.endsWith('.png'));
     if (!logo) throw new Error('sin asset sis-logo en el build del cliente');
     const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
     const res = await app.inject({ method: 'GET', url: `/v2/assets/${logo}` });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe(`/assets/${logo}`);
+    await app.close();
+  });
+
+  it('GET /app.js y /styles/tokens.css históricos siguen sirviendo vanilla', async () => {
+    const { app } = await buildServer({ dbPath: ':memory:', jwtSecret: 'test-secret', maxOpportunitiesPerDay: 100 });
+    const js = await app.inject({ method: 'GET', url: '/app.js' });
+    expect(js.statusCode).toBe(200);
+    expect(js.body).toBe(readFileSync(new URL('../public/app.js', import.meta.url), 'utf8'));
+    const css = await app.inject({ method: 'GET', url: '/styles/tokens.css' });
+    expect(css.statusCode).toBe(200);
+    expect(css.body).toContain('--color-primary: #4f46e5');
     await app.close();
   });
 });
