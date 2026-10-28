@@ -27,6 +27,19 @@ export const opportunityInputSchema = z.object({
   company: z.string().trim().max(200).optional().default(''),
   message: z.string().trim().min(1).max(5000),
   source: z.string().trim().max(100).optional().default('manual'),
+  // F0: teléfono opcional. La validación corre sobre la forma
+  // normalizada (sin espacios, guiones ni paréntesis): vacío o `+`
+  // opcional seguido de 7 a 15 dígitos. No se valida pertenencia ni
+  // operadora: eso lo hace el proveedor al enviar.
+  contactPhone: z
+    .string()
+    .trim()
+    .max(30)
+    .optional()
+    .default('')
+    .refine((v) => v === '' || /^\+?\d{7,15}$/.test(v.replace(/[\s\-()]/g, '')), {
+      message: 'El teléfono debe tener entre 7 y 15 dígitos',
+    }),
 });
 
 export const taskPatchSchema = z.object({
@@ -37,6 +50,13 @@ export const draftRejectSchema = z.object({
   note: z.string().trim().max(1000).optional().default(''),
 });
 
+// F1: aprobar acepta un canal explícito (decisión de Tomás 28-oct-2026:
+// el admin elige el canal al aprobar). Omitido o null = no se envía
+// nada (comportamiento actual intacto).
+export const draftApproveSchema = z.object({
+  channel: z.enum(['gmail', 'whatsapp']).nullable().optional(),
+});
+
 // R3b: edición del borrador por un humano. Mismo estilo que el
 // rechazo: cuerpo validado, nota no aplica acá. El máximo (5000)
 // cubre con holgura un mensaje comercial y evita cuerpos absurdos.
@@ -44,7 +64,12 @@ export const draftEditSchema = z.object({
   body: z.string().trim().min(1).max(5000),
 });
 
-export type OpportunityInput = z.infer<typeof opportunityInputSchema>;
+// Tipo de ENTRADA (no de salida): los campos con default
+// (company, source, contactPhone) son opcionales al construir el
+// objeto; normalizeOpportunity los completa. Con z.infer (salida)
+// serían obligatorios y cada llamada a runIntake tendría que
+// inventarlos.
+export type OpportunityInput = z.input<typeof opportunityInputSchema>;
 
 // ---------- Normalización (determinista) ----------
 
@@ -54,6 +79,7 @@ export interface NormalizedOpportunity {
   company: string;
   message: string;
   source: string;
+  contactPhone: string;
 }
 
 function collapseSpaces(s: string): string {
@@ -67,6 +93,7 @@ export function normalizeOpportunity(input: OpportunityInput): NormalizedOpportu
     company: collapseSpaces(input.company ?? ''),
     message: input.message.trim(),
     source: collapseSpaces(input.source ?? 'manual') || 'manual',
+    contactPhone: (input.contactPhone ?? '').replace(/[\s\-()]/g, ''),
   };
 }
 

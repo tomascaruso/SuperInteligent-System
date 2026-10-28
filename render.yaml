@@ -44,3 +44,16 @@ services:
         sync: false
       - key: CONTACT_RELAY_TOKEN
         sync: false
+      # F1: envío por canales conectados (Gmail/WhatsApp). La clave
+      # cifra las credenciales OAuth por organización (AES-256-GCM);
+      # sin ella, el módulo de envío queda cerrado (fail-closed).
+      # Las credenciales de Google se cargan a mano en el dashboard;
+      # sin ellas, el inicio de OAuth responde 503.
+      - key: CONNECTION_ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        sync: false

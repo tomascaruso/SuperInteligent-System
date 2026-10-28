@@ -17,6 +17,8 @@ async function main(): Promise<void> {
     maxOpportunitiesPerDay: config.maxOpportunitiesPerDay,
     operatorToken: config.operatorToken,
     contact: config.contact,
+    connectionEncryptionKey: config.connectionEncryptionKey,
+    googleOAuth: config.googleOAuth,
   });
 
   const shutdown = async (signal: string): Promise<void> => {

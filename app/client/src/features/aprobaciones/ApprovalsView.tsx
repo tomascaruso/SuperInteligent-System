@@ -12,9 +12,13 @@ import { Pagination } from '../../components/ui/pagination';
 import type { HomeOutletContext } from '../inicio/HomeView';
 import {
   ApiError,
+  getConnections,
   getDraftsDetail,
   getMe,
   getOpportunityList,
+  retryDelivery,
+  type Connection,
+  type Delivery,
   type DraftFull,
   type MeResponse,
   type OpportunityDetail,
@@ -43,8 +47,10 @@ import {
 // - Aprobar NO acepta nota en el servidor (decideDraft la ignora
 //   para approved): el diálogo de aprobar NO tiene campo de nota,
 //   para no prometer algo que no se guarda.
-// - Aprobar NO envía ningún mensaje externo: solo mueve la
-//   oportunidad a seguimiento (o a nueva, al rechazar).
+// - F1: aprobar PUEDE enviar el mensaje por el canal elegido
+//   (Gmail si hay una conexión verificada; WhatsApp todavía no).
+//   Sin canal elegido, aprobar se comporta como antes: solo mueve
+//   la oportunidad a seguimiento (o a nueva, al rechazar).
 // - R3b: el borrador se puede EDITAR (PATCH, solo admin, solo
 //   pendiente vigente): el panel es ancho (480 px, variante wide
 //   del DetailPanel; Oportunidades sigue en 360) y muestra la
@@ -123,13 +129,21 @@ interface ApprovalsData {
   drafts: DraftFull[];
   opportunities: OpportunityDetail[];
   me: MeResponse;
+  connections: Connection[];
 }
 
-async function decideDraft(id: string, decision: 'approve' | 'reject', note: string): Promise<void> {
+// F1: aprobar acepta un canal ('gmail' | null); rechazar no envía.
+// Devuelve la entrega creada (null sin canal) para el feedback.
+async function decideDraft(
+  id: string,
+  decision: 'approve' | 'reject',
+  note: string,
+  channel: 'gmail' | null,
+): Promise<{ delivery: Delivery | null }> {
   const res = await fetch(`/api/drafts/${encodeURIComponent(id)}/${decision}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(decision === 'reject' ? { note } : {}),
+    body: JSON.stringify(decision === 'reject' ? { note } : { channel }),
   });
   const data: unknown = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -142,6 +156,8 @@ async function decideDraft(id: string, decision: 'approve' | 'reject', note: str
           : `Error ${res.status}`;
     throw new ApiError(message, res.status);
   }
+  const delivery = (data as { delivery?: Delivery | null }).delivery ?? null;
+  return { delivery };
 }
 
 export function ApprovalsView() {
@@ -165,6 +181,13 @@ export function ApprovalsView() {
   const [decideError, setDecideError] = useState<string | null>(null);
   const [viewFeedback, setViewFeedback] = useState<string | null>(null);
 
+  // F1: canal elegido al aprobar ('none' = no se envía, como
+  // antes). Gmail se preselecciona solo si hay una conexión
+  // verificada; WhatsApp todavía no envía (deshabilitado).
+  const [approveChannel, setApproveChannel] = useState<'none' | 'gmail' | 'whatsapp'>('none');
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
   // R3b: edición humana del borrador (PATCH, solo admin y solo
   // pendiente vigente; el servidor impone ambas cosas).
   const [editOpen, setEditOpen] = useState(false);
@@ -176,12 +199,13 @@ export function ApprovalsView() {
     setState('loading');
     setError('');
     try {
-      const [{ drafts }, { opportunities }, me] = await Promise.all([
+      const [{ drafts }, { opportunities }, me, { connections }] = await Promise.all([
         getDraftsDetail(),
         getOpportunityList(),
         getMe(),
+        getConnections(),
       ]);
-      setData({ drafts, opportunities, me });
+      setData({ drafts, opportunities, me, connections });
       setSystemStatus('ok');
       setState('ready');
     } catch (e: unknown) {
@@ -258,8 +282,17 @@ export function ApprovalsView() {
       setDeciding(true);
       setDecideError(null);
       try {
-        await decideDraft(selected.id, decision, rejectNote);
-        setViewFeedback(decision === 'approve' ? 'Borrador aprobado.' : 'Borrador rechazado.');
+        const channel = decision === 'approve' && approveChannel === 'gmail' ? 'gmail' : null;
+        const { delivery } = await decideDraft(selected.id, decision, rejectNote, channel);
+        if (decision === 'reject') {
+          setViewFeedback('Borrador rechazado.');
+        } else if (!delivery) {
+          setViewFeedback('Borrador aprobado. No se envió ningún mensaje.');
+        } else if (delivery.status === 'sent') {
+          setViewFeedback(`Borrador aprobado. Correo enviado por Gmail.`);
+        } else {
+          setViewFeedback(`Borrador aprobado. El envío falló (${delivery.error_code ?? 'error'}); podés reintentarlo desde el detalle.`);
+        }
         setApproveOpen(false);
         setRejectOpen(false);
         setRejectNote('');
@@ -270,8 +303,27 @@ export function ApprovalsView() {
         setDeciding(false);
       }
     },
-    [selected, rejectNote],
+    [selected, rejectNote, approveChannel],
   );
+
+  const retrySend = useCallback(async () => {
+    if (!selected?.delivery) return;
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const { delivery } = await retryDelivery(selected.delivery.id);
+      setViewFeedback(
+        delivery.status === 'sent'
+          ? 'Correo enviado por Gmail.'
+          : `El reintento falló (${delivery.error_code ?? 'error'}).`,
+      );
+      setReloadKey((k) => k + 1);
+    } catch (e: unknown) {
+      setRetryError(e instanceof ApiError ? e.message : 'No se pudo reintentar el envío.');
+    } finally {
+      setRetrying(false);
+    }
+  }, [selected]);
 
   const saveEdit = useCallback(async () => {
     if (!selected) return;
@@ -323,6 +375,8 @@ export function ApprovalsView() {
   }
 
   const isAdmin = data.me.user.role === 'admin';
+  const gmailConnection = (data.connections ?? []).find((c) => c.provider === 'gmail' && c.status === 'connected');
+  const hasAnyConnection = (data.connections ?? []).some((c) => c.status === 'connected');
   const selectedBadge = selected ? draftBadge(selected) : null;
   const selectedPending = selected?.status === 'pending_approval';
   const selectedBlocked = selectedPending && (selected.expired || selected.stale);
@@ -478,7 +532,11 @@ export function ApprovalsView() {
                     type="button"
                     variant="primary"
                     disabled={selectedBlocked}
-                    onClick={() => { setDecideError(null); setApproveOpen(true); }}
+                    onClick={() => {
+                      setDecideError(null);
+                      setApproveChannel(gmailConnection ? 'gmail' : 'none');
+                      setApproveOpen(true);
+                    }}
                   >
                     Aprobar
                   </Button>
@@ -523,6 +581,10 @@ export function ApprovalsView() {
                   <dd className="font-medium break-words">{selectedOpp ? selectedOpp.contact_email : '—'}</dd>
                 </div>
                 <div className="border-b border-border py-2">
+                  <dt className="text-xs text-secondary">Teléfono</dt>
+                  <dd className="font-medium break-words">{selectedOpp?.contact_phone || '—'}</dd>
+                </div>
+                <div className="border-b border-border py-2">
                   <dt className="text-xs text-secondary">Categoría</dt>
                   <dd className="font-medium break-words">{selectedOpp ? categoryLabel(selectedOpp.category) : '—'}</dd>
                 </div>
@@ -540,6 +602,34 @@ export function ApprovalsView() {
                 </div>
               </dl>
             </div>
+
+            {selected.delivery && (
+              <div>
+                <h3 className="text-sm font-semibold">Envío</h3>
+                {selected.delivery.status === 'sent' ? (
+                  <p className="mt-2 text-sm">
+                    Enviado por {selected.delivery.channel === 'gmail' ? 'Gmail' : 'WhatsApp'}.
+                  </p>
+                ) : selected.delivery.status === 'failed' ? (
+                  <>
+                    <p className="mt-2 text-sm">
+                      Envío fallido: {selected.delivery.error_code ?? 'error'}
+                      {selected.delivery.error ? ` · ${selected.delivery.error}` : ''}.
+                    </p>
+                    {isAdmin && (
+                      <div className="mt-2">
+                        <Button type="button" variant="secondary" disabled={retrying} onClick={() => void retrySend()}>
+                          {retrying ? 'Reintentando…' : 'Reintentar envío'}
+                        </Button>
+                        {retryError && <p className="mt-2"><Alert variant="error">{retryError}</Alert></p>}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm">Envío pendiente.</p>
+                )}
+              </div>
+            )}
 
             <div>
               <h3 className="text-sm font-semibold">Riesgos y Advertencias</h3>
@@ -566,7 +656,10 @@ export function ApprovalsView() {
               )}
               <p className="mt-2 flex gap-2 text-sm text-secondary">
                 <Info size={16} className="shrink-0" aria-hidden="true" />
-                <span>Aprobar no envía ningún mensaje externo: la oportunidad pasa a seguimiento (al rechazar, vuelve a nueva).</span>
+                <span>
+                  Al aprobar elegís el canal de envío: si no elegís ninguno, la oportunidad solo pasa a seguimiento
+                  (al rechazar, vuelve a nueva).
+                </span>
               </p>
             </div>
 
@@ -590,7 +683,45 @@ export function ApprovalsView() {
         <p>
           ¿Aprobar la propuesta para {selected?.contact_name}? La oportunidad pasará a seguimiento.
         </p>
-        <p className="text-sm text-secondary">Aprobar no envía ningún mensaje externo.</p>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">¿Por qué canal se envía el mensaje?</legend>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="approve-channel"
+              value="none"
+              checked={approveChannel === 'none'}
+              onChange={() => setApproveChannel('none')}
+            />
+            <span>Sin envío: solo pasa a seguimiento, como hasta ahora.</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="approve-channel"
+              value="gmail"
+              checked={approveChannel === 'gmail'}
+              disabled={!gmailConnection}
+              onChange={() => setApproveChannel('gmail')}
+            />
+            <span>
+              Gmail
+              {gmailConnection
+                ? ` (desde ${gmailConnection.display_account})`
+                : ' — sin conexión verificada; conectala desde Integraciones.'}
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="radio" name="approve-channel" value="whatsapp" disabled />
+            <span>WhatsApp — Disponible próximamente.</span>
+          </label>
+        </fieldset>
+        {!hasAnyConnection && (
+          <p className="text-sm text-secondary">
+            Sin conexiones: aprobar no envía nada (como hasta ahora). Para enviar por Gmail, primero conectá la
+            cuenta desde Integraciones.
+          </p>
+        )}
         {decideError && <Alert variant="error">{decideError}</Alert>}
         <div className="flex gap-2">
           <Button type="button" variant="primary" disabled={deciding} onClick={() => void decide('approve')}>

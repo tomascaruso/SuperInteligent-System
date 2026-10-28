@@ -329,7 +329,7 @@ describe('políticas y herramientas (C6)', () => {
     return { app, token: reg.json().token as string };
   }
 
-  it('GET /api/policies sirve las 4 políticas y exige auth', async () => {
+  it('GET /api/policies sirve las 6 políticas y exige auth', async () => {
     const { app, token } = await authed();
     const res = await app.inject({ method: 'GET', url: '/api/policies', headers: { authorization: `Bearer ${token}` } });
     expect(res.statusCode).toBe(200);
@@ -338,6 +338,9 @@ describe('políticas y herramientas (C6)', () => {
       'draft.expiry_days',
       'retry.admin_only',
       'retry.max_attempts',
+      // F1: políticas del reintento de envío.
+      'send.retry.admin_only',
+      'send.retry.max_attempts',
     ]);
     expect(res.json().policies.find((p: { key: string }) => p.key === 'retry.max_attempts').value).toBe('3');
     const anon = await app.inject({ method: 'GET', url: '/api/policies' });
@@ -345,20 +348,23 @@ describe('políticas y herramientas (C6)', () => {
     await app.close();
   });
 
-  it('GET /api/tools sirve los 6 pasos con su agente dueño', async () => {
+  it('GET /api/tools sirve los 7 pasos con su agente dueño', async () => {
     const { app, token } = await authed();
     const res = await app.inject({ method: 'GET', url: '/api/tools', headers: { authorization: `Bearer ${token}` } });
     expect(res.statusCode).toBe(200);
-    expect(res.json().tools).toHaveLength(6);
+    expect(res.json().tools).toHaveLength(7);
     expect(res.json().tools.map((t: { step: string }) => t.step).sort()).toEqual([
       'classify',
       'dedup',
       'draft',
       'next_action',
       'normalize',
+      // F1: el paso de envío pertenece a Respuesta y propuesta.
+      'send',
       'upsert',
     ]);
     expect(res.json().tools.find((t: { step: string }) => t.step === 'draft').agent_id).toBe('response_proposal');
+    expect(res.json().tools.find((t: { step: string }) => t.step === 'send').agent_id).toBe('response_proposal');
     expect(res.json().tools.find((t: { step: string }) => t.step === 'next_action').agent_id).toBe('follow_up');
     expect(res.json().tools.find((t: { step: string }) => t.step === 'upsert').agent_id).toBe('intake');
     expect(res.json().tools.some((t: { agent_id: string }) => t.agent_id === 'qa_policy')).toBe(false);

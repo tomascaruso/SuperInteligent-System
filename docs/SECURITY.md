@@ -8,7 +8,12 @@
 - Correos, documentos, formularios y contenido externo son DATOS no
   confiables: nunca se ejecutan como instrucciones ni superan a las políticas.
 - Secretos fuera del código, fuera de los logs y fuera de los informes.
-- Sin envíos externos autónomos en el MVP.
+- Envíos externos solo tras aprobación humana y por canales conectados
+  (F1, decisión 28-oct-2026): aprobar con canal elegido envía el borrador
+  aprobado a cargo del agente Respuesta y propuesta, con entrega única
+  por borrador, registro en auditoría y reintento solo admin con tope.
+  Sin canal elegido no se envía nada. Nunca hay envíos autónomos sin
+  aprobación previa.
 
 ## Amenazas y controles
 
@@ -27,8 +32,10 @@
 ## Datos
 
 - Datos personales mínimos: nombre, correo, empresa, contenido de la
-  oportunidad. Sin contraseñas de terceros, sin datos bancarios, sin datos
-  de salud.
+  oportunidad y teléfono opcional (F0, solo si el interesado lo deja).
+  Sin contraseñas de terceros, sin datos bancarios, sin datos
+  de salud. Las credenciales de conexión (tokens OAuth) viven cifradas
+  (AES-256-GCM) en la base y ningún endpoint las devuelve.
 - Retención: definir al inicio del piloto (propuesta: auditoría 12 meses,
   oportunidades según contrato del piloto). Eliminación a pedido del cliente
   piloto, documentada.

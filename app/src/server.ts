@@ -3,6 +3,7 @@ import type { ContactConfig } from './contact.js';
 import { openDatabase, type Db } from './db.js';
 import { reconcileOrphans } from './engine.js';
 import { registerRoutes } from './routes.js';
+import { GmailMailProvider, type MailProvider } from './sending.js';
 
 export const SERVICE_VERSION = '0.1.0';
 
@@ -13,6 +14,12 @@ export interface ServerOptions {
   maxOpportunitiesPerDay: number;
   operatorToken?: string;
   contact?: ContactConfig;
+  // F1: proveedor de correo inyectable (tests) y clave de cifrado de
+  // conexiones. Sin mailProvider explícito se usa el adaptador real
+  // de Gmail (que solo actúa con credenciales de operador).
+  mailProvider?: MailProvider;
+  connectionEncryptionKey?: string;
+  googleOAuth?: { clientId: string; clientSecret: string; redirectUri: string };
 }
 
 export interface BuiltServer {
@@ -44,6 +51,9 @@ export async function buildServer(opts: ServerOptions): Promise<BuiltServer> {
     maxOpportunitiesPerDay: opts.maxOpportunitiesPerDay,
     operatorToken: opts.operatorToken,
     contact: opts.contact,
+    mailProvider: opts.mailProvider,
+    connectionEncryptionKey: opts.connectionEncryptionKey,
+    googleOAuth: opts.googleOAuth,
   });
   return { app, db };
 }

@@ -16,6 +16,12 @@ export interface AppConfig {
   // el formulario no se muestra. La URL y el token viven solo acá
   // (variables de entorno), nunca en el código, la página ni el repo.
   contact?: ContactConfig;
+  // F1: clave de cifrado de credenciales de conexión (operador).
+  // Opcional: sin ella, el módulo de envío queda cerrado (fail-closed).
+  connectionEncryptionKey?: string;
+  // F1: credenciales OAuth de Google del operador (cliente de la app).
+  // Opcionales: sin ellas, el inicio de OAuth responde 503.
+  googleOAuth?: { clientId: string; clientSecret: string; redirectUri: string };
 }
 
 function requiredInt(name: string, fallback: number): number {
@@ -50,6 +56,13 @@ export function loadConfig(): AppConfig {
   const relayToken = process.env.CONTACT_RELAY_TOKEN || '';
   const contact: ContactConfig | undefined =
     relayUrl !== '' && relayToken !== '' ? { relayUrl, relayToken } : undefined;
+  const googleClientId = process.env.GOOGLE_OAUTH_CLIENT_ID || '';
+  const googleClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || '';
+  const googleRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || '';
+  const googleOAuth =
+    googleClientId !== '' && googleClientSecret !== '' && googleRedirectUri !== ''
+      ? { clientId: googleClientId, clientSecret: googleClientSecret, redirectUri: googleRedirectUri }
+      : undefined;
   return {
     host: process.env.HOST ?? '127.0.0.1',
     port: requiredInt('PORT', 3000),
@@ -61,5 +74,7 @@ export function loadConfig(): AppConfig {
     maxOpportunitiesPerDay: requiredInt('MAX_OPPORTUNITIES_PER_DAY', 100),
     operatorToken: process.env.OPERATOR_TOKEN || undefined,
     contact,
+    connectionEncryptionKey: process.env.CONNECTION_ENCRYPTION_KEY || undefined,
+    googleOAuth,
   };
 }
